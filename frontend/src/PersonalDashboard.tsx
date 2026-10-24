@@ -204,7 +204,7 @@ function DashletCard({ item, user, metadata, options, appSettings, refreshKey, o
   </section>;
 }
 
-export default function PersonalDashboard({ user, metadata, refreshKey, onOpenRecord, onComposeEmail, onCreateRecord, fallback }: { user: User; metadata: Metadata; refreshKey: number; onOpenRecord: (scope: string, record: Data) => void; onComposeEmail: () => void; onCreateRecord: (scope: string) => void; fallback: ReactNode }) {
+export default function PersonalDashboard({ user, metadata, refreshKey, onOpenRecord, onComposeEmail, onCreateRecord, fallback, layoutOverride, optionsOverride }: { user: User; metadata: Metadata; refreshKey: number; onOpenRecord: (scope: string, record: Data) => void; onComposeEmail: () => void; onCreateRecord: (scope: string) => void; fallback: ReactNode; layoutOverride?: unknown; optionsOverride?: Data }) {
   const [layout, setLayout] = useState<DashTab[]>(defaultLayout);
   const [dashletsOptions, setDashletsOptions] = useState<Data>({});
   const [preferences, setPreferences] = useState<Data>({});
@@ -232,16 +232,21 @@ export default function PersonalDashboard({ user, metadata, refreshKey, onOpenRe
   const canAddDashlet = canEditLayout && !preferences.dashboardLocked;
   useEffect(() => {
     let live = true;
-    Promise.all([request<Data>(`Preferences/${encodeURIComponent(user.id)}`), request<Data>("Settings")]).then(([data, config]) => {
+    const settingsRequest = request<Data>("Settings");
+    const preferencesRequest = layoutOverride === undefined ? request<Data>(`Preferences/${encodeURIComponent(user.id)}`) : Promise.resolve(null);
+    Promise.all([preferencesRequest, settingsRequest]).then(([data, config]) => {
       if (!live) return;
-      setPreferences(data);
+      const personalPreferences = data || {};
+      setPreferences(personalPreferences);
       setAppSettings(config);
-      setLayout(Array.isArray(data.dashboardLayout) && data.dashboardLayout.length ? data.dashboardLayout : defaultLayout);
-      setDashletsOptions(data.dashletsOptions || {});
-      setActiveTab(Math.min(Number(localStorage.getItem(`via-dashboard-tab-${user.id}`) || 0), Math.max((data.dashboardLayout || defaultLayout).length - 1, 0)));
+      const nextLayout = Array.isArray(layoutOverride) && layoutOverride.length ? layoutOverride : personalPreferences.dashboardLayout;
+      const nextOptions = optionsOverride || personalPreferences.dashletsOptions || {};
+      setLayout(Array.isArray(nextLayout) && nextLayout.length ? nextLayout : defaultLayout);
+      setDashletsOptions(nextOptions);
+      setActiveTab(Math.min(Number(localStorage.getItem(`via-dashboard-tab-${user.id}`) || 0), Math.max(((nextLayout || defaultLayout) as unknown[]).length - 1, 0)));
     }).catch((cause) => live && setError(cause instanceof Error ? cause.message : "Dashboard nejde načíst." )).finally(() => live && setLoading(false));
     return () => { live = false; };
-  }, [user.id]);
+  }, [user.id, layoutOverride, optionsOverride]);
   async function save(nextLayout = layout, nextOptions = dashletsOptions, nextLocked = Boolean(preferences.dashboardLocked)) {
     setSaving(true); setError("");
     try { const data = await request<Data>(`Preferences/${encodeURIComponent(user.id)}`, { method: "PUT", body: JSON.stringify({ dashboardLayout: nextLayout, dashletsOptions: nextOptions, dashboardLocked: nextLocked }) }); setPreferences((old) => ({ ...old, ...data, dashboardLocked: nextLocked })); setLayout(data.dashboardLayout || nextLayout); setDashletsOptions(data.dashletsOptions || nextOptions); }
