@@ -1685,11 +1685,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .email-test-field { display: flex; align-items: center; min-width: 0; min-height: 34px; }
 .email-test-field .button { max-width: 100%; white-space: normal; text-align: left; }
 .inbound-folder-controls { display: grid; justify-items: start; gap: 8px; min-width: 0; }
+.mail-folder-tools { display: grid; grid-template-columns: minmax(180px, 1fr) auto; align-items: center; gap: 7px 10px; width: 100%; color: #8792a4; font-size: 9px; }
+.mail-folder-search { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 32px; padding: 0 8px; border: 1px solid #e2e6ed; border-radius: 6px; background: var(--surface, #fff); color: #8a95a7; }
+.mail-folder-search:focus-within { border-color: #827be4; box-shadow: 0 0 0 3px #766fe01c; }
+.mail-folder-search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: #344057; font: inherit; font-size: 10px; }
+.mail-folder-tools > div { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.mail-folder-tools > div .button { min-height: 28px; padding: 4px 8px; font-size: 9px; }
 .mail-folder-options { width: 100%; max-height: 190px; display: grid; gap: 3px; overflow: auto; padding: 7px; border: 1px solid #e8eaf0; border-radius: 8px; background: #fbfcfe; }
 .mail-folder-option { display: flex; align-items: center; gap: 9px; min-height: 34px; margin: 0; padding: 5px 8px; border-radius: 6px; color: #4e5b72; font-size: 11px; font-weight: 500; cursor: pointer; }
 .mail-folder-option:hover { background: #f1f0ff; }
 .mail-folder-option input { flex: 0 0 16px; width: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--primary); }
 .mail-folder-options > small { padding: 8px; color: #8490a5; font-size: 10px; }
+@media(max-width:560px) { .mail-folder-tools { grid-template-columns: 1fr; } .mail-folder-tools > span { grid-row: 2; } .mail-folder-tools > div { grid-column: 1; } }
 @media(max-width:760px) { .lead-convert-group .modal-fields { grid-template-columns: 1fr; } .lead-convert-content { padding: 10px; } }
 .email-test-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 18px; border-top: 1px solid #eff0f4; color: #8490a3; font-size: 9px; }
 .email-test-bar > div { display: flex; flex-wrap: wrap; gap: 7px; }
