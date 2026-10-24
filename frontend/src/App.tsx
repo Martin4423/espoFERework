@@ -2116,6 +2116,12 @@ function dateTimeLocalValue(date: Date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
+function convertEmailBodyFormat(value: string, fromHtml: boolean, toHtml: boolean) {
+  if (fromHtml === toHtml) return value;
+  if (toHtml) return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+  return new DOMParser().parseFromString(value, "text/html").body.textContent || "";
+}
+
 function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata: Metadata; onClose: () => void; onSaved: () => void; initial?: Row }) {
   const [to, setTo] = useState(initial.to || "");
   const [cc, setCc] = useState(initial.cc || "");
@@ -2125,6 +2131,8 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
   const [subject, setSubject] = useState(initial.subject || "");
   const [body, setBody] = useState(initial.body || "");
   const [isHtml, setIsHtml] = useState(Boolean(initial.isHtml));
+  const [bodyChanged, setBodyChanged] = useState(false);
+  const originalBody = useRef({ value: String(initial.body || ""), isHtml: Boolean(initial.isHtml) });
   const [sendAt, setSendAt] = useState(initial.sendAt ? String(initial.sendAt).slice(0, 16) : "");
   const [templates, setTemplates] = useState<Row[]>([]);
   const [attachments, setAttachments] = useState<Array<{ id: string; name: string; type: string }>>(() => (initial.attachmentsIds || []).map((id: string) => ({ id, name: initial.attachmentsNames?.[id] || "Příloha", type: initial.attachmentsTypes?.[id] || "application/octet-stream" })));
@@ -2138,6 +2146,7 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
   const [recipientPickerField, setRecipientPickerField] = useState<"to" | "cc" | "bcc" | null>(null);
   const [recipientEntity, setRecipientEntity] = useState(String(recipientEntities[0] || "Contact"));
   const initialAttachments = (initial.attachmentsIds || []).map((id: string) => ({ id, name: initial.attachmentsNames?.[id] || "Příloha", type: initial.attachmentsTypes?.[id] || "application/octet-stream" }));
+  const originalAttachments = useRef(initialAttachments);
   const baseline = useRef(emailComposerSnapshot({ ...initial, attachments: initialAttachments, sendAt: initial.sendAt ? String(initial.sendAt).replace(" ", "T").slice(0, 16) : "" }));
   const currentSnapshot = emailComposerSnapshot({ to, cc, bcc, subject, body, isHtml, sendAt, attachments });
   const hasUnsavedChanges = currentSnapshot !== baseline.current;
@@ -2164,6 +2173,8 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
       setSendAt(draft.sendAt ? String(draft.sendAt).replace(" ", "T").slice(0, 16) : "");
       const draftAttachments = (draft.attachmentsIds || []).map((id: string) => ({ id, name: draft.attachmentsNames?.[id] || "Příloha", type: draft.attachmentsTypes?.[id] || "application/octet-stream" }));
       setAttachments(draftAttachments);
+      originalBody.current = { value: String(draft.body || ""), isHtml: Boolean(draft.isHtml) };
+      originalAttachments.current = draftAttachments;
       baseline.current = emailComposerSnapshot({ ...draft, attachments: draftAttachments, sendAt: draft.sendAt ? String(draft.sendAt).replace(" ", "T").slice(0, 16) : "" });
     }).catch((cause) => live && setError(cause instanceof Error ? cause.message : "Koncept se nepodařilo načíst."))
       .finally(() => live && setDraftLoading(false));
@@ -2174,22 +2185,29 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
     if (!id) return;
     setError("");
     try {
+      if (bodyChanged && body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim() && !window.confirm("Použití šablony nahradí rozepsaný text. Pokračovat?")) { setTemplateId(""); return; }
       const prepared = await request<Row>(`EmailTemplate/${encodeURIComponent(id)}/prepare`, { method: "POST", body: JSON.stringify({ emailAddress: to || undefined }) });
-      if (prepared.subject != null) setSubject(prepared.subject);
-      if (prepared.body != null) setBody(prepared.body);
+      if (prepared.subject) setSubject(prepared.subject);
+      const nextHtml = typeof prepared.isHtml === "boolean" ? prepared.isHtml : isHtml;
+      let nextBody = prepared.body == null ? "" : String(prepared.body);
+      if (originalBody.current.value && !bodyChanged) {
+        const initialText = convertEmailBodyFormat(originalBody.current.value, originalBody.current.isHtml, nextHtml);
+        nextBody = nextBody ? `${nextBody}${nextHtml ? "<br><br>" : "\n\n"}${initialText}` : initialText;
+      }
+      setBody(nextBody);
+      setIsHtml(nextHtml);
+      setBodyChanged(false);
       if (prepared.to != null) setTo(prepared.to);
       if (prepared.cc != null) setCc(prepared.cc);
-      if (Array.isArray(prepared.attachmentsIds)) {
-        const names = prepared.attachmentsNames || {};
-        const templateAttachments = prepared.attachmentsIds.map((attachmentId: string) => ({ id: attachmentId, name: names[attachmentId] || "Příloha šablony", type: "application/octet-stream" }));
-        setAttachments((current) => [...current.filter((item) => !templateAttachments.some((templateAttachment: { id: string }) => templateAttachment.id === item.id)), ...templateAttachments]);
-      }
+      const names = prepared.attachmentsNames || {};
+      const templateAttachments = Array.isArray(prepared.attachmentsIds) ? prepared.attachmentsIds.map((attachmentId: string) => ({ id: attachmentId, name: names[attachmentId] || "Příloha šablony", type: "application/octet-stream" })) : [];
+      setAttachments([...new Map([...templateAttachments, ...originalAttachments.current].map((item) => [item.id, item])).values()]);
     } catch (e) { setError(e instanceof Error ? e.message : "Šablonu se nepodařilo načíst."); }
   }
   function toggleHtmlFormat(enabled: boolean) {
     if (enabled === isHtml) return;
-    if (enabled) setBody((current: string) => current.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>"));
-    else setBody((current: string) => new DOMParser().parseFromString(current, "text/html").body.textContent || "");
+    setBody((current: string) => convertEmailBodyFormat(current, isHtml, enabled));
+    setBodyChanged(true);
     setIsHtml(enabled);
   }
   async function addFiles(files: FileList | null) {
@@ -2234,7 +2252,7 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
     <div className="modal-heading"><div><span className="eyebrow">{initial.id ? "KONCEPT E-MAILU" : "NOVÁ ZPRÁVA"}</span><h2>{initial.id ? "Upravit koncept" : "Napsat e-mail"}</h2></div><button type="button" className="icon-button" onClick={closeComposer} aria-label="Zavřít"><X size={17}/></button></div>
     {draftLoading ? <div className="table-loading"><span className="spinner"/>Načítám koncept…</div> : <div className="email-compose-fields">
       {templates.length > 0 && <label>Šablona<select value={templateId} onChange={(e) => void applyTemplate(e.target.value)}><option value="">Bez šablony</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}{recipientEntities.length > 1 && <label>Adresář kontaktů<select value={recipientEntity} onChange={(event) => setRecipientEntity(event.target.value)}>{recipientEntities.map((entity: string) => <option key={entity} value={entity}>{entityLabel(metadata, entity, true)}</option>)}</select></label>}
-      {recipientInput("to", "Komu", to, setTo)}{recipientInput("cc", "Kopie", cc, setCc)}{recipientInput("bcc", "Skrytá kopie", bcc, setBcc)}<label>Předmět<input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)} /></label><div className="email-compose-body"><div className="email-compose-body-head"><span>Zpráva</span><label><input type="checkbox" checked={isHtml} onChange={(e) => toggleHtmlFormat(e.target.checked)}/> Formátovaný text</label></div>{isHtml ? <WysiwygEditor value={body} htmlMode entity="Email" field="body" onChange={setBody}/> : <textarea rows={10} value={body} onChange={(e) => setBody(e.target.value)} />}{signature && <small>Po odeslání bude připojen váš podpis z osobního nastavení.</small>}</div>
+      {recipientInput("to", "Komu", to, setTo)}{recipientInput("cc", "Kopie", cc, setCc)}{recipientInput("bcc", "Skrytá kopie", bcc, setBcc)}<label>Předmět<input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)} /></label><div className="email-compose-body"><div className="email-compose-body-head"><span>Zpráva</span><label><input type="checkbox" checked={isHtml} onChange={(e) => toggleHtmlFormat(e.target.checked)}/> Formátovaný text</label></div>{isHtml ? <WysiwygEditor value={body} htmlMode entity="Email" field="body" onChange={(value) => { setBody(value); setBodyChanged(true); }}/> : <textarea rows={10} value={body} onChange={(e) => { setBody(e.target.value); setBodyChanged(true); }} />}{signature && <small>Po odeslání bude připojen váš podpis z osobního nastavení.</small>}</div>
       <label>Odeslat později<input type="datetime-local" value={sendAt} min={dateTimeLocalValue(new Date(Date.now() + 60000))} onChange={(e) => setSendAt(e.target.value)} /></label>
       <label>Přílohy<input type="file" multiple onChange={(e) => { void addFiles(e.target.files); e.currentTarget.value = ""; }} /></label>
       {(uploading || attachments.length > 0) && <div className="email-attachments">{uploading && <span>Nahrávám přílohy…</span>}{attachments.map((item) => <span key={item.id}><Paperclip size={12}/>{item.name}<button type="button" aria-label={`Odebrat ${item.name}`} onClick={() => setAttachments((current) => current.filter((attachment) => attachment.id !== item.id))}><X size={12}/></button></span>)}</div>}
