@@ -7,6 +7,7 @@ type Props = { value: string; htmlMode: boolean; entity: string; field: string; 
 
 export default function WysiwygEditor({ value, htmlMode, entity, field, disabled = false, sanitizeHtml = true, onChange, onRegisterInsert }: Props) {
   const canvas = useRef<HTMLDivElement>(null);
+  const codeEditor = useRef<HTMLTextAreaElement>(null);
   const selection = useRef<Range | null>(null);
   const target = useRef<HTMLElement | null>(null);
   const blobUrls = useRef<string[]>([]);
@@ -21,10 +22,12 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
   const [props, setProps] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [codeView, setCodeView] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
     const node = canvas.current;
-    if (!node) return;
+    if (!node || codeView) return;
     const needsRender = normalizeHtml(node) !== value;
     if (!needsRender) return;
     node.innerHTML = sanitizeHtml ? DOMPurify.sanitize(value, { USE_PROFILES: { html: true } }) : value;
@@ -35,16 +38,33 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
         blobUrls.current.push(blobUrl); image.src = blobUrl;
       }).catch(() => {});
     });
-  }, [value, sanitizeHtml]);
+  }, [value, sanitizeHtml, codeView]);
   useEffect(() => () => { blobUrls.current.forEach((url) => URL.revokeObjectURL(url)); blobUrls.current = []; }, []);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") setFullscreen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", onKeyDown); };
+  }, [fullscreen]);
   useEffect(() => onRegisterInsert?.((text) => {
+    if (codeView && codeEditor.current) {
+      const input = codeEditor.current;
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      const next = `${value.slice(0, start)}${text}${value.slice(end)}`;
+      onChange(next);
+      requestAnimationFrame(() => { input.focus(); input.setSelectionRange(start + text.length, start + text.length); });
+      return;
+    }
     restoreSelection();
     const current = window.getSelection();
     const node = document.createTextNode(text);
     if (current?.rangeCount) { const range = current.getRangeAt(0); range.deleteContents(); range.insertNode(node); range.setStartAfter(node); range.collapse(true); current.removeAllRanges(); current.addRange(range); selection.current = range.cloneRange(); }
     else canvas.current?.append(node);
     changed();
-  }), [onRegisterInsert]);
+  }), [onRegisterInsert, codeView, value, onChange]);
 
   function rememberSelection() {
     const current = window.getSelection();
@@ -63,6 +83,14 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
   }
   function changed() { if (canvas.current) onChange(normalizeHtml(canvas.current)); }
   function command(name: string, value?: string) { restoreSelection(); document.execCommand(name, false, value); changed(); rememberSelection(); }
+  function setLineHeight(value: string) {
+    restoreSelection();
+    const current = window.getSelection();
+    const selectedNode = current?.rangeCount ? current.getRangeAt(0).startContainer : null;
+    const element = selectedNode instanceof Element ? selectedNode : selectedNode?.parentElement;
+    const block = element?.closest("p,div,li,h1,h2,h3,h4,h5,h6,blockquote,pre") as HTMLElement | null;
+    if (block && canvas.current?.contains(block)) { block.style.lineHeight = value; changed(); rememberSelection(); }
+  }
   function openDialog(name: typeof dialog) {
     rememberSelection(); setError(""); setUrl(""); setLinkText(""); setNewWindow(false); setProps({});
     const current = window.getSelection();
@@ -131,13 +159,20 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
   }
 
   if (!htmlMode) return <textarea className="wysiwyg-plain-editor" aria-label="Text editoru" rows={9} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} spellCheck/>;
-  return <div className="wysiwyg-editor">
+  return <div className={`wysiwyg-editor${fullscreen ? " is-fullscreen" : ""}`}>
     <fieldset className="wysiwyg-toolbar" disabled={disabled} role="toolbar" aria-label="Formátování">
+      <select aria-label="Styl odstavce" title="Styl odstavce" defaultValue="p" onMouseDown={rememberSelection} onChange={(event) => { command("formatBlock", `<${event.target.value}>`); event.currentTarget.value = event.target.value; }}><option value="p">Odstavec</option><option value="h1">Nadpis 1</option><option value="h2">Nadpis 2</option><option value="h3">Nadpis 3</option><option value="h4">Nadpis 4</option><option value="blockquote">Citace</option><option value="pre">Předformátovaný text</option></select>
       <button type="button" title="Tučně" onMouseDown={(event) => event.preventDefault()} onClick={() => command("bold")}><EspoIcon className="fas fa-bold" size={14}/></button>
       <button type="button" title="Kurzíva" onMouseDown={(event) => event.preventDefault()} onClick={() => command("italic")}><EspoIcon className="fas fa-italic" size={14}/></button>
       <button type="button" title="Podtržení" onMouseDown={(event) => event.preventDefault()} onClick={() => command("underline")}><EspoIcon className="fas fa-underline" size={14}/></button>
+      <button type="button" title="Přeškrtnutí" onMouseDown={(event) => event.preventDefault()} onClick={() => command("strikeThrough")}><EspoIcon className="fas fa-strikethrough" size={14}/></button>
+      <button type="button" title="Odstranit formátování" onMouseDown={(event) => event.preventDefault()} onClick={() => command("removeFormat")}><EspoIcon className="fas fa-eraser" size={14}/></button>
+      <select aria-label="Velikost písma" title="Velikost písma" defaultValue="" onMouseDown={rememberSelection} onChange={(event) => { if (event.target.value) command("fontSize", event.target.value); event.currentTarget.value = ""; }}><option value="">Velikost</option><option value="1">8 pt</option><option value="2">10 pt</option><option value="3">12 pt</option><option value="4">14 pt</option><option value="5">18 pt</option><option value="6">24 pt</option><option value="7">36 pt</option></select>
+      <label className="wysiwyg-color-control" title="Barva písma" aria-label="Barva písma"><EspoIcon className="fas fa-font" size={13}/><input type="color" aria-label="Barva písma" onMouseDown={rememberSelection} onChange={(event) => command("foreColor", event.target.value)}/></label>
+      <label className="wysiwyg-color-control" title="Barva zvýraznění" aria-label="Barva zvýraznění"><EspoIcon className="fas fa-highlighter" size={13}/><input type="color" aria-label="Barva zvýraznění" onMouseDown={rememberSelection} onChange={(event) => command("hiliteColor", event.target.value)}/></label>
       <button type="button" title="Odrážky" onMouseDown={(event) => event.preventDefault()} onClick={() => command("insertUnorderedList")}><EspoIcon className="fas fa-list-ul" size={14}/></button>
       <button type="button" title="Číslovaný seznam" onMouseDown={(event) => event.preventDefault()} onClick={() => command("insertOrderedList")}><EspoIcon className="fas fa-list-ol" size={14}/></button>
+      <select aria-label="Řádkování" title="Řádkování" defaultValue="" onMouseDown={rememberSelection} onChange={(event) => { if (event.target.value) setLineHeight(event.target.value); event.currentTarget.value = ""; }}><option value="">Řádky</option><option value="1">1×</option><option value="1.15">1,15×</option><option value="1.5">1,5×</option><option value="2">2×</option></select>
       <button type="button" title="Zarovnat vlevo" onMouseDown={(event) => event.preventDefault()} onClick={() => command("justifyLeft")}><EspoIcon className="fas fa-align-left" size={14}/></button>
       <button type="button" title="Zarovnat na střed" onMouseDown={(event) => event.preventDefault()} onClick={() => command("justifyCenter")}><EspoIcon className="fas fa-align-center" size={14}/></button>
       <button type="button" title="Zarovnat vpravo" onMouseDown={(event) => event.preventDefault()} onClick={() => command("justifyRight")}><EspoIcon className="fas fa-align-right" size={14}/></button>
@@ -146,9 +181,11 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
       <button type="button" title="Vložit tabulku" onMouseDown={(event) => event.preventDefault()} onClick={() => { setEditingTable(false); setRows(3); setColumns(3); openDialog("table"); }}><EspoIcon className="fas fa-table" size={14}/></button>
       <button type="button" title="Upravit tabulku" onMouseDown={(event) => event.preventDefault()} onClick={openTableEditor}><EspoIcon className="fas fa-pen-to-square" size={14}/></button>
       <button type="button" title="Upravit buňku" onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog("cell")}><EspoIcon className="fas fa-pen-to-square" size={14}/></button>
-      <button type="button" title="Odstranit formátování" onMouseDown={(event) => event.preventDefault()} onClick={() => command("removeFormat")}><EspoIcon className="fas fa-eraser" size={14}/></button>
+      <button type="button" title="Vložit vodorovnou čáru" onMouseDown={(event) => event.preventDefault()} onClick={() => command("insertHorizontalRule")}><EspoIcon className="fas fa-minus" size={14}/></button>
+      <button type="button" title={codeView ? "Vizuální editor" : "Zdrojový HTML kód"} aria-pressed={codeView} onMouseDown={(event) => { if (!codeView) rememberSelection(); event.preventDefault(); }} onClick={() => { if (codeView) selection.current = null; setCodeView((current) => !current); }}><EspoIcon className={codeView ? "fas fa-eye" : "fas fa-code"} size={14}/></button>
+      <button type="button" title={fullscreen ? "Ukončit celoobrazovkové zobrazení" : "Celoobrazovkové zobrazení"} aria-pressed={fullscreen} onMouseDown={(event) => event.preventDefault()} onClick={() => setFullscreen((current) => !current)}><EspoIcon className={fullscreen ? "fas fa-compress" : "fas fa-expand"} size={14}/></button>
     </fieldset>
-    <div ref={canvas} className="wysiwyg-canvas" contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label="Obsah HTML" aria-multiline="true" onInput={changed} onMouseUp={rememberSelection} onKeyUp={rememberSelection} onBlur={rememberSelection}/>
+    {codeView ? <textarea ref={codeEditor} className="wysiwyg-codeview" aria-label="Zdrojový HTML kód" rows={14} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} spellCheck={false}/> : <div ref={canvas} className="wysiwyg-canvas" contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label="Obsah HTML" aria-multiline="true" onInput={changed} onMouseUp={rememberSelection} onKeyUp={rememberSelection} onBlur={rememberSelection}/>}
     {dialog && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setDialog(null)}><section className="record-modal wysiwyg-modal"><div className="modal-heading"><div><span className="eyebrow">EDITOR OBSAHU</span><h2>{dialog === "link" ? "Vložit odkaz" : dialog === "image" ? "Vložit obrázek" : dialog === "table" ? editingTable ? "Nastavení tabulky" : "Vložit tabulku" : "Nastavení buňky"}</h2></div><button type="button" className="icon-button" onClick={() => setDialog(null)} aria-label="Zavřít">×</button></div>
       {dialog === "link" && <><label className="setting-field"><span>Adresa URL</span><input autoFocus type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" required/></label><label className="setting-field"><span>Text odkazu</span><input value={linkText} onChange={(event) => setLinkText(event.target.value)} placeholder="Text odkazu"/></label>{error && <div className="inline-error">{error}</div>}<label className="wysiwyg-checkbox"><input type="checkbox" checked={newWindow} onChange={(event) => setNewWindow(event.target.checked)}/> Otevřít v novém okně</label></>}
       {dialog === "image" && <><label className="setting-field"><span>Adresa obrázku</span><input autoFocus type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…"/></label><div className="wysiwyg-upload"><span>Nebo nahrajte obrázek jako inline přílohu</span><input ref={imageInput} type="file" accept="image/*" disabled={busy} onChange={(event) => { void uploadImage(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }}/></div>{error && <div className="inline-error">{error}</div>}</>}
