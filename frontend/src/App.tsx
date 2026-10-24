@@ -2711,11 +2711,13 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   }
   const isEnumColumnField = (field: string, def: FieldDef) =>
     String(def.view || "").includes("enum-column") || (entity === "Lead" && field === "acceptanceStatus");
+  const isVarcharColumnField = (_field: string, def: FieldDef) => String(def.view || "").includes("varchar-column");
   const filterOperators = (field: string) => {
     const def = fieldDefs[field] || {};
     const type = def.type;
     if (/category[-]?tree/i.test(String(def.view || ""))) return [["inCategory", "V této kategorii"]];
     if (isEnumColumnField(field, def)) return [["anyOf", "Je některá z hodnot"], ["noneOf", "Není žádná z hodnot"]];
+    if (isVarcharColumnField(field, def)) return [["startsWith", "Začíná na"], ["contains", "Obsahuje"], ["equals", "Je přesně"], ["endsWith", "Končí na"], ["like", "Odpovídá vzoru"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
     if (type === "link" && ["views/fields/user", "views/fields/user-with-avatar", "views/fields/assigned-user", "views/fields/assigned-users"].includes(String(def.view || ""))) return [["is", "Je záznam"], ["isNot", "Není záznam"], ["isOneOf", "Je některý záznam"], ["isNotOneOf", "Není žádný záznam"], ["isFromTeams", "Uživatel je z vybraných týmů"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
     if (type === "linkOne") return [["is", "Je záznam"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"], ["isOneOf", "Je některý záznam"]];
     if (type === "linkMultiple") return [["anyOf", "Obsahuje některý záznam"], ["allOf", "Obsahuje všechny záznamy"], ["noneOf", "Neobsahuje žádný záznam"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
@@ -2739,6 +2741,14 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     const value = Array.isArray(condition.value) ? condition.value : condition.value;
     const typed = (input: string | undefined) => numeric && input !== "" && input != null ? Number(input) : input;
     const ids = Array.isArray(value) ? value : value ? [value] : [];
+    if (isVarcharColumnField(attribute, def)) {
+      if (condition.operator === "isEmpty") return [{ type: "or", value: [{ type: "columnIsNull", field: attribute }, { type: "columnEquals", field: attribute, value: "" }] }];
+      if (condition.operator === "isNotEmpty") return [{ type: "and", value: [{ type: "columnNotEquals", field: attribute, value: "" }, { type: "columnIsNotNull", field: attribute, value: null }] }];
+      if (["startsWith", "contains", "equals", "endsWith", "like"].includes(condition.operator)) {
+        const value = String(condition.value ?? "").trim();
+        return value ? [{ type: `column${condition.operator[0].toUpperCase()}${condition.operator.slice(1)}`, field: attribute, value }] : [];
+      }
+    }
     if (isEnumColumnField(attribute, def) && ["anyOf", "noneOf"].includes(condition.operator)) {
       const valueList = ids.map((item) => numeric ? Number(item) : item);
       if (condition.operator === "anyOf") {
