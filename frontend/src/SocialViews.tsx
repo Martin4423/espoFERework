@@ -156,7 +156,7 @@ export function NotificationCenter({ onBack, onOpenRecord, onUnreadChange }: { o
     setError("");
     try {
       const result = await request<Page<NotificationItem>>(`Notification?maxSize=${PAGE_SIZE}&offset=${offset}`);
-      const page: NotificationItem[] = (result.list || []).map((item): NotificationItem => ({ ...item, read: true }));
+      const page: NotificationItem[] = result.list || [];
       if (!offset) setItems(page); else setItems((old) => [...old, ...page.filter((item) => !old.some((previous) => previous.id === item.id))]);
       setHasMore(page.length === PAGE_SIZE);
       onUnreadChange();
