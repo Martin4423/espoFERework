@@ -3294,9 +3294,10 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     }
     return initial;
   });
+  const [activeRecord, setActiveRecord] = useState<Row | undefined>(record);
   const autoPublishDate = useRef(false);
   const [dateTimeZone, setDateTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-  const [changingAppSecret, setChangingAppSecret] = useState(!record);
+  const [changingAppSecret, setChangingAppSecret] = useState(!activeRecord);
   const [passwordStrengthParams, setPasswordStrengthParams] = useState<PasswordRecoveryInfo["strengthParams"] | null>(null);
   useEffect(() => {
     if (entity !== "User" || getSession()?.user.type !== "admin") return;
@@ -3304,13 +3305,13 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     fetch("/api/v1/User/passwordRecoveryInfo").then((response) => response.json()).then((info: PasswordRecoveryInfo) => { if (live) setPasswordStrengthParams(info.strengthParams || {}); }).catch(() => live && setPasswordStrengthParams({}));
     return () => { live = false; };
   }, [entity]);
-  const [recordBaseline, setRecordBaseline] = useState<Row>(record || {});
-  const [versionNumber, setVersionNumber] = useState(record?.versionNumber ?? null);
+  const [recordBaseline, setRecordBaseline] = useState<Row>(activeRecord || {});
+  const [versionNumber, setVersionNumber] = useState(activeRecord?.versionNumber ?? null);
   const formRef = useRef<HTMLFormElement>(null);
   const saveAndContinueRequested = useRef(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [saveConflict, setSaveConflict] = useState<{ fields: SaveConflictField[]; latest: Row } | null>(null);
-  const [duplicateCheck, setDuplicateCheck] = useState<{ rows: Row[]; payload: Row } | null>(null);
+  const [duplicateCheck, setDuplicateCheck] = useState<{ rows: Row[]; payload: Row; keepOpen: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -3342,12 +3343,12 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     request<Row>(`Preferences/${encodeURIComponent(session.user.id)}`).then((preferences) => {
       if (!live) return;
       if (typeof preferences.timeZone === "string" && preferences.timeZone) setDateTimeZone(preferences.timeZone);
-      if (record || !["Meeting", "Call", "Task"].includes(entity)) return;
+      if (activeRecord || !["Meeting", "Call", "Task"].includes(entity)) return;
       const defaultName = entity === "Task" ? "defaultRemindersTask" : "defaultReminders";
       if (Array.isArray(preferences[defaultName])) setValues((current) => current.reminders?.length ? current : { ...current, reminders: preferences[defaultName] });
     }).catch(() => {});
     return () => { live = false; };
-  }, [entity, record]);
+  }, [entity, activeRecord]);
   async function cleanupUploads(keep: string[] = []) {
     const remove = uploadedIds.filter((id) => !keep.includes(id));
     await Promise.allSettled(remove.map((id) => request(`Attachment/${id}`, { method: "DELETE" })));
@@ -3358,8 +3359,8 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     if (!values.host) { setError("Nejdříve zadejte server pošty."); return; }
     const inbound = entity === "InboundEmail";
     const payload = inbound
-      ? { host: values.host, port: values.port, security: values.security, username: values.username, password: values.password || null, id: record?.id || null }
-      : { host: values.host, port: values.port, security: values.security, username: values.username, password: values.password || null, id: record?.id || null, emailAddress: values.emailAddress, userId: values.assignedUser || values.assignedUserId || null };
+      ? { host: values.host, port: values.port, security: values.security, username: values.username, password: values.password || null, id: activeRecord?.id || null }
+      : { host: values.host, port: values.port, security: values.security, username: values.username, password: values.password || null, id: activeRecord?.id || null, emailAddress: values.emailAddress, userId: values.assignedUser || values.assignedUserId || null };
     setConnectionTestBusy(true); setError(""); setConnectionTestNotice("");
     try { await request(`${inbound ? "InboundEmail" : "EmailAccount"}/action/testConnection`, { method: "POST", body: JSON.stringify(payload) }); setConnectionTestNotice("Připojení k poštovnímu serveru je funkční."); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Připojení k poštovnímu serveru se nezdařilo."); }
@@ -3373,7 +3374,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     setTestEmailBusy(true); setTestEmailError(""); setTestEmailNotice("");
     const user = getSession()?.user as (User & { name?: string }) | undefined;
     try {
-      await request("Email/sendTest", { method: "POST", body: JSON.stringify({ server: values.smtpHost, port: Number(values.smtpPort), auth: Boolean(values.smtpAuth), security: values.smtpSecurity || null, username: values.smtpUsername || null, password: values.smtpPassword || null, authMechanism: values.smtpAuthMechanism || null, fromName: entity === "InboundEmail" ? values.fromName || user?.name || "EspoCRM" : user?.name || "EspoCRM", fromAddress: values.emailAddress, emailAddress: recipient, type: entity === "InboundEmail" ? "inboundEmail" : "emailAccount", id: record?.id || null, ...(entity === "EmailAccount" ? { userId: values.assignedUser || values.assignedUserId || null } : {}) }) });
+      await request("Email/sendTest", { method: "POST", body: JSON.stringify({ server: values.smtpHost, port: Number(values.smtpPort), auth: Boolean(values.smtpAuth), security: values.smtpSecurity || null, username: values.smtpUsername || null, password: values.smtpPassword || null, authMechanism: values.smtpAuthMechanism || null, fromName: entity === "InboundEmail" ? values.fromName || user?.name || "EspoCRM" : user?.name || "EspoCRM", fromAddress: values.emailAddress, emailAddress: recipient, type: entity === "InboundEmail" ? "inboundEmail" : "emailAccount", id: activeRecord?.id || null, ...(entity === "EmailAccount" ? { userId: values.assignedUser || values.assignedUserId || null } : {}) }) });
       setTestEmailNotice(`Testovací zpráva byla odeslána na ${recipient}.`); setTestEmailOpen(false);
     } catch (cause) { setTestEmailError(cause instanceof Error ? cause.message : "Testovací zprávu se nepodařilo odeslat."); }
     finally { setTestEmailBusy(false); }
@@ -3403,7 +3404,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       }
     }
     for (const [name] of fields) {
-      if (entity === "AppSecret" && name === "value" && record && !changingAppSecret) continue;
+      if (entity === "AppSecret" && name === "value" && activeRecord && !changingAppSecret) continue;
       const logic = dynamicLogicDefs.fields?.[name] || {};
       if (logic.visible?.conditionGroup && !conditionGroupMatches(logic.visible, values, dynamicLogicUser)) continue;
       if (logic.required?.conditionGroup && conditionGroupMatches(logic.required, values, dynamicLogicUser)) {
@@ -3437,7 +3438,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     const payload: Row = {};
     for (const [name, def] of fields) {
       if (name === "passwordConfirm") continue;
-      if (entity === "AppSecret" && name === "value" && record && !changingAppSecret) continue;
+      if (entity === "AppSecret" && name === "value" && activeRecord && !changingAppSecret) continue;
       if (def.type === "duration") continue;
       const value = values[name];
       if (["email", "phone"].includes(def.type || "")) {
@@ -3500,26 +3501,28 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
         payload.dateStartDate = null; payload.dateEndDate = null;
       }
     }
-    if (entity === "User" && !record && initialValues.type) payload.type = initialValues.type;
+    if (entity === "User" && !activeRecord && initialValues.type) payload.type = initialValues.type;
     try {
-      const optimisticConcurrency = Boolean((metadata.entityDefs?.[entity] as any)?.optimisticConcurrencyControl && record && versionNumber != null);
-      const saved = await request<Row>(record ? `${entity}/${record.id}` : entity, { method: record ? "PUT" : "POST", ...(optimisticConcurrency ? { headers: { "X-Version-Number": String(versionNumber) } } : {}), body: JSON.stringify(payload) });
+      const optimisticConcurrency = Boolean((metadata.entityDefs?.[entity] as any)?.optimisticConcurrencyControl && activeRecord && versionNumber != null);
+      const saved = await request<Row>(activeRecord ? `${entity}/${activeRecord.id}` : entity, { method: activeRecord ? "PUT" : "POST", ...(optimisticConcurrency ? { headers: { "X-Version-Number": String(versionNumber) } } : {}), body: JSON.stringify(payload) });
       const keepIds = fields.flatMap(([name, def]) => def.type === "attachmentMultiple" ? (values[name] || []).map((item: Row) => item.id) : ["file", "image"].includes(def.type || "") && values[name]?.id ? [values[name].id] : []);
       await cleanupUploads(keepIds);
-      if (keepOpen && record) {
+      if (keepOpen) {
+        setActiveRecord(saved);
+        setChangingAppSecret(false);
         setValues(valuesFromRecordFields(entity, fields, saved));
         setRecordBaseline(saved);
         setVersionNumber(saved.versionNumber ?? null);
         setSaveNotice("Změny byly uloženy. Můžete pokračovat v úpravách.");
       } else onSaved(saved);
     } catch (e) {
-      if (e instanceof ApiError && !record && e.status === 409 && e.statusReason?.reason === "duplicate") {
+      if (e instanceof ApiError && !activeRecord && e.status === 409 && e.statusReason?.reason === "duplicate") {
         const data = e.statusReason.data;
         const rows = Array.isArray(data) ? data : Array.isArray(data?.duplicates) ? data.duplicates : Array.isArray(data?.list) ? data.list : [];
-        setDuplicateCheck({ rows, payload }); setError("");
-      } else if (e instanceof ApiError && e.status === 409 && e.statusReason?.reason === "modified" && record?.id) {
+        setDuplicateCheck({ rows, payload, keepOpen }); setError("");
+      } else if (e instanceof ApiError && e.status === 409 && e.statusReason?.reason === "modified" && activeRecord?.id) {
         try {
-          const latest = await request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(record.id)}`);
+          const latest = await request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(activeRecord.id)}`);
           const conflictAttributes = Object.keys(e.statusReason.data?.values || {});
           const conflictFields = fields.flatMap(([name, def]) => {
             const attributes = fieldAttributeList(entity, name, def);
@@ -3547,7 +3550,10 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     try {
       const saved = await request<Row>(entity, { method: "POST", headers: { "X-Skip-Duplicate-Check": "true" }, body: JSON.stringify(duplicateCheck.payload) });
       const keepIds = fields.flatMap(([name, def]) => def.type === "attachmentMultiple" ? (values[name] || []).map((item: Row) => item.id) : ["file", "image"].includes(def.type || "") && values[name]?.id ? [values[name].id] : []);
-      await cleanupUploads(keepIds); setDuplicateCheck(null); onSaved(saved);
+      await cleanupUploads(keepIds); setDuplicateCheck(null);
+      if (duplicateCheck.keepOpen) {
+        setActiveRecord(saved); setChangingAppSecret(false); setValues(valuesFromRecordFields(entity, fields, saved)); setRecordBaseline(saved); setVersionNumber(saved.versionNumber ?? null); setSaveNotice("Záznam byl vytvořen. Můžete pokračovat v úpravách.");
+      } else onSaved(saved);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Záznam se nepodařilo vytvořit."); setDuplicateCheck(null); }
     finally { setBusy(false); }
   }
@@ -3574,8 +3580,8 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const emailTestActionFields = new Set(["InboundEmail", "EmailAccount"].includes(entity) ? ["testConnection", "smtpTestSend"] : []);
   const used = new Set<string>();
   if (entity === "Portal" && fieldMap.has("themeParams")) used.add("themeParams");
-  const currentUserType = entity === "User" ? String(values.type || record?.type || initialValues.type || "regular") : "";
-  const providerPanel = authenticationProviderLayout(metadata, entity, String(values.method || record?.method || initialValues.method || ""), values);
+  const currentUserType = entity === "User" ? String(values.type || activeRecord?.type || initialValues.type || "regular") : "";
+  const providerPanel = authenticationProviderLayout(metadata, entity, String(values.method || activeRecord?.method || initialValues.method || ""), values);
   const editorDetailLayout = providerPanel ? [...detailLayout, providerPanel] : detailLayout;
   const userManagedFields = new Set(["type", "isActive", "teams", "defaultTeam", "roles", "portals", "accounts", "portalRoles", "contact", "dashboardTemplate", "workingTimeCalendar", "layoutSet", "authMethod", "password", "passwordConfirm", "sendAccessInfo"]);
   const isUserFieldVisible = (name: string) => {
@@ -3616,6 +3622,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const mailActionNames = new Set(groups.flatMap((group) => group.names));
   const emailFilterActions = values.isGlobal ? ["Skip"] : values.parent?.type === "User" ? ["Skip", "Move to Folder", "None"] : values.parent?.type === "InboundEmail" ? ["Skip", "Move to Group Folder"] : values.parent?.type === "EmailAccount" ? ["Skip"] : ["Skip"];
   function updateFieldValue(name: string, value: any) {
+    setSaveNotice("");
     setValues((old) => {
       if (entity === "EmailAccount" && name === "assignedUser") return { ...old, assignedUser: value, emailFolder: "" };
       if (entity === "EmailAccount" && name === "security") return { ...old, security: value, port: value === "SSL" ? 993 : 143 };
@@ -3626,7 +3633,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
         return probability === null || probability === undefined ? { ...old, stage: value } : { ...old, stage: value, probability };
       }
       if (entity === "Contact" && name === "title") return { ...old, title: value, accountRole: value };
-      if (entity === "Document" && name === "file" && !record) return { ...old, file: value, name: String(value?.name || "") };
+      if (entity === "Document" && name === "file" && !activeRecord) return { ...old, file: value, name: String(value?.name || "") };
       if (entity === "Task" && ["dateEnd", "dateEndDate"].includes(name) && !value) {
         const next = { ...old, [name]: value };
         if (!next.dateEnd && !next.dateEndDate && Array.isArray(next.reminders) && next.reminders.length) next.reminders = [];
@@ -3643,7 +3650,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
           return { ...old, status: value, publishDate: null };
         }
       }
-      if (entity === "Template" && name === "entityType" && !record) {
+      if (entity === "Template" && name === "entityType" && !activeRecord) {
         const previousType = String(old.entityType || "");
         if (previousType) templateDrafts.current[previousType] = Object.fromEntries(["header", "body", "footer", "style"].map((key) => [key, old[key] ?? null]));
         const cached = templateDrafts.current[String(value)];
@@ -3688,7 +3695,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
         }
       }
       if (entity === "InboundEmail") {
-        if (name === "emailAddress") return { ...old, emailAddress: value, name: value, ...(!record || !old.replyToAddress ? { replyToAddress: value } : {}) };
+        if (name === "emailAddress") return { ...old, emailAddress: value, name: value, ...(!activeRecord || !old.replyToAddress ? { replyToAddress: value } : {}) };
         if (name === "team") return { ...old, team: value, targetUserPosition: "" };
         if (name === "security") return { ...old, security: value, port: value === "SSL" ? 993 : 143 };
         if (name === "smtpSecurity") return { ...old, smtpSecurity: value, smtpPort: value === "SSL" ? 465 : value === "TLS" ? 587 : 25 };
@@ -3759,7 +3766,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     const owners = authenticationProviderFieldOwners.get(name);
     if (entity === "AuthenticationProvider" && owners?.length && !owners.includes(String(values.method || ""))) return null;
     if (entity === "Note" && name === "post") def = { ...def, required: !(values.attachments?.length || values.attachmentsIds?.length) };
-    if (entity === "AppSecret" && name === "value" && record && !changingAppSecret) return <div className="field-input app-secret-value" key={name}><span>{fieldLabel(name, def, entity, metadata)}</span><div className="app-secret-masked"><code>••••••••••</code><span>Uložená hodnota je skrytá.</span><button type="button" className="button subtle" onClick={() => { setChangingAppSecret(true); setValues((current) => ({ ...current, value: "" })); }}>Změnit hodnotu</button></div></div>;
+    if (entity === "AppSecret" && name === "value" && activeRecord && !changingAppSecret) return <div className="field-input app-secret-value" key={name}><span>{fieldLabel(name, def, entity, metadata)}</span><div className="app-secret-masked"><code>••••••••••</code><span>Uložená hodnota je skrytá.</span><button type="button" className="button subtle" onClick={() => { setChangingAppSecret(true); setValues((current) => ({ ...current, value: "" })); }}>Změnit hodnotu</button></div></div>;
     if (entity === "AppSecret" && name === "value") def = { ...def, type: "password" };
     if (entity === "LeadCapture" && name === "fieldParams") return null;
     if (entity === "LeadCapture" && name === "fieldList") return <LeadCaptureFieldConfigurator key={name} metadata={metadata} selected={values.fieldList || []} params={values.fieldParams || {}} onChange={(selected, params) => setValues((old) => ({ ...old, fieldList: selected, fieldParams: params }))}/>;
@@ -3768,14 +3775,14 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     if (logic.visible?.conditionGroup && !conditionGroupMatches(logic.visible, values, dynamicLogicUser)) return null;
     const dynamicRequired = Boolean(logic.required?.conditionGroup && conditionGroupMatches(logic.required, values, dynamicLogicUser));
     const dynamicReadOnly = Boolean(logic.readOnly?.conditionGroup && conditionGroupMatches(logic.readOnly, values, dynamicLogicUser));
-    const dynamicReadOnlySaved = Boolean(record && logic.readOnlySaved?.conditionGroup && conditionGroupMatches(logic.readOnlySaved, values, dynamicLogicUser));
+    const dynamicReadOnlySaved = Boolean(activeRecord && logic.readOnlySaved?.conditionGroup && conditionGroupMatches(logic.readOnlySaved, values, dynamicLogicUser));
     if (dynamicRequired || dynamicReadOnly || dynamicReadOnlySaved) def = { ...def, required: Boolean(def.required || dynamicRequired), readOnly: Boolean(def.readOnly || dynamicReadOnly || dynamicReadOnlySaved) };
     const optionRules = dynamicLogicDefs.options?.[name];
     if (Array.isArray(optionRules) && optionRules.length) {
       const matchingOptionRule = optionRules.find((rule: Row) => conditionGroupMatches(rule, values, dynamicLogicUser));
       if (matchingOptionRule) def = { ...def, options: matchingOptionRule.optionList || [] };
     }
-    if (record && def.readOnlyAfterCreate) def = { ...def, readOnly: true };
+    if (activeRecord && def.readOnlyAfterCreate) def = { ...def, readOnly: true };
     if (entity === "AuthenticationProvider" && name === "method") { const methods = (metadata as any).authenticationMethods || {}; const available = Object.entries(methods).filter(([, value]: [string, any]) => Boolean(value?.provider?.isAvailable)).map(([method]) => method); const currentMethod = String(values.method || ""); def = { ...def, options: [...new Set([...available, ...(currentMethod && !available.includes(currentMethod) ? [currentMethod] : [])])] }; }
     if (entity === "KnowledgeBaseArticle" && name === "language") { const languages = Array.isArray(metadata.app?.language?.list) ? metadata.app.language.list.map(String) : []; const currentLanguage = String(values.language || ""); def = { ...def, options: [...new Set([...languages, ...(currentLanguage && !languages.includes(currentLanguage) ? [currentLanguage] : [])])] }; }
     if (entity === "Contact" && name === "title") {
@@ -3787,19 +3794,19 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       const roundRobin = values.createCase && ["Round-Robin", "Least-Busy"].includes(String(values.caseDistribution || ""));
       const directAssignment = values.createCase && values.caseDistribution === "Direct-Assignment";
       if (!inboundEmailFieldVisible(name, values)) return null;
-      if (record && name === "fetchSince" && Boolean(values.fetchData?.lastUID)) def = { ...def, readOnly: true };
+      if (activeRecord && name === "fetchSince" && Boolean(values.fetchData?.lastUID)) def = { ...def, readOnly: true };
       if (name === "targetUserPosition") def = { ...def, options: ["", ...targetUserPositionOptions] };
       const required = (values.status === "Active" && values.useImap && ["username", "port", "host", "monitoredFolders"].includes(name)) || (values.useSmtp && ["smtpHost", "smtpPort"].includes(name)) || (values.useSmtp && values.smtpAuth && name === "smtpUsername") || (roundRobin && name === "team") || (directAssignment && name === "assignToUser");
       if (required || (["username", "port", "host", "monitoredFolders", "smtpHost", "smtpPort", "smtpUsername", "team", "assignToUser"].includes(name) && !required)) def = { ...def, required };
     }
     if (entity === "EmailAccount") {
-      if (record && name === "fetchSince" && Boolean(values.fetchData?.lastUID)) def = { ...def, readOnly: true };
+      if (activeRecord && name === "fetchSince" && Boolean(values.fetchData?.lastUID)) def = { ...def, readOnly: true };
       const accountUserType = String(getSession()?.user.type || "");
       if (name === "assignedUser" && accountUserType !== "admin" && accountUserType !== "super-admin") def = { ...def, readOnly: true };
       const required = (values.status === "Active" && values.useImap && ["username", "port", "host", "monitoredFolders"].includes(name)) || (values.useSmtp && ["smtpHost", "smtpPort"].includes(name)) || (values.useSmtp && values.smtpAuth && name === "smtpUsername");
       if (required || ["username", "port", "host", "monitoredFolders", "smtpHost", "smtpPort", "smtpUsername"].includes(name)) def = { ...def, required };
     }
-    if (entity === "Template" && name === "entityType" && record) def = { ...def, readOnly: true };
+    if (entity === "Template" && name === "entityType" && activeRecord) def = { ...def, readOnly: true };
     if (entity === "EmailFilter") {
       if (name === "parent" && values.isGlobal) return null;
       if (name === "emailFolder" && values.action !== "Move to Folder") return null;
@@ -3818,11 +3825,11 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       return <FieldInput key={name} entity={entity} metadata={metadata} name={name} def={{ ...def, type: values.isAllDay ? "date" : "datetimeOptional" }} value={values[inputName] || ""} onChange={(value) => updateFieldValue(inputName, value)} timeZone={dateTimeZone} onError={setError}/>;
     }
     if (entity === "WorkingTimeRange" && name === "dateEnd") return <FieldInput key={name} entity={entity} metadata={metadata} name={name} def={{ ...def, min: values.dateStart || undefined }} value={values[name]} onChange={(value) => updateFieldValue(name, value)}/>;
-    if (entity === "ScheduledJob" && name === "job") return <ScheduledJobJobField key={name} metadata={metadata} value={values.job || ""} disabled={Boolean(def.readOnly || def.disabled)} onChange={(job, defaults) => setValues((old) => ({ ...old, job, ...(record ? {} : defaults) }))}/>;
+    if (entity === "ScheduledJob" && name === "job") return <ScheduledJobJobField key={name} metadata={metadata} value={values.job || ""} disabled={Boolean(def.readOnly || def.disabled)} onChange={(job, defaults) => setValues((old) => ({ ...old, job, ...(activeRecord ? {} : defaults) }))}/>;
     if (entity === "ScheduledJob" && name === "scheduling") return <ScheduledJobCronField key={name} value={values.scheduling || ""} required={Boolean(def.required)} disabled={Boolean(def.readOnly || def.disabled)} onChange={(scheduling) => updateFieldValue(name, scheduling)}/>;
     if (def.type === "duration") return <DurationFieldInput key={name} label={fieldLabel(name, def, entity, metadata)} value={Number(values[name]) || Number(def.default) || 0} def={def} disabled={Boolean(def.readOnly || def.disabled)} onChange={(seconds) => updateFieldValue(name, seconds)}/>;
-    if (["InboundEmail", "EmailAccount"].includes(entity) && name === "monitoredFolders") return <MailFolderField key={name} entity={entity as "InboundEmail" | "EmailAccount"} label={fieldLabel(name, def, entity, metadata)} multiple value={values[name] || []} values={values} recordId={record?.id} onChange={(value) => updateFieldValue(name, value)}/>;
-    if (["InboundEmail", "EmailAccount"].includes(entity) && name === "sentFolder") return <MailFolderField key={name} entity={entity as "InboundEmail" | "EmailAccount"} label={fieldLabel(name, def, entity, metadata)} value={values[name] || ""} values={values} recordId={record?.id} onChange={(value) => updateFieldValue(name, value)}/>;
+    if (["InboundEmail", "EmailAccount"].includes(entity) && name === "monitoredFolders") return <MailFolderField key={name} entity={entity as "InboundEmail" | "EmailAccount"} label={fieldLabel(name, def, entity, metadata)} multiple value={values[name] || []} values={values} recordId={activeRecord?.id} onChange={(value) => updateFieldValue(name, value)}/>;
+    if (["InboundEmail", "EmailAccount"].includes(entity) && name === "sentFolder") return <MailFolderField key={name} entity={entity as "InboundEmail" | "EmailAccount"} label={fieldLabel(name, def, entity, metadata)} value={values[name] || ""} values={values} recordId={activeRecord?.id} onChange={(value) => updateFieldValue(name, value)}/>;
     if (entity === "EmailAccount" && name === "emailFolder") return <FieldInput key={name} entity={entity} metadata={metadata} name={name} def={{ ...def, createDisabled: true, autocompleteDisabled: true }} value={values[name]} relatedContext={values} onChange={(value) => updateFieldValue(name, value)} timeZone={dateTimeZone} onError={setError}/>;
     if (entity === "User" && name === "teams") return <TeamMembershipField key={name} metadata={metadata} ids={values.teams || []} columns={values.teamsColumns || {}} onChange={(ids, columns) => setValues((old) => ({ ...old, teams: ids, teamsColumns: columns }))}/>;
     if (entity === "User" && name === "sendAccessInfo" && (!values.password || !values.emailAddress || (values.type === "portal" && !values.portals?.length))) return null;
@@ -3867,18 +3874,18 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     return <FieldInput key={name} entity={entity} metadata={metadata} name={name} def={def} value={values[name]} themeParamsValue={values.themeParams} onThemeParamsChange={(themeParams) => setValues((old) => ({ ...old, themeParams }))} currencyValue={values[`${name}Currency`]} onCurrencyChange={(currency) => updateFieldValue(`${name}Currency`, currency)} columns={values[`${name}Columns`] || {}} primaryId={primaryLink ? values[`${primaryLink}Id`] : undefined} onPrimaryChange={primaryLink ? (id, label) => setValues((old) => ({ ...old, [`${primaryLink}Id`]: id, [`${primaryLink}Name`]: label || "" })) : undefined} relatedContext={values} onColumnsChange={def.type === "linkMultiple" && def.columns ? (columns) => setValues((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} onChange={(value) => updateFieldValue(name, value)} timeZone={dateTimeZone} onUploading={setUploading} onUploaded={(id) => setUploadedIds((old) => [...old, id])} onError={setError}/>;
   };
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && void cancel()}><form ref={formRef} className="record-modal" onSubmit={submit}>
-    <div className="modal-heading"><div><span className="eyebrow">{record ? "UPRAVIT" : duplicate ? "KOPIE ZÁZNAMU" : "NOVÝ ZÁZNAM"} · {entityLabel(metadata, entity, true).toUpperCase()}</span><h2>{record ? "Upravit záznam" : duplicate ? `Duplikovat ${entityLabel(metadata, entity).toLowerCase()}` : `Vytvořit ${entityLabel(metadata, entity).toLowerCase()}`}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
+    <div className="modal-heading"><div><span className="eyebrow">{activeRecord ? "UPRAVIT" : duplicate ? "KOPIE ZÁZNAMU" : "NOVÝ ZÁZNAM"} · {entityLabel(metadata, entity, true).toUpperCase()}</span><h2>{activeRecord ? "Upravit záznam" : duplicate ? `Duplikovat ${entityLabel(metadata, entity).toLowerCase()}` : `Vytvořit ${entityLabel(metadata, entity).toLowerCase()}`}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
     {entity === "EmailFilter" && <div className="email-filter-guidance"><strong>Jak pravidla vyhodnocovat</strong><span>Adresy a předmět podporují zástupný znak <code>*</code>. „Obsahuje některý“ projde při shodě alespoň jedné fráze; „Obsahuje všechny“ vyžaduje shodu všech zadaných frází.</span><small>Akce a cílová složka se řídí typem účtu, ke kterému je filtr přiřazen.</small></div>}
     <div className="record-editor-groups">{groups.filter((group) => group.names.some(editorFieldVisible)).map((group) => <section className="record-editor-group" key={group.title}><h3>{group.title}</h3><div className="modal-fields">{group.names.map(renderField)}</div></section>)}</div>
     {entity === "Template" && values.entityType && <TemplatePlaceholderPicker metadata={metadata} entityType={String(values.entityType)} onInsert={(target, code) => setValues((old) => ({ ...old, [target]: `${String(old[target] || "")}${old[target] ? " " : ""}${code}` }))}/>}
-    {entity === "Meeting" && (metadata.clientDefs?.Meeting?.bottomPanels?.edit || []).some((panel: any) => panel.name === "scheduler") && <MeetingScheduler metadata={metadata} userIds={values.users || []} userNames={values.usersNames} assignedUserId={values.assignedUserId} assignedUserName={values.assignedUserName} dateStart={values.isAllDay ? values.dateStartDate : values.dateStart} dateEnd={values.isAllDay ? values.dateEndDate : values.dateEnd} allDay={Boolean(values.isAllDay)} entityId={record?.id}/>}
+    {entity === "Meeting" && (metadata.clientDefs?.Meeting?.bottomPanels?.edit || []).some((panel: any) => panel.name === "scheduler") && <MeetingScheduler metadata={metadata} userIds={values.users || []} userNames={values.usersNames} assignedUserId={values.assignedUserId} assignedUserName={values.assignedUserName} dateStart={values.isAllDay ? values.dateStartDate : values.dateStart} dateEnd={values.isAllDay ? values.dateEndDate : values.dateEnd} allDay={Boolean(values.isAllDay)} entityId={activeRecord?.id}/>}
     {(entity === "Role" || entity === "PortalRole") && <RoleAclEditor metadata={metadata} type={entity === "PortalRole" ? "aclPortal" : "acl"} data={values.data || {}} fieldData={values.fieldData || {}} onChange={(data, fieldData) => setValues((old) => ({ ...old, data, fieldData }))}/>}
     {!["EmailAccount", "InboundEmail"].includes(entity) || mailActionNames.has("testConnection") && mailActionNames.has("smtpTestSend") ? null : <div className="email-test-bar"><span>Ověřte nastavení připojení před uložením účtu.</span><div><button type="button" className="button subtle" onClick={() => void testMailConnection()} disabled={connectionTestBusy || !values.host}>{connectionTestBusy ? "Testuji připojení…" : "Testovat připojení"}<Network size={14}/></button><button type="button" className="button subtle" onClick={() => { setTestEmailTo(String((getSession()?.user as User & { emailAddress?: string } | undefined)?.emailAddress || "")); setTestEmailError(""); setTestEmailOpen(true); }} disabled={testEmailBusy || !values.smtpHost || !values.emailAddress || (entity === "InboundEmail" && !values.useSmtp)}>{testEmailBusy ? "Odesílám…" : "Odeslat testovací e-mail"}<Mail size={14}/></button></div></div>}
     {connectionTestNotice && <div className="save-confirm"><Check size={15}/>{connectionTestNotice}</div>}
     {testEmailNotice && <div className="save-confirm"><Check size={15}/>{testEmailNotice}</div>}
     {saveNotice && <div className="save-confirm" role="status"><Check size={15}/>{saveNotice}</div>}
     {error && <div className="inline-error">{error}</div>}
-    <div className="modal-footer"><button type="button" className="button subtle" onClick={() => void cancel()} disabled={busy}>Zrušit</button>{record && <button type="button" className="button subtle" disabled={busy || uploading} onClick={() => { saveAndContinueRequested.current = true; formRef.current?.requestSubmit(); }}>{uploading ? "Nahrávám soubor…" : "Uložit a pokračovat"}</button>}<button className="button primary" disabled={busy || uploading}>{uploading ? "Nahrávám soubor…" : busy ? "Ukládám…" : record ? "Uložit změny" : "Vytvořit záznam"}</button></div>
+    <div className="modal-footer"><button type="button" className="button subtle" onClick={() => void cancel()} disabled={busy}>Zrušit</button><button type="button" className="button subtle" disabled={busy || uploading} onClick={() => { saveAndContinueRequested.current = true; formRef.current?.requestSubmit(); }}>{uploading ? "Nahrávám soubor…" : "Uložit a pokračovat"}</button><button className="button primary" disabled={busy || uploading}>{uploading ? "Nahrávám soubor…" : busy ? "Ukládám…" : activeRecord ? "Uložit změny" : "Vytvořit záznam"}</button></div>
   </form>{oneOffTemplateOpen && <RecordEditor entity="EmailTemplate" fields={getFormFields(metadata, "EmailTemplate")} metadata={metadata} initialValues={{ oneOff: true }} onClose={() => setOneOffTemplateOpen(false)} onSaved={(created) => { setValues((old) => ({ ...old, emailTemplate: created.id, emailTemplateName: created.name })); setOneOffTemplateOpen(false); }}/ >}{duplicateCheck && <DuplicateCheckDialog entity={entity} duplicates={duplicateCheck.rows} metadata={metadata} busy={busy} onCreate={() => void createDespiteDuplicate()} onCancel={() => setDuplicateCheck(null)}/ >}{saveConflict && <SaveConflictDialog fields={saveConflict.fields} onApply={applySaveConflict} onCancel={() => setSaveConflict(null)}/ >}{testEmailOpen && <div className="modal-backdrop test-email-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !testEmailBusy && setTestEmailOpen(false)}><section className="record-modal test-email-dialog" role="dialog" aria-modal="true" aria-labelledby="test-email-title"><div className="modal-heading"><div><span className="eyebrow">SMTP · {values.smtpHost}</span><h2 id="test-email-title">Odeslat testovací e-mail</h2><p>Zkontrolujte přihlašovací údaje SMTP odesláním skutečné zprávy.</p></div><button type="button" className="icon-button" onClick={() => setTestEmailOpen(false)} disabled={testEmailBusy} aria-label="Zavřít"><X size={16}/></button></div><label className="field-input"><span>Odeslat na</span><input type="email" required autoFocus value={testEmailTo} onChange={(event) => setTestEmailTo(event.target.value)} placeholder="vas@email.cz"/></label>{testEmailError && <div className="inline-error test-email-error">{testEmailError}</div>}<div className="modal-footer"><button type="button" className="button subtle" onClick={() => setTestEmailOpen(false)} disabled={testEmailBusy}>Zrušit</button><button type="button" className="button primary" onClick={() => void sendTestEmail()} disabled={testEmailBusy || !testEmailTo.trim()}>{testEmailBusy ? "Odesílám…" : <><Send size={14}/> Odeslat testovací e-mail</>}</button></div></section></div>}</div>;
 }
 
