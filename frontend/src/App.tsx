@@ -4296,38 +4296,54 @@ function HtmlFieldEditor({ entity, metadata, value, onChange, htmlMode = true, f
   const templateNativeList = (metadata.clientDefs?.EmailTemplate?.placeholderList || []) as string[];
   const orderedTemplateDefs = Object.keys(templateDefs).sort((a, b) => (templateDefs[a]?.order ?? 0) - (templateDefs[b]?.order ?? 0));
   const tokenList = entity === "EmailTemplate" ? [...new Set([...orderedTemplateDefs, ...templateNativeList])].map((item) => `{${item}}`) : [];
-  const placeholderScopes = useMemo(() => Object.keys(metadata.scopes).filter((scope) => metadata.scopes[scope]?.entity && metadata.scopes[scope]?.object && metadata.entityDefs[scope]?.fields && canAccessEntity(metadata, scope)).sort((a, b) => entityLabel(metadata, a).localeCompare(entityLabel(metadata, b), "cs")), [metadata]);
+  const [placeholderFieldQuery, setPlaceholderFieldQuery] = useState("");
+  const placeholderScopes = useMemo(() => ["Person", ...Object.keys(metadata.scopes).filter((scope) => scope !== "Email" && metadata.scopes[scope]?.entity && metadata.scopes[scope]?.object && metadata.entityDefs[scope]?.fields && canAccessEntity(metadata, scope)).sort((a, b) => entityLabel(metadata, a).localeCompare(entityLabel(metadata, b), "cs"))], [metadata]);
   const placeholderFields = useMemo(() => {
-    const direct = Object.entries(metadata.entityDefs[placeholderScope]?.fields || {}).flatMap(([key, def]) => {
-      const acl = metadata.userAcl?.fieldTable?.[placeholderScope]?.[key];
-      if (["id", "deleted", "createdAt", "modifiedAt"].includes(key) || acl?.read === "no" || def.disabled || def.utility || def.templatePlaceholderDisabled || def.directAccessDisabled || ["linkMultiple", "attachmentMultiple", "map", "jsonObject", "jsonArray", "password"].includes(def.type || "")) return [];
-      return [[key, fieldLabel(key, def, placeholderScope, metadata)] as [string, string]];
-    });
+    if (placeholderScope === "Person") return [["name", "Jméno"], ["firstName", "Křestní jméno"], ["lastName", "Příjmení"], ["salutationName", "Oslovení"], ["emailAddress", "E-mail"], ["assignedUserName", "Přiřazený uživatel"]] as Array<[string, string]>;
+    const fieldAttributes = (scope: string, key: string, def: FieldDef, isForeign = false): Array<[string, string]> => {
+      const acl = metadata.userAcl?.fieldTable?.[scope]?.[key];
+      const entityAcl = (metadata as any).entityAcl?.[scope]?.fields?.[key] || {};
+      const fieldMeta = metadata.fields?.[def.type || ""];
+      const actualFields = fieldMeta?.actualFields || [];
+      if (acl?.read === "no" || entityAcl.onlyAdmin || entityAcl.forbidden || entityAcl.internal || def.disabled || def.utility || def.templatePlaceholderDisabled || def.directAccessDisabled && (isForeign || !def.loaderClassName) || ["linkMultiple", "attachmentMultiple", "map", "jsonObject", "jsonArray", "password"].includes(def.type || "")) return [];
+      const attrs = actualFields.length
+        ? actualFields.map((part) => !part ? key : fieldMeta?.naming === "prefix" ? `${part}${key[0].toUpperCase()}${key.slice(1)}` : `${key}${part[0].toUpperCase()}${part.slice(1)}`)
+        : [key];
+      if (def.type === "personName") attrs.unshift("name");
+      const baseLabel = fieldLabel(key, def, scope, metadata);
+      return [...new Set(attrs)].map((attribute) => {
+        if (attribute === key || attribute === "name" && def.type === "personName") return [attribute, baseLabel];
+        const suffix = attribute.startsWith(key) ? attribute.slice(key.length) : attribute.replace(key, "");
+        return [attribute, `${baseLabel} · ${suffix || attribute}`];
+      });
+    };
+    const directEntries = Object.entries(metadata.entityDefs[placeholderScope]?.fields || {}).flatMap(([key, def]) => fieldAttributes(placeholderScope, key, def));
+    const direct = [["id", "ID"], ...directEntries];
     const links = (metadata.entityDefs[placeholderScope]?.links || {}) as Record<string, any>;
     const entityAcl = (metadata as any).entityAcl?.[placeholderScope]?.links || {};
     const related = Object.entries(links).flatMap(([link, linkDef]) => {
       const foreignScope = linkDef.type === "belongsTo" ? linkDef.entity : undefined;
       if (!foreignScope || linkDef.disabled || linkDef.utility || entityAcl[link]?.onlyAdmin || entityAcl[link]?.forbidden || entityAcl[link]?.internal) return [];
-      return Object.entries(metadata.entityDefs[foreignScope]?.fields || {}).flatMap(([key, def]) => {
-        const acl = metadata.userAcl?.fieldTable?.[foreignScope]?.[key];
-        if (acl?.read === "no" || def.disabled || def.utility || def.templatePlaceholderDisabled || def.directAccessDisabled || ["linkMultiple", "attachmentMultiple", "map", "jsonObject", "jsonArray", "password"].includes(def.type || "")) return [];
-        return [[`${link}.${key}`, `${entityLabel(metadata, foreignScope)} · ${fieldLabel(key, def, foreignScope, metadata)}`] as [string, string]];
-      });
+      return [[`${link}.id`, `${entityLabel(metadata, foreignScope)} · ID`] as [string, string], ...Object.entries(metadata.entityDefs[foreignScope]?.fields || {}).flatMap(([key, def]) => fieldAttributes(foreignScope, key, def, true).map(([attribute, label]) => [`${link}.${attribute}`, `${entityLabel(metadata, foreignScope)} · ${label}`] as [string, string]))];
     });
-    return [...direct, ...related].sort((a, b) => a[1].localeCompare(b[1], "cs"));
+    return [...new Map([...direct, ...related].map(([name, label]) => [name, [name, label] as [string, string]])).values()].sort((a, b) => a[1].localeCompare(b[1], "cs"));
   }, [metadata, placeholderScope]);
+  const filteredPlaceholderFields = useMemo(() => placeholderFields.filter(([field, label]) => !placeholderFieldQuery.trim() || `${field} ${label}`.toLocaleLowerCase("cs-CZ").includes(placeholderFieldQuery.trim().toLocaleLowerCase("cs-CZ"))), [placeholderFields, placeholderFieldQuery]);
   useEffect(() => {
     if (!placeholderScopes.includes(placeholderScope)) setPlaceholderScope(placeholderScopes[0] || "");
   }, [placeholderScopes, placeholderScope]);
   useEffect(() => {
     if (!placeholderFields.some(([name]) => name === placeholderField)) setPlaceholderField(placeholderFields[0]?.[0] || "");
   }, [placeholderFields, placeholderField]);
+  useEffect(() => {
+    if (!filteredPlaceholderFields.some(([name]) => name === placeholderField)) setPlaceholderField(filteredPlaceholderFields[0]?.[0] || "");
+  }, [filteredPlaceholderFields, placeholderField]);
   return <div className="html-field-editor">
     {preview && htmlMode
       ? <div className="html-editor-preview" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }) }}/>
        : htmlMode ? <Suspense fallback={<div className="table-loading" role="status"><span className="spinner"/>Načítám textový editor…</div>}><WysiwygEditor value={html} htmlMode entity={entity} field={fieldName} disabled={disabled} onChange={onChange} onRegisterInsert={(insert) => { richInsert.current = insert; }}/></Suspense> : <textarea ref={editor} aria-label="Text e-mailu" rows={9} value={html} disabled={disabled} onChange={(event) => onChange(event.target.value)} spellCheck/>}
     {htmlMode && <div className="html-editor-preview-toggle"><button type="button" className={preview ? "selected" : ""} onClick={() => setPreview((current) => !current)}><Eye size={14}/>{preview ? "Upravit HTML" : "Náhled"}</button></div>}
-    {tokenList.length > 0 && <details className="email-template-tokens"><summary>Vložit zástupný symbol</summary><div className="email-token-picker"><select aria-label="Typ záznamu" value={placeholderScope} onChange={(event) => setPlaceholderScope(event.target.value)}>{placeholderScopes.map((scope) => <option key={scope} value={scope}>{entityLabel(metadata, scope)}</option>)}</select><select aria-label="Pole záznamu" value={placeholderField} onChange={(event) => setPlaceholderField(event.target.value)}>{placeholderFields.map(([field, label]) => <option key={field} value={field}>{label}</option>)}</select><button type="button" disabled={!placeholderScope || !placeholderField} onClick={() => insertToken(`{${placeholderScope}.${placeholderField}}`)}>Vložit pole</button></div><div>{tokenList.map((token) => <button type="button" key={token} onClick={() => insertToken(token)}>{token}</button>)}</div><small>Hodnoty záznamů se při použití šablony načtou z Nadřazeného záznamu. Zástupné symboly se vloží na pozici kurzoru; odkazy pro odhlášení a potvrzení odběru používejte v odpovídajících kampaních.</small></details>}
+    {entity === "EmailTemplate" && (placeholderScopes.length > 0 || tokenList.length > 0) && <details className="email-template-tokens"><summary>Vložit zástupný symbol</summary><div className="email-token-picker"><select aria-label="Typ záznamu" value={placeholderScope} onChange={(event) => { setPlaceholderScope(event.target.value); setPlaceholderFieldQuery(""); }}>{placeholderScopes.map((scope) => <option key={scope} value={scope}>{scope === "Person" ? "Osoba" : entityLabel(metadata, scope)}</option>)}</select><label className="email-token-field-search"><Search size={13}/><input type="search" value={placeholderFieldQuery} onChange={(event) => setPlaceholderFieldQuery(event.target.value)} placeholder="Hledat pole…" aria-label="Hledat pole pro zástupný symbol"/><span>{filteredPlaceholderFields.length}</span></label><select aria-label="Pole záznamu" value={placeholderField} onChange={(event) => setPlaceholderField(event.target.value)}>{filteredPlaceholderFields.length ? filteredPlaceholderFields.map(([field, label]) => <option key={field} value={field}>{label}</option>) : <option value="">Žádné odpovídající pole</option>}</select><button type="button" disabled={!placeholderScope || !placeholderField || !placeholderFields.some(([field]) => field === placeholderField)} onClick={() => insertToken(`{${placeholderScope}.${placeholderField}}`)}>Vložit pole</button></div>{tokenList.length > 0 && <div>{tokenList.map((token) => <button type="button" key={token} onClick={() => insertToken(token)}>{token}</button>)}</div>}<small>Vlastní zástupné symboly načítají hodnoty z nadřazeného záznamu. Vložení proběhne na pozici kurzoru; odkazy pro odhlášení a potvrzení odběru používejte v odpovídajících kampaních.</small></details>}
   </div>;
 }
 
