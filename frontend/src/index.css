@@ -2836,3 +2836,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .dashlet-task-overdue, .dashlet-task-today { display: inline-flex; align-items: center; gap: 4px; width: max-content; font-size: 10px; font-weight: 650; }
 .dashlet-task-overdue { color: #a82e35; }
 .dashlet-task-today { color: #9a6211; }
+.dashlet-enum-label { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 999px; background: #eef0f4; color: #687489; font-size: 10px; font-weight: 600; line-height: 1.4; }
+.dashlet-enum-label.success { background: #e7f6ef; color: #26734f; }
+.dashlet-enum-label.info { background: #e9f2fc; color: #3a6f9f; }
+.dashlet-enum-label.primary { background: #efedff; color: #5c53c5; }
+.dashlet-enum-label.warning { background: #fff3dc; color: #946319; }
+.dashlet-enum-label.danger { background: #fdebed; color: #a82e35; }
