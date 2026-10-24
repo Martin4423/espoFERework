@@ -2709,10 +2709,13 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       setSavedPresets(all[entity]); setSelectedPresetId(""); setSavedPresetWhere([]); setPrimaryFilter(""); setOffset(0);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Uložený filtr se nepodařilo odstranit."); }
   }
+  const isEnumColumnField = (field: string, def: FieldDef) =>
+    String(def.view || "").includes("enum-column") || (entity === "Lead" && field === "acceptanceStatus");
   const filterOperators = (field: string) => {
     const def = fieldDefs[field] || {};
     const type = def.type;
     if (/category[-]?tree/i.test(String(def.view || ""))) return [["inCategory", "V této kategorii"]];
+    if (isEnumColumnField(field, def)) return [["anyOf", "Je některá z hodnot"], ["noneOf", "Není žádná z hodnot"]];
     if (type === "link" && ["views/fields/user", "views/fields/user-with-avatar", "views/fields/assigned-user", "views/fields/assigned-users"].includes(String(def.view || ""))) return [["is", "Je záznam"], ["isNot", "Není záznam"], ["isOneOf", "Je některý záznam"], ["isNotOneOf", "Není žádný záznam"], ["isFromTeams", "Uživatel je z vybraných týmů"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
     if (type === "linkOne") return [["is", "Je záznam"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"], ["isOneOf", "Je některý záznam"]];
     if (type === "linkMultiple") return [["anyOf", "Obsahuje některý záznam"], ["allOf", "Obsahuje všechny záznamy"], ["noneOf", "Neobsahuje žádný záznam"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
@@ -2736,6 +2739,15 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     const value = Array.isArray(condition.value) ? condition.value : condition.value;
     const typed = (input: string | undefined) => numeric && input !== "" && input != null ? Number(input) : input;
     const ids = Array.isArray(value) ? value : value ? [value] : [];
+    if (isEnumColumnField(attribute, def) && ["anyOf", "noneOf"].includes(condition.operator)) {
+      const valueList = ids.map((item) => numeric ? Number(item) : item);
+      if (condition.operator === "anyOf") {
+        if (valueList.length === 0) return [{ data: { type: "anyOf", valueList } }];
+        return [{ type: "columnIn", value: valueList, data: { type: "anyOf", valueList } }];
+      }
+      if (valueList.length === 0) return [{ data: { type: "noneOf", valueList } }];
+      return [{ type: "or", value: [{ type: "columnIsNull", attribute }, { type: "columnNotIn", attribute, value: valueList }], data: { type: "noneOf", valueList } }];
+    }
     if (condition.operator === "isFromTeams" && ["views/fields/user", "views/fields/user-with-avatar", "views/fields/assigned-user", "views/fields/assigned-users"].includes(String(def.view || ""))) return [{ type: "isUserFromTeams", field: attribute, value: ids, data: { type: "isFromTeams", teamIdList: ids, teamNameHash: condition.valueNames || {} } }];
     if (/category[-]?tree/i.test(String(def.view || "")) && condition.operator === "inCategory") return [{ type: "inCategory", field: attribute, value }];
     if (type === "linkOne") {
