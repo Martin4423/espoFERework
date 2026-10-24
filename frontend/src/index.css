@@ -281,6 +281,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-manager-empty { padding: 8px 5px; }
 .field-manager-editor { min-height: 350px; padding: 18px; }
 .field-manager-editor .settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 14px; }
+.field-manager-header-actions { display: flex; align-items: center; gap: 10px; }
+.field-attributes-dialog { width: min(760px, calc(100vw - 32px)); }
+.field-attributes-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 16px 22px; background: #fafbfe; }
+.field-attributes-summary > div { display: grid; gap: 5px; min-width: 0; }
+.field-attributes-summary span { color: #8791a1; font-size: 10px; }
+.field-attributes-summary strong, .field-attributes-summary code { overflow-wrap: anywhere; color: #354156; font-size: 11px; }
+.field-attributes-table-wrap { max-height: min(55vh, 520px); overflow: auto; padding: 0 22px 18px; }
+.field-attributes-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.field-attributes-table th, .field-attributes-table td { padding: 10px 8px; border-bottom: 1px solid #edf0f4; text-align: left; }
+.field-attributes-table th { position: sticky; top: 0; background: #fff; color: #7d8796; font-size: 9px; font-weight: 600; }
+.field-attributes-table td code { color: #4e5c70; font-size: 10px; overflow-wrap: anywhere; }
+.field-attributes-empty { padding: 18px 0; color: #858fa0; font-size: 12px; }
+@media (max-width: 600px) { .field-manager-header-actions { align-items: flex-end; flex-direction: column; gap: 6px; } .field-attributes-summary { grid-template-columns: 1fr; } .field-attributes-table-wrap { padding-right: 12px; padding-left: 12px; } }
 .field-manager-unsaved { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid #f0dfb2; border-radius: 999px; background: #fff9e9; color: #856719; font-size: 12px; font-weight: 650; }
 .field-manager-unsaved > span { width: 6px; height: 6px; border-radius: 50%; background: #d39d29; }
 .field-manager-shortcut { color: #8c96a6; font-size: 12px; }
