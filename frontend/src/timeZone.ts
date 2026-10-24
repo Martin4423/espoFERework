@@ -19,6 +19,26 @@ export function formatEspoDateTime(value: string | undefined, timeZone: string) 
   catch { return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(date); }
 }
 
+export function formatEspoDateTimeShort(value: string | undefined, timeZone: string, now = new Date()) {
+  const date = parseEspoDateTime(value);
+  if (!date) return value || "—";
+  const dateParts = (input: Date) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(input).map((part) => [part.type, part.value]));
+  try {
+    const targetParts = dateParts(date);
+    const todayParts = dateParts(now);
+    const targetKey = `${targetParts.year}-${targetParts.month}-${targetParts.day}`;
+    const todayKey = `${todayParts.year}-${todayParts.month}-${todayParts.day}`;
+    const todayDate = new Date(Date.UTC(Number(todayParts.year), Number(todayParts.month) - 1, Number(todayParts.day)));
+    todayDate.setUTCDate(todayDate.getUTCDate() - 1);
+    const yesterdayKey = `${todayDate.getUTCFullYear()}-${String(todayDate.getUTCMonth() + 1).padStart(2, "0")}-${String(todayDate.getUTCDate()).padStart(2, "0")}`;
+    if (targetKey === todayKey) return new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit", timeZone }).format(date);
+    if (targetKey === yesterdayKey) return `včera ${new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit", timeZone }).format(date)}`;
+    return new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", ...(targetParts.year !== todayParts.year ? { year: "2-digit" as const } : {}), timeZone }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeZone: "UTC" }).format(date);
+  }
+}
+
 function zonedWallTimeToUtc(year: number, month: number, day: number, hour: number, minute: number, second: number, timeZone: string) {
   const targetWallTime = Date.UTC(year, month - 1, day, hour, minute, second);
   let timestamp = targetWallTime;
