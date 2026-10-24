@@ -69,6 +69,7 @@ export const Heart = icon("fas fa-heart");
 export const History = icon("fas fa-clock-rotate-left");
 export const Image = icon("fas fa-image");
 export const Inbox = icon("fas fa-inbox");
+export const Info = icon("fas fa-circle-info");
 export const KeyRound = icon("fas fa-key");
 export const Languages = icon("fas fa-language");
 export const LayoutDashboard = icon("fas fa-table-columns");

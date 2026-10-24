@@ -772,6 +772,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media(max-width:540px) { .followers-dialog>header { padding:18px 16px 13px; } .followers-header-actions { gap:5px; } .followers-header-actions .button { min-height:32px; padding:6px 8px; font-size:10px; } .followers-dialog>footer { padding:10px 12px; } }
 .modal-heading { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 22px 15px; border-bottom: 1px solid var(--line); }
 .modal-heading h2 { margin: 7px 0 0; font: 700 18px Manrope,sans-serif; }
+.about-dialog { width: min(460px,100%); }
+.about-content { display: flex; align-items: center; gap: 13px; padding: 22px; }
+.about-brand-mark { display: grid; place-items: center; width: 48px; height: 48px; flex: 0 0 auto; border-radius: 14px; background: var(--lavender); color: var(--primary); }
+.about-content > div:last-child { display: grid; gap: 4px; }
+.about-content strong { font: 700 17px Manrope,sans-serif; }
+.about-content span, .about-description { color: var(--muted); font-size: 13px; }
+.about-description { margin: 0; padding: 0 22px 18px; line-height: 1.6; white-space: pre-line; }
+.about-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.about-footer a { display: inline-flex; align-items: center; gap: 5px; color: var(--primary); text-decoration: none; }
+.about-footer a:hover { text-decoration: underline; }
 .modal-fields { padding: 17px 22px 4px; overflow: auto; display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; }
 .record-editor-groups { flex: 1; min-height: 0; overflow: auto; padding: 15px 22px; }
 .record-editor-group + .record-editor-group { margin-top: 14px; padding-top: 12px; border-top: 1px solid #eef0f4; }
