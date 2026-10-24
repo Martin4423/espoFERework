@@ -4134,7 +4134,12 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
     onChange(entity === "Portal" && name === "customId" && next ? encodeURIComponent(next.replace(/ /i, "-").toLowerCase()) : next);
   };
   const inputLabel = <span>{label}{def.required && <i> *</i>}</span>;
-  if (["array", "urlMultiple"].includes(type)) return <ArrayFieldInput label={inputLabel} value={Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split("\n").filter(Boolean) : []} disabled={Boolean(def.readOnly || def.disabled)} maxCount={def.maxCount} maxLength={def.maxItemLength || (type === "urlMultiple" ? 255 : 100)} options={resolvedOptions.options.map(String)} optionLabels={resolvedOptions.labels} urlMode={type === "urlMultiple"} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
+  if (["array", "urlMultiple"].includes(type)) {
+    const rawPattern = String(def.pattern || "");
+    const namedPattern = /^\$([\w-]+)$/.exec(rawPattern);
+    const pattern = namedPattern ? String((metadata.app as any)?.regExpPatterns?.[namedPattern[1]]?.pattern || rawPattern) : rawPattern;
+    return <ArrayFieldInput label={inputLabel} value={Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split("\n").filter(Boolean) : []} disabled={Boolean(def.readOnly || def.disabled)} keepItems={Boolean(def.keepItems)} allowCustomOptions={Boolean(def.allowCustomOptions)} pattern={pattern} maxCount={def.maxCount} maxLength={def.maxItemLength || (type === "urlMultiple" ? 255 : 100)} options={resolvedOptions.options.map(String)} optionLabels={resolvedOptions.labels} urlMode={type === "urlMultiple"} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
+  }
   if (type === "url") return <UrlFieldInput label={inputLabel} value={String(value || "")} disabled={Boolean(def.readOnly || def.disabled)} required={Boolean(def.required)} maxLength={Number(def.maxLength || 255)} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
   if (type === "wysiwyg") return <div className={`field-input html-field ${def.required ? "required" : ""}`}><span>{inputLabel}</span><HtmlFieldEditor entity={entity} metadata={metadata} value={value} onChange={onChange} htmlMode={entity !== "EmailTemplate" || relatedContext?.isHtml !== false} fieldName={name} disabled={Boolean(def.readOnly || def.disabled)}/></div>;
   if (type === "address") {
@@ -4289,12 +4294,17 @@ function MultipleContactField({ label, email, rows, options, phonePattern, disab
   })}</div>{!onlyPrimary && (!maxCount || normalizedItems.length < maxCount) && <button type="button" className="button subtle multiple-contact-add" onClick={add} disabled={disabled || !normalizedItems.length || Boolean(items.some((item) => !String(item[key] || "").trim()))}><Plus size={13}/> Přidat {email ? "adresu" : "telefon"}</button>}</fieldset>;
 }
 
-function ArrayFieldInput({ label, value, disabled, maxCount, maxLength, options, optionLabels, urlMode = false, stripProtocol = false, onChange }: { label: React.ReactNode; value: string[]; disabled: boolean; maxCount?: number; maxLength?: number; options: string[]; optionLabels: Record<string, string>; urlMode?: boolean; stripProtocol?: boolean; onChange: (value: string[]) => void }) {
+function ArrayFieldInput({ label, value, disabled, keepItems, allowCustomOptions, pattern, maxCount, maxLength, options, optionLabels, urlMode = false, stripProtocol = false, onChange }: { label: React.ReactNode; value: string[]; disabled: boolean; keepItems: boolean; allowCustomOptions: boolean; pattern: string; maxCount?: number; maxLength?: number; options: string[]; optionLabels: Record<string, string>; urlMode?: boolean; stripProtocol?: boolean; onChange: (value: string[]) => void }) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const add = (raw: string) => {
     let next = raw.trim();
+    if (pattern && next) {
+      try {
+        if (!new RegExp(`^(?:${pattern})$`).test(next)) { setError("Položka neodpovídá nastavenému vzoru."); return; }
+      } catch { /* An invalid server pattern must not block editing. */ }
+    }
     if (urlMode) {
       if (stripProtocol) next = next.replace(/^[a-z][a-z\d+.-]*:\/\//i, "").replace(/\/+$/, "");
       try {
@@ -4303,7 +4313,7 @@ function ArrayFieldInput({ label, value, disabled, maxCount, maxLength, options,
         if (!/^https?:$/.test(parsed.protocol) || (!parsed.hostname.includes(".") && parsed.hostname !== "localhost")) throw new Error();
       } catch { setError("Zadejte platnou webovou adresu, například https://example.com."); return; }
     }
-    if (!next || value.includes(next) || (maxCount && value.length >= maxCount)) return;
+    if (!next || value.includes(next) || options.length && !allowCustomOptions && !options.includes(next) || (maxCount && value.length >= maxCount)) return;
     onChange([...value, next]); setDraft("");
     setError("");
   };
@@ -4313,7 +4323,7 @@ function ArrayFieldInput({ label, value, disabled, maxCount, maxLength, options,
   };
   const safeUrl = (item: string) => { try { const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(item) ? item : `https://${item}`); return /^https?:$/.test(url.protocol) ? url.toString() : null; } catch { return null; } };
   const addSelected = (selected: string[]) => { const remaining = maxCount ? Math.max(0, maxCount - value.length) : selected.length; onChange([...value, ...selected.filter((item) => !value.includes(item)).slice(0, remaining)]); setPickerOpen(false); };
-  return <><div className={`field-input native-array-field ${urlMode ? "url-multiple-field" : ""}`}><span>{label}</span><div className="native-array-items">{value.map((item, index) => <div className="native-array-item" key={`${item}-${index}`}><span>{urlMode ? safeUrl(item) ? <a href={safeUrl(item) || undefined} target="_blank" rel="noreferrer">{item}</a> : item : optionLabels[item] || item}</span><div><button type="button" className="icon-button" aria-label={`Posunout ${item} nahoru`} disabled={disabled || index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${item} dolů`} disabled={disabled || index === value.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className="icon-button danger-ghost" aria-label={`Odebrat ${item}`} disabled={disabled} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}>×</button></div></div>)}{!value.length && <small className="field-hint">Zatím nejsou přidané žádné položky.</small>}</div>{!disabled && (!maxCount || value.length < maxCount) && <div className="native-array-add">{options.length ? <button type="button" className="button subtle" onClick={() => setPickerOpen(true)}>Vybrat z nabídky…</button> : <><input value={draft} maxLength={maxLength} placeholder={urlMode ? "https://example.com" : "Nová položka…"} onChange={(event) => { setDraft(event.target.value); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(draft); } }}/><button type="button" className="button subtle" disabled={!draft.trim()} onClick={() => add(draft)}>Přidat</button></>}</div>}{error && <small className="field-error">{error}</small>}</div>{pickerOpen && <ArrayOptionsPickerDialog options={options} labels={optionLabels} selected={value} remaining={maxCount ? Math.max(0, maxCount - value.length) : options.length} onClose={() => setPickerOpen(false)} onSelect={addSelected}/>}</>;
+  return <><div className={`field-input native-array-field ${urlMode ? "url-multiple-field" : ""}`}><span>{label}</span><div className="native-array-items">{value.map((item, index) => <div className="native-array-item" key={`${item}-${index}`}><span>{urlMode ? safeUrl(item) ? <a href={safeUrl(item) || undefined} target="_blank" rel="noreferrer">{item}</a> : item : optionLabels[item] || item}</span><div><button type="button" className="icon-button" aria-label={`Posunout ${item} nahoru`} disabled={disabled || index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${item} dolů`} disabled={disabled || index === value.length - 1} onClick={() => move(index, 1)}>↓</button>{!keepItems && <button type="button" className="icon-button danger-ghost" aria-label={`Odebrat ${item}`} disabled={disabled} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}>×</button>}</div></div>)}{!value.length && <small className="field-hint">Zatím nejsou přidané žádné položky.</small>}</div>{!disabled && !keepItems && (!maxCount || value.length < maxCount) && <div className="native-array-add">{options.length && !allowCustomOptions ? <button type="button" className="button subtle" onClick={() => setPickerOpen(true)}>Vybrat z nabídky…</button> : <><input value={draft} maxLength={maxLength} placeholder={urlMode ? "https://example.com" : "Nová položka…"} onChange={(event) => { setDraft(event.target.value); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(draft); } }}/><button type="button" className="button subtle" disabled={!draft.trim()} onClick={() => add(draft)}>Přidat</button>{options.length > 0 && <button type="button" className="button subtle" onClick={() => setPickerOpen(true)}>Vybrat z nabídky…</button>}</>}</div>}{error && <small className="field-error">{error}</small>}</div>{pickerOpen && <ArrayOptionsPickerDialog options={options} labels={optionLabels} selected={value} remaining={maxCount ? Math.max(0, maxCount - value.length) : options.length} onClose={() => setPickerOpen(false)} onSelect={addSelected}/>}</>;
 }
 
 function ArrayOptionsPickerDialog({ options, labels, selected, remaining, onClose, onSelect }: { options: string[]; labels: Record<string, string>; selected: string[]; remaining: number; onClose: () => void; onSelect: (values: string[]) => void }) {
