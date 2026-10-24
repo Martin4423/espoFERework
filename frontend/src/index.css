@@ -221,7 +221,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .entity-heading .eyebrow { color: #8984d1; }
 .entity-heading h1 { display: flex; align-items: center; gap: 11px; margin-top: 7px; }
 .title-count { padding: 3px 8px; border-radius: 20px; background: #edecfb; color: #7770ce; font: 600 10px 'DM Sans',sans-serif; letter-spacing: 0; }
-.button { display: inline-flex; justify-content: center; align-items: center; gap: 9px; min-height: 38px; padding: 0 14px; border: 1px solid #e2e5ed; border-radius: 8px; background: #fff; color: #59657b; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: .15s ease; }
+.button { display: inline-flex; justify-content: center; align-items: center; gap: 9px; min-height: 38px; padding: 0 14px; border: 1px solid #e2e5ed; border-radius: 8px; background: #fff; color: #59657b; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: .15s ease; }
 .button:hover { border-color: #d4d1fa; color: var(--primary); background: #faf9ff; }
 .button.primary { border-color: var(--primary); background: var(--primary); color: #fff; box-shadow: 0 3px 8px rgba(99,91,219,.18); }
 .button.primary:hover { border-color: var(--primary-dark); background: var(--primary-dark); }
@@ -1006,8 +1006,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .meeting-date-start > .field-input { margin: 0; }
 .meeting-all-day-toggle { display: flex; align-items: center; gap: 8px; width: fit-content; color: #56627a; font-size: 10px; font-weight: 600; }
 .meeting-all-day-toggle input { accent-color: var(--primary); }
-.setting-field { display: grid; align-content: start; gap: 7px; min-width: 0; color: #68748a; font-size: 10px; font-weight: 600; }
-.setting-field input, .setting-field select { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid #e1e5ed; border-radius: 7px; background: #fff; color: #35415a; font-size: 10px; }
+.setting-field { display: grid; align-content: start; gap: 7px; min-width: 0; color: #59667d; font-size: 12px; font-weight: 600; }
+.setting-field input, .setting-field select { width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid #e1e5ed; border-radius: 7px; background: #fff; color: #35415a; font-size: 13px; }
 .setting-field .switch-row { min-height: 36px; }
 .save-confirm { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 10px 12px; border: 1px solid #dcefe5; border-radius: 8px; background: #f1faf5; color: #438969; font-size: 10px; }
 .stat-foot b { display: inline-flex; }
