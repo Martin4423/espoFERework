@@ -2469,6 +2469,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     return () => { live = false; };
   }, [entity, routeAction, routeActionId, canCreate, canEdit, userType, editor]);
   const [portalContactPicker, setPortalContactPicker] = useState(false);
+  const [portalContactCreateOpen, setPortalContactCreateOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [allResultsSelected, setAllResultsSelected] = useState(false);
   const [massEdit, setMassEdit] = useState(false);
@@ -2585,6 +2586,14 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       }
     }
     setEditor({ initialValues });
+  }
+  function openPortalUserForContact(contactId: string) {
+    setPortalContactPicker(false);
+    void request<Row>(`Contact/${encodeURIComponent(contactId)}`).then((contact) => {
+      const initialValues: Row = { type: "portal", contactId: contact.id, contactName: contact.name, firstName: contact.firstName || "", lastName: contact.lastName || "", salutationName: contact.salutationName || "", emailAddress: contact.emailAddress || "", emailAddressData: contact.emailAddressData || [], phoneNumber: contact.phoneNumber || "", phoneNumberData: contact.phoneNumberData || [], userName: String(contact.emailAddress || "").toLowerCase() };
+      if (contact.accountId) { initialValues.accountsIds = [contact.accountId]; initialValues.accountsNames = { [contact.accountId]: contact.accountName || "" }; }
+      setEditor({ initialValues });
+    }).catch((cause) => setError(cause instanceof Error ? cause.message : "Kontakt se nepodařilo načíst."));
   }
   function sortBy(field: string) {
     const nextOrder: "asc" | "desc" = activeOrderBy === field && activeOrder === "asc" ? "desc" : "asc";
@@ -3143,7 +3152,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       </div>
     </section>
     {editor && <RecordEditor entity={entity} fields={createFields} metadata={metadata} record={editor.record} initialValues={{ ...(userType ? { type: userType } : {}), ...(editor.initialValues || {}) }} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(); }} />}
-    {portalContactPicker && <SelectRecordsDialog entity="Contact" metadata={metadata} multiple={false} selectedIds={[]} selectedRows={[]} primaryFilter="notPortalUsers" onClose={() => setPortalContactPicker(false)} onSkip={() => { setPortalContactPicker(false); setEditor({ initialValues: { type: "portal" } }); }} onSelect={(rows) => { const selected = rows[0]; setPortalContactPicker(false); if (!selected?.id) return; void request<Row>(`Contact/${encodeURIComponent(selected.id)}`).then((contact) => { const initialValues: Row = { type: "portal", contactId: contact.id, contactName: contact.name, firstName: contact.firstName || "", lastName: contact.lastName || "", salutationName: contact.salutationName || "", emailAddress: contact.emailAddress || "", emailAddressData: contact.emailAddressData || [], phoneNumber: contact.phoneNumber || "", phoneNumberData: contact.phoneNumberData || [], userName: String(contact.emailAddress || "").toLowerCase() }; if (contact.accountId) { initialValues.accountsIds = [contact.accountId]; initialValues.accountsNames = { [contact.accountId]: contact.accountName || "" }; } setEditor({ initialValues }); }).catch((cause) => setError(cause instanceof Error ? cause.message : "Kontakt se nepodařilo načíst.")); }}/ >}
+    {portalContactPicker && <SelectRecordsDialog entity="Contact" metadata={metadata} multiple={false} selectedIds={[]} selectedRows={[]} primaryFilter="notPortalUsers" onCreate={canCreateEntity(metadata, "Contact") && !metadata.clientDefs?.Contact?.createDisabled ? () => { setPortalContactPicker(false); setPortalContactCreateOpen(true); } : undefined} onClose={() => setPortalContactPicker(false)} onSkip={() => { setPortalContactPicker(false); setEditor({ initialValues: { type: "portal" } }); }} onSelect={(rows) => { const selected = rows[0]; if (selected?.id) openPortalUserForContact(selected.id); else setPortalContactPicker(false); }}/ >}{portalContactCreateOpen && <RecordEditor entity="Contact" fields={getFormFields(metadata, "Contact")} metadata={metadata} onClose={() => setPortalContactCreateOpen(false)} onSaved={(contact) => { setPortalContactCreateOpen(false); openPortalUserForContact(contact.id); }}/ >}
     {exportOpen && <ExportDialog key={entity} entity={entity} metadata={metadata} selectedIds={selectedIds} total={total} search={search} primaryFilter={primaryFilter} boolFilters={activeBoolFilters} where={exportWhere} orderBy={activeOrderBy} order={activeOrder} onClose={() => setExportOpen(false)} />}
     {pdfTemplateOpen && <SelectRecordsDialog entity="Template" metadata={metadata} multiple={false} selectedIds={[]} selectedRows={[]} fixedWhere={[{ type: "equals", attribute: "entityType", value: entity }]} onCreate={canCreateEntity(metadata, "Template") && !metadata.clientDefs?.Template?.createDisabled ? () => { setPdfTemplateOpen(false); setPdfTemplateCreateOpen(true); } : undefined} onClose={() => setPdfTemplateOpen(false)} onSelect={(templates) => { const template = templates[0]; if (template) void printSelectedPdf(template); }}/>} {pdfTemplateCreateOpen && <RecordEditor entity="Template" fields={getFormFields(metadata, "Template")} metadata={metadata} initialValues={{ entityType: entity }} onClose={() => setPdfTemplateCreateOpen(false)} onSaved={(template) => { setPdfTemplateCreateOpen(false); void printSelectedPdf(template); }}/>}
     {currencyConvertOpen && <CurrencyConversionDialog entity={entity} metadata={metadata} fields={currencyFields} ids={selectedIds} onClose={() => setCurrencyConvertOpen(false)} onComplete={() => { setCurrencyConvertOpen(false); setSelectedIds([]); void load(); }}/>}
