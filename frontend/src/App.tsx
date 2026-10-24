@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, CSSProperties, FormEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { ChangeEvent, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, History, Inbox as InboxIcon, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, type LucideIcon } from "./Icons";
 import DOMPurify from "dompurify";
 import cronstrue from "cronstrue";
@@ -1191,22 +1191,36 @@ function AdminNotifications({ metadata, onBack }: { metadata: Metadata; onBack: 
 function GlobalSearchOverlay({ metadata, onClose, onSelect }: { metadata: Metadata; onClose: () => void; onSelect: (entity: string, record: Row) => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Row[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     const normalized = query.trim();
+    setResults([]); setSelectedIndex(0);
     if (normalized.length < 2) { setResults([]); setBusy(false); setError(""); return; }
     let live = true;
     const timer = window.setTimeout(() => {
       setBusy(true); setError("");
       const params = new URLSearchParams({ q: normalized, maxSize: "15" });
-      request<PageResult>(`GlobalSearch?${params}`).then((result) => live && setResults(result.list || [])).catch((e) => live && setError(e instanceof Error ? e.message : "Vyhledávání selhalo.")).finally(() => live && setBusy(false));
+      request<PageResult>(`GlobalSearch?${params}`).then((result) => { if (live) { setResults(result.list || []); setSelectedIndex(0); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Vyhledávání selhalo.")).finally(() => live && setBusy(false));
     }, 240);
     return () => { live = false; window.clearTimeout(timer); };
   }, [query]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [onClose]);
-  return <div className="global-search-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Vyhledávání v CRM"><div className="global-search-input"><Search size={19}/><input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Hledat firmy, kontakty, příležitosti…"/><kbd>ESC</kbd><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
-    {query.trim().length < 2 ? <div className="global-search-hint">Zadejte alespoň 2 znaky. Výsledky vyhledává EspoCRM podle přístupných záznamů.</div> : <div className="global-search-results">{busy ? <div className="global-search-state"><span className="spinner"/>Hledám v CRM…</div> : error ? <div className="global-search-state error">{error}</div> : results.length ? results.map((record, index) => { const scope = record.entityType || record.scope || record._scope || ""; return <button className="global-search-result" key={`${scope}-${record.id}-${index}`} onClick={() => scope ? onSelect(scope, record) : setError("Výsledku chybí typ záznamu.")}><span className="global-result-icon"><EntityIcon name={scope} size={15}/></span><span><strong>{recordFieldDisplayValue(scope, "name", record) || record.subject || "Záznam"}</strong><small>{entityLabel(metadata, scope)}{record.accountName ? ` · ${record.accountName}` : ""}</small></span><ArrowRight size={14}/></button>; }) : <div className="global-search-state">Nenašli jsme žádné odpovídající záznamy.</div>}</div>}
+  function selectResult(index: number) {
+    const record = results[index];
+    if (!record) return;
+    const scope = record.entityType || record.scope || record._scope || "";
+    if (scope) onSelect(scope, record);
+    else setError("Výsledku chybí typ záznamu.");
+  }
+  function handleSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown" && results.length) { event.preventDefault(); setSelectedIndex((index) => (index + 1) % results.length); }
+    else if (event.key === "ArrowUp" && results.length) { event.preventDefault(); setSelectedIndex((index) => (index - 1 + results.length) % results.length); }
+    else if (event.key === "Enter" && results.length) { event.preventDefault(); selectResult(selectedIndex); }
+  }
+  return <div className="global-search-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Vyhledávání v CRM"><div className="global-search-input"><Search size={19}/><input autoFocus role="combobox" aria-autocomplete="list" aria-expanded={query.trim().length >= 2} aria-controls="global-search-results" aria-activedescendant={results.length ? `global-search-result-${selectedIndex}` : undefined} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Hledat firmy, kontakty, příležitosti…"/><kbd>ESC</kbd><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
+    {query.trim().length < 2 ? <div className="global-search-hint">Zadejte alespoň 2 znaky. Výsledky vyhledává EspoCRM podle přístupných záznamů.</div> : <div className="global-search-results" id="global-search-results" role="listbox">{busy ? <div className="global-search-state"><span className="spinner"/>Hledám v CRM…</div> : error ? <div className="global-search-state error">{error}</div> : results.length ? results.map((record, index) => { const scope = record.entityType || record.scope || record._scope || ""; return <button id={`global-search-result-${index}`} role="option" aria-selected={selectedIndex === index} className={`global-search-result ${selectedIndex === index ? "active" : ""}`} key={`${scope}-${record.id}-${index}`} onMouseEnter={() => setSelectedIndex(index)} onClick={() => selectResult(index)}><span className="global-result-icon"><EntityIcon name={scope} size={15}/></span><span><strong>{recordFieldDisplayValue(scope, "name", record) || record.subject || "Záznam"}</strong><small>{entityLabel(metadata, scope)}{record.accountName ? ` · ${record.accountName}` : ""}</small></span><ArrowRight size={14}/></button>; }) : <div className="global-search-state">Nenašli jsme žádné odpovídající záznamy.</div>}</div>}
     <footer className="global-search-footer"><span><kbd>↵</kbd> otevřít záznam</span><span>Vyhledávání respektuje oprávnění účtu</span></footer>
   </section></div>;
 }
