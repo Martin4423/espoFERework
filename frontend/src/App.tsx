@@ -2980,8 +2980,8 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     sessionUser?.id && (record.assignedUserId === sessionUser.id || (record.assignedUsersIds || []).includes(sessionUser.id))
   );
   const isAdminViewer = sessionUser?.type === "admin" || sessionUser?.type === "super-admin";
-  const followerPermission = String(metadata.userAcl?.followerManagementPermission || "");
-  const portalPermission = String(metadata.userAcl?.portalPermission || "");
+  const followerPermission = String(metadata.userAcl?.followerManagementPermission || "no");
+  const portalPermission = String(metadata.userAcl?.portalPermission || "no");
   const canManageFollowers = isAdminViewer || followerPermission !== "no" || portalPermission !== "no";
   const isManageableUser = entity === "User" && isAdminViewer && record.type !== "super-admin";
   const isOwnUserRecord = entity === "User" && record.id === sessionUser?.id;
