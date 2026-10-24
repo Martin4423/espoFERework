@@ -45,9 +45,9 @@ export default function AdminFieldManager({ metadata, onBack }: { metadata: Meta
   const nativeFieldDefs = fieldName ? liveMetadata.entityDefs?.[scope]?.fields?.[fieldName] || {} : {};
   const listedParams = nativeFieldDefs.fieldManagerParamList || field?.fieldManagerParamList;
   const globalRestrictions = (liveMetadata as any).entityAcl?.[scope]?.fields?.[fieldName] || {};
-  const baseParamDefs = rawParamDefs.filter((param) => (!listedParams || listedParams.includes(param.name)) && !nativeFieldDefs[`customization${param.name.charAt(0).toUpperCase()}${param.name.slice(1)}Disabled`] && !(globalRestrictions.readOnly && param.name === "required"));
-  const extraParamDefs = (nativeFieldDefs.fieldManagerAdditionalParamList || field?.fieldManagerAdditionalParamList || []).map((item: Data) => ({ ...item, type: item.view === "views/admin/field-manager/fields/not-actual-options" ? "multiEnum" : item.view === "crm:views/opportunity/admin/field-manager/fields/probability-map" ? "jsonObject" : "varchar" }));
   const effectiveType = creating ? createType : field?.type || "";
+  const baseParamDefs = rawParamDefs.filter((param) => (!listedParams || listedParams.includes(param.name)) && !nativeFieldDefs[`customization${param.name.charAt(0).toUpperCase()}${param.name.slice(1)}Disabled`] && !(globalRestrictions.readOnly && param.name === "required"));
+  const extraParamDefs = (nativeFieldDefs.fieldManagerAdditionalParamList || field?.fieldManagerAdditionalParamList || []).map((item: Data) => ({ ...item, type: item.view === "views/admin/field-manager/fields/not-actual-options" ? "multiEnum" : item.view === "crm:views/opportunity/admin/field-manager/fields/probability-map" ? "jsonObject" : item.type || effectiveType || "varchar" }));
   if (effectiveType && !["foreign", "autoincrement"].includes(effectiveType) && !nativeFieldDefs.customizationInlineEditDisabledDisabled && !nativeFieldDefs.customizationDisabled) extraParamDefs.push({ name: "inlineEditDisabled", type: "bool" });
   const hasPersonalData = Boolean((liveMetadata.scopes[scope] as any)?.hasPersonalData && (liveMetadata.fields?.[effectiveType] as any)?.personalData);
   if (hasPersonalData) extraParamDefs.push({ name: "isPersonalData", type: "bool" });
