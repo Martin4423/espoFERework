@@ -280,7 +280,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-manager-locked-note { align-self: center; color: #9a8290; font-size: 8px; }
 .field-manager-empty { padding: 8px 5px; }
 .field-manager-editor { min-height: 350px; padding: 18px; }
-.field-manager-editor .settings-card-head { padding: 0 0 14px; }
+.field-manager-editor .settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 14px; }
+.field-manager-unsaved { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid #f0dfb2; border-radius: 999px; background: #fff9e9; color: #856719; font-size: 10px; font-weight: 650; }
+.field-manager-unsaved > span { width: 6px; height: 6px; border-radius: 50%; background: #d39d29; }
+.field-manager-shortcut { color: #8c96a6; font-size: 10px; }
 .field-manager-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .field-manager-fields > .setting-field:first-child:nth-last-child(odd) { grid-column: 1 / -1; }
 .field-manager-fields small { color: #929daf; font-size: 9px; line-height: 1.5; }
