@@ -3413,6 +3413,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const [versionNumber, setVersionNumber] = useState(activeRecord?.versionNumber ?? null);
   const formRef = useRef<HTMLFormElement>(null);
   const templateSelection = useRef<Record<string, { start: number; end: number }>>({});
+  const templateRichInsert = useRef<Record<string, (text: string) => void>>({});
   const saveAndContinueRequested = useRef(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [saveConflict, setSaveConflict] = useState<{ fields: SaveConflictField[]; latest: Row } | null>(null);
@@ -3976,7 +3977,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     const weekdayIndex = name.match(/^weekday([0-6])TimeRanges$/)?.[1];
     if (["WorkingTimeCalendar", "WorkingTimeRange"].includes(entity) && (name === "timeRanges" || weekdayIndex != null)) return <TimeRangesEditor key={name} label={fieldLabel(name, def, entity, metadata)} value={values[name] || []} disabled={Boolean(def.readOnly || def.disabled || (weekdayIndex != null && !values[`weekday${weekdayIndex}`]))} required={Boolean(def.required)} onChange={(value) => updateFieldValue(name, value)}/>;
     const primaryLink = primaryLinkForField(entity, name, def);
-    return <FieldInput key={name} entity={entity} metadata={metadata} name={name} def={def} value={values[name]} themeParamsValue={values.themeParams} onThemeParamsChange={(themeParams) => setValues((old) => ({ ...old, themeParams }))} currencyValue={values[`${name}Currency`]} onCurrencyChange={(currency) => updateFieldValue(`${name}Currency`, currency)} columns={values[`${name}Columns`] || {}} primaryId={primaryLink ? values[`${primaryLink}Id`] : undefined} onPrimaryChange={primaryLink ? (id, label) => setValues((old) => ({ ...old, [`${primaryLink}Id`]: id, [`${primaryLink}Name`]: label || "" })) : undefined} relatedContext={values} onColumnsChange={def.type === "linkMultiple" && def.columns ? (columns) => setValues((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} onChange={(value) => updateFieldValue(name, value)} timeZone={dateTimeZone} onUploading={setUploading} onUploaded={(id) => setUploadedIds((old) => [...old, id])} onError={setError}/>;
+    return <FieldInput key={name} entity={entity} metadata={metadata} name={name} def={def} value={values[name]} themeParamsValue={values.themeParams} onThemeParamsChange={(themeParams) => setValues((old) => ({ ...old, themeParams }))} currencyValue={values[`${name}Currency`]} onCurrencyChange={(currency) => updateFieldValue(`${name}Currency`, currency)} columns={values[`${name}Columns`] || {}} primaryId={primaryLink ? values[`${primaryLink}Id`] : undefined} onPrimaryChange={primaryLink ? (id, label) => setValues((old) => ({ ...old, [`${primaryLink}Id`]: id, [`${primaryLink}Name`]: label || "" })) : undefined} relatedContext={values} onColumnsChange={def.type === "linkMultiple" && def.columns ? (columns) => setValues((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} onChange={(value) => updateFieldValue(name, value)} timeZone={dateTimeZone} onUploading={setUploading} onUploaded={(id) => setUploadedIds((old) => [...old, id])} onError={setError} onRegisterTemplateInsert={entity === "Template" && ["header", "body", "footer"].includes(name) ? (field, insert) => { templateRichInsert.current[field] = insert; } : undefined}/>;
   };
   const rememberTemplateSelection = (event: SyntheticEvent<HTMLFormElement>) => {
     const target = event.target;
@@ -3989,7 +3990,10 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     <div className="modal-heading"><div><span className="eyebrow">{activeRecord ? "UPRAVIT" : duplicate ? "KOPIE ZÁZNAMU" : "NOVÝ ZÁZNAM"} · {entityLabel(metadata, entity, true).toUpperCase()}</span><h2>{activeRecord ? "Upravit záznam" : duplicate ? `Duplikovat ${entityLabel(metadata, entity).toLowerCase()}` : `Vytvořit ${entityLabel(metadata, entity).toLowerCase()}`}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
     {entity === "EmailFilter" && <div className="email-filter-guidance"><strong>Jak pravidla vyhodnocovat</strong><span>Adresy a předmět podporují zástupný znak <code>*</code>. „Obsahuje některý“ projde při shodě alespoň jedné fráze; „Obsahuje všechny“ vyžaduje shodu všech zadaných frází.</span><small>Akce a cílová složka se řídí typem účtu, ke kterému je filtr přiřazen.</small></div>}
     <div className="record-editor-groups">{groups.filter((group) => group.names.some(editorFieldVisible)).map((group) => <section className="record-editor-group" key={group.title}><h3>{group.title}</h3><div className="modal-fields">{group.names.map(renderField)}</div></section>)}</div>
-    {entity === "Template" && values.entityType && <TemplatePlaceholderPicker metadata={metadata} entityType={String(values.entityType)} onInsert={(target, code) => setValues((old) => {
+    {entity === "Template" && values.entityType && <TemplatePlaceholderPicker metadata={metadata} entityType={String(values.entityType)} onInsert={(target, code) => {
+      const richInsert = templateRichInsert.current[target];
+      if (richInsert) { richInsert(code); return; }
+      setValues((old) => {
       const current = String(old[target] || "");
       const selection = templateSelection.current[target] || { start: current.length, end: current.length };
       const start = Math.max(0, Math.min(selection.start, current.length));
@@ -4002,7 +4006,8 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
         templateSelection.current[target] = { start: cursor, end: cursor };
       });
       return { ...old, [target]: next };
-    })}/>}
+      });
+    }}/ >}
     {entity === "Meeting" && (metadata.clientDefs?.Meeting?.bottomPanels?.edit || []).some((panel: any) => panel.name === "scheduler") && <MeetingScheduler metadata={metadata} userIds={values.users || []} userNames={values.usersNames} assignedUserId={values.assignedUserId} assignedUserName={values.assignedUserName} dateStart={values.isAllDay ? values.dateStartDate : values.dateStart} dateEnd={values.isAllDay ? values.dateEndDate : values.dateEnd} allDay={Boolean(values.isAllDay)} entityId={activeRecord?.id}/>}
     {(entity === "Role" || entity === "PortalRole") && <RoleAclEditor metadata={metadata} type={entity === "PortalRole" ? "aclPortal" : "acl"} data={values.data || {}} fieldData={values.fieldData || {}} onChange={(data, fieldData) => setValues((old) => ({ ...old, data, fieldData }))}/>}
     {!["EmailAccount", "InboundEmail"].includes(entity) || mailActionNames.has("testConnection") && mailActionNames.has("smtpTestSend") ? null : <div className="email-test-bar"><span>Ověřte nastavení připojení před uložením účtu.</span><div><button type="button" className="button subtle" onClick={() => void testMailConnection()} disabled={connectionTestBusy || !values.host}>{connectionTestBusy ? "Testuji připojení…" : "Testovat připojení"}<Network size={14}/></button><button type="button" className="button subtle" onClick={() => { setTestEmailTo(String((getSession()?.user as User & { emailAddress?: string } | undefined)?.emailAddress || "")); setTestEmailError(""); setTestEmailOpen(true); }} disabled={testEmailBusy || !values.smtpHost || !values.emailAddress || (entity === "InboundEmail" && !values.useSmtp)}>{testEmailBusy ? "Odesílám…" : "Odeslat testovací e-mail"}<Mail size={14}/></button></div></div>}
@@ -4116,16 +4121,17 @@ function WebhookEventField({ metadata, value, required, disabled, onChange }: { 
 function TemplatePlaceholderPicker({ metadata, entityType, onInsert }: { metadata: Metadata; entityType: string; onInsert: (target: string, code: string) => void }) {
   const [target, setTarget] = useState("body");
   const [attribute, setAttribute] = useState("");
-  const fieldAllowed = (scope: string, name: string, def: FieldDef) => {
+  const [query, setQuery] = useState("");
+  const fieldAllowed = (scope: string, name: string, def: FieldDef, isForeign = false) => {
     const acl = metadata.userAcl?.fieldTable?.[scope]?.[name];
     const entityAcl = (metadata as any).entityAcl?.[scope]?.fields?.[name] || {};
-    return !entityAcl.onlyAdmin && !entityAcl.forbidden && !entityAcl.internal && !def.disabled && !def.utility && !def.notStorable && !def.directAccessDisabled && !def.templatePlaceholderDisabled && acl?.read !== "no" && !["map", "foreign"].includes(def.type || "");
+    return !entityAcl.onlyAdmin && !entityAcl.forbidden && !entityAcl.internal && !def.disabled && !def.utility && !(def.directAccessDisabled && (isForeign || !def.loaderClassName)) && !def.templatePlaceholderDisabled && acl?.read !== "no" && !["map", "foreign", "linkMultiple", "attachmentMultiple"].includes(def.type || "");
   };
   const options: Array<{ value: string; label: string; text: boolean; placeholder?: string }> = [];
   const addFields = (scope: string, linkPrefix = "", linkLabel = "") => {
     const fields = metadata.entityDefs?.[scope]?.fields || {};
     for (const [name, def] of Object.entries(fields)) {
-      if (!fieldAllowed(scope, name, def)) continue;
+      if (!fieldAllowed(scope, name, def, Boolean(linkPrefix))) continue;
       const prefix = (field: string) => linkPrefix ? `${linkPrefix}.${field}` : field;
       const display = (label: string) => linkLabel ? `${linkLabel} · ${label}` : label;
       const label = fieldLabel(name, def, scope, metadata);
@@ -4159,6 +4165,7 @@ function TemplatePlaceholderPicker({ metadata, entityType, onInsert }: { metadat
   }
   options.push({ value: "id", label: "ID záznamu", text: false }, { value: "today", label: "Dnešní datum", text: false }, { value: "now", label: "Aktuální datum a čas", text: false }, { value: "pagebreak", label: "Zalomení stránky", text: false });
   const sortedOptions = options.sort((a, b) => a.label.localeCompare(b.label, "cs"));
+  const filteredOptions = sortedOptions.filter((option) => !query.trim() || `${option.label} ${option.placeholder || option.value}`.toLocaleLowerCase("cs-CZ").includes(query.trim().toLocaleLowerCase("cs-CZ")));
   const insert = () => {
     const item = sortedOptions.find((option) => option.value === attribute);
     if (!item) return;
@@ -4166,7 +4173,7 @@ function TemplatePlaceholderPicker({ metadata, entityType, onInsert }: { metadat
     onInsert(target, item.text ? `{{{${placeholder}}}}` : `{{${placeholder}}}`);
     setAttribute("");
   };
-  return <section className="record-editor-group template-placeholder-picker"><h3>Proměnné šablony · {entityLabel(metadata, entityType)}</h3><p>Vložte hodnotu záznamu do záhlaví, těla nebo zápatí. Pro přesné umístění klikněte nejdřív do textu; vložená proměnná nahradí vybraný text.</p><div className="template-placeholder-controls"><label className="field-input"><span>Vložit do pole</span><select value={target} onChange={(event) => setTarget(event.target.value)}>{["header", "body", "footer"].map((name) => <option key={name} value={name}>{fieldLabel(name, metadata.entityDefs?.Template?.fields?.[name], "Template", metadata)}</option>)}</select></label><label className="field-input"><span>Proměnná</span><select value={attribute} onChange={(event) => setAttribute(event.target.value)}><option value="">Vyberte proměnnou…</option>{sortedOptions.map((option) => <option key={option.value} value={option.value}>{option.label} · {`{{${option.placeholder || option.value}}}`}</option>)}</select></label><button type="button" className="button subtle" disabled={!attribute} onClick={insert}>Vložit proměnnou</button></div></section>;
+  return <section className="record-editor-group template-placeholder-picker"><h3>Proměnné šablony · {entityLabel(metadata, entityType)}</h3><p>Vložte hodnotu záznamu do záhlaví, těla nebo zápatí. Pro přesné umístění klikněte nejdřív do textu; vložená proměnná nahradí vybraný text.</p><div className="template-placeholder-controls"><label className="field-input"><span>Vložit do pole</span><select value={target} onChange={(event) => setTarget(event.target.value)}>{["header", "body", "footer"].map((name) => <option key={name} value={name}>{fieldLabel(name, metadata.entityDefs?.Template?.fields?.[name], "Template", metadata)}</option>)}</select></label><label className="field-input template-placeholder-search"><span>Hledat proměnnou <small>{filteredOptions.length} z {sortedOptions.length}</small></span><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setAttribute(""); }} placeholder="Název pole nebo proměnné…" aria-label="Hledat proměnnou šablony"/></label><label className="field-input"><span>Proměnná</span><select value={attribute} onChange={(event) => setAttribute(event.target.value)}><option value="">Vyberte proměnnou…</option>{filteredOptions.map((option) => <option key={option.value} value={option.value}>{option.label} · {`{{${option.placeholder || option.value}}}`}</option>)}</select></label><button type="button" className="button subtle" disabled={!attribute} onClick={insert}>Vložit proměnnou</button></div></section>;
 }
 
 function LeadCaptureFieldConfigurator({ metadata, selected, params, onChange }: { metadata: Metadata; selected: string[]; params: Row; onChange: (selected: string[], params: Row) => void }) {
@@ -4444,7 +4451,7 @@ function CurrencyRatesEditor({ metadata, currencies, baseCurrency, value, onChan
   return <div className="field-input currency-rates-editor"><span>{fieldLabel("currencyRates", metadata.entityDefs.Settings.fields?.currencyRates, "Settings", metadata)}</span><p className="field-hint">Zadejte, kolik jednotek dané měny odpovídá jedné jednotce základní měny ({baseCurrency || "není nastavena"}). Kurz musí být kladný.</p>{otherCurrencies.length ? <div className="currency-rate-list">{otherCurrencies.map((currency) => <label key={currency}><span id={`currency-rate-label-${currency}`}><b>{currency}</b><small>{labels[currency] || currency} za 1 {baseCurrency}</small></span><input type="number" inputMode="decimal" required min="0.000001" step="any" aria-labelledby={`currency-rate-label-${currency}`} aria-describedby={`currency-rate-help-${currency}`} value={rates[currency] ?? 1} onChange={(event) => onChange({ ...rates, [currency]: Number(event.target.value) })}/><small id={`currency-rate-help-${currency}`} className="sr-only">Zadejte kladný kurz pro {currency} vůči {baseCurrency}.</small></label>)}</div> : <div className="currency-rate-empty"><strong>Není co převádět</strong><span>{baseCurrency ? `Základní měna ${baseCurrency} je jedinou povolenou měnou.` : "Nejprve nastavte základní měnu a seznam povolených měn."}</span></div>}</div>;
 }
 
-function HtmlFieldEditor({ entity, metadata, value, onChange, htmlMode = true, fieldName, disabled = false }: { entity: string; metadata: Metadata; value: unknown; onChange: (value: string) => void; htmlMode?: boolean; fieldName: string; disabled?: boolean }) {
+function HtmlFieldEditor({ entity, metadata, value, onChange, htmlMode = true, fieldName, disabled = false, onRegisterExternalInsert }: { entity: string; metadata: Metadata; value: unknown; onChange: (value: string) => void; htmlMode?: boolean; fieldName: string; disabled?: boolean; onRegisterExternalInsert?: (name: string, insert: (text: string) => void) => void }) {
   const [preview, setPreview] = useState(false);
   const [placeholderScope, setPlaceholderScope] = useState("Contact");
   const [placeholderField, setPlaceholderField] = useState("name");
@@ -4452,7 +4459,7 @@ function HtmlFieldEditor({ entity, metadata, value, onChange, htmlMode = true, f
   const richInsert = useRef<((text: string) => void) | null>(null);
   const html = typeof value === "string" ? value : "";
   function insertToken(token: string) {
-    if (htmlMode && richInsert.current) { richInsert.current(token); return; }
+    if (htmlMode && !preview && richInsert.current) { richInsert.current(token); return; }
     const input = editor.current;
     if (!input) { onChange(`${html}${token}`); return; }
     const start = input.selectionStart;
@@ -4460,6 +4467,7 @@ function HtmlFieldEditor({ entity, metadata, value, onChange, htmlMode = true, f
     onChange(`${html.slice(0, start)}${token}${html.slice(end)}`);
     requestAnimationFrame(() => { input.focus(); input.setSelectionRange(start + token.length, start + token.length); });
   }
+  useEffect(() => { onRegisterExternalInsert?.(fieldName, insertToken); }, [fieldName, onChange, onRegisterExternalInsert, html, htmlMode, preview]);
   const templateDefs = (metadata.app?.emailTemplate?.placeholders || {}) as Record<string, { order?: number }>;
   const templateNativeList = (metadata.clientDefs?.EmailTemplate?.placeholderList || []) as string[];
   const orderedTemplateDefs = Object.keys(templateDefs).sort((a, b) => (templateDefs[a]?.order ?? 0) - (templateDefs[b]?.order ?? 0));
@@ -4621,7 +4629,7 @@ function PortalScopeListEditor({ name, label, value, metadata, disabled, onChang
   return <div className="field-input portal-scope-list-editor"><span>{label}</span><div className="portal-scope-list">{selected.map((item, index) => <div className="portal-scope-list-row" key={`${item}-${index}`}><strong>{optionLabel(item)}</strong><div><button type="button" className="icon-button" disabled={disabled || index === 0} onClick={() => move(index, -1)} aria-label={`Posunout nahoru: ${optionLabel(item)}`}><ArrowUp size={13}/></button><button type="button" className="icon-button" disabled={disabled || index === selected.length - 1} onClick={() => move(index, 1)} aria-label={`Posunout dolů: ${optionLabel(item)}`}><ArrowDown size={13}/></button><button type="button" className="icon-button danger-ghost" disabled={disabled} onClick={() => remove(index)} aria-label={`Odebrat: ${optionLabel(item)}`}><Trash2 size={13}/></button></div></div>)}{!selected.length && <small>Žádná položka není vybraná.</small>}</div><div className="portal-scope-list-add"><select value={next} disabled={disabled || !available.length} onChange={(event) => setNext(event.target.value)}><option value="">Vyberte modul…</option>{available.map((item, index) => <option key={`${item}-${index}`} value={item}>{optionLabel(item)}</option>)}</select><button type="button" className="button subtle" disabled={disabled || !next} onClick={add}><Plus size={13}/>Přidat</button></div><small className="field-hint">{tabList ? "Pořadí určuje navigaci portálu. Nabízené moduly respektují portálová oprávnění." : "Rychlé vytvoření nabízí jen objekty povolené pro tento portál."}</small></div>;
 }
 
-function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}, onColumnsChange, primaryId, onPrimaryChange, onChange, onUploading, onUploaded, onError, relatedContext, currencyValue, onCurrencyChange, themeParamsValue, onThemeParamsChange, timeZone }: { entity: string; metadata: Metadata; name: string; def: FieldDef; value: any; columns?: Row; onColumnsChange?: (columns: Row) => void; primaryId?: string; onPrimaryChange?: (id: string, label?: string) => void; onChange: (value: any) => void; onUploading?: (value: boolean) => void; onUploaded?: (id: string) => void; onError?: (message: string) => void; relatedContext?: Row; currencyValue?: string; onCurrencyChange?: (currency: string) => void; themeParamsValue?: Row; onThemeParamsChange?: (value: Row) => void; timeZone?: string }) {
+function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}, onColumnsChange, primaryId, onPrimaryChange, onChange, onUploading, onUploaded, onError, relatedContext, currencyValue, onCurrencyChange, themeParamsValue, onThemeParamsChange, timeZone, onRegisterTemplateInsert }: { entity: string; metadata: Metadata; name: string; def: FieldDef; value: any; columns?: Row; onColumnsChange?: (columns: Row) => void; primaryId?: string; onPrimaryChange?: (id: string, label?: string) => void; onChange: (value: any) => void; onUploading?: (value: boolean) => void; onUploaded?: (id: string) => void; onError?: (message: string) => void; relatedContext?: Row; currencyValue?: string; onCurrencyChange?: (currency: string) => void; themeParamsValue?: Row; onThemeParamsChange?: (value: Row) => void; timeZone?: string; onRegisterTemplateInsert?: (name: string, insert: (text: string) => void) => void }) {
   const def = nativeForeignFieldDef(metadata, entity, inputDef);
   const [options, setOptions] = useState<Row[]>([]);
   const [teamPositionOptions, setTeamPositionOptions] = useState<Record<string, string[]>>({});
@@ -4854,7 +4862,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     return <ArrayFieldInput label={inputLabel} value={Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split("\n").filter(Boolean) : []} disabled={Boolean(def.readOnly || def.disabled)} keepItems={Boolean(def.keepItems)} allowCustomOptions={Boolean(def.allowCustomOptions)} pattern={pattern} maxCount={def.maxCount} maxLength={def.maxItemLength || (type === "urlMultiple" ? 255 : 100)} options={resolvedOptions.options.map(String)} optionLabels={resolvedOptions.labels} urlMode={type === "urlMultiple"} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
   }
   if (type === "url") return <UrlFieldInput label={inputLabel} value={String(value || "")} disabled={Boolean(def.readOnly || def.disabled)} required={Boolean(def.required)} maxLength={Number(def.maxLength || 255)} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
-  if (type === "wysiwyg") return <div className={`field-input html-field ${def.required ? "required" : ""}`}><span>{inputLabel}</span><HtmlFieldEditor entity={entity} metadata={metadata} value={value} onChange={onChange} htmlMode={entity !== "EmailTemplate" || relatedContext?.isHtml !== false} fieldName={name} disabled={Boolean(def.readOnly || def.disabled)}/></div>;
+  if (type === "wysiwyg") return <div className={`field-input html-field ${def.required ? "required" : ""}`}><span>{inputLabel}</span><HtmlFieldEditor entity={entity} metadata={metadata} value={value} onChange={onChange} htmlMode={entity !== "EmailTemplate" || relatedContext?.isHtml !== false} fieldName={name} disabled={Boolean(def.readOnly || def.disabled)} onRegisterExternalInsert={onRegisterTemplateInsert}/></div>;
   if (type === "address") {
     const current = value || {};
     const parts = [["street", "Ulice"], ["city", "Město"], ["state", "Kraj / stát"], ["postalCode", "PSČ"], ["country", "Země"]];
