@@ -35,6 +35,22 @@ function toEspoUtcString(date: Date) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}:${String(date.getUTCSeconds()).padStart(2, "0")}`;
 }
 
+export function formatEspoDateTimeInput(value: string | undefined, timeZone: string) {
+  const date = parseEspoDateTime(value);
+  if (!date) return "";
+  try {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date).map((part) => [part.type, part.value]));
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+  } catch { return date.toISOString().slice(0, 16); }
+}
+
+export function espocrmDateTimeFromInput(value: string, timeZone: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value);
+  if (!match) return value;
+  try { return toEspoUtcString(zonedWallTimeToUtc(Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4]), Number(match[5]), 0, timeZone)); }
+  catch { return value.replace("T", " "); }
+}
+
 export function dateFilterBoundaryInTimeZone(value: string, timeZone: string, endOfDay = false) {
   const [year, month, day] = value.split("-").map(Number);
   if (![year, month, day].every(Number.isFinite)) return `${value} ${endOfDay ? "23:59:59" : "00:00:00"}`;

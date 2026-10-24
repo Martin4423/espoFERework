@@ -38,3 +38,6 @@ The target is full replacement of the interactive EspoCRM frontend while retaini
 ## Completion rule
 
 Do not mark the frontend replacement complete because generic CRUD renders for all scopes. Every controller action, view family, and user-facing flow in the tagged 9.1.7 client must have an implemented replacement and evidence from the corresponding live EspoCRM API path. This tracker stays open until each row reaches parity and the install/deploy artifact is verified.
+
+
+- Record editor date-time inputs display the saved EspoCRM user time zone and convert edits back to UTC before saving, including Meeting date fields.
