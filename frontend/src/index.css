@@ -3392,3 +3392,9 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .campaign-log-avatar.clicked { color: #6d57b6; background: #f0eafe; }
 .campaign-log-avatar.opted-out, .campaign-log-avatar.bounced { color: #a84650; background: #fbebed; }
 .campaign-log-avatar.opted-in, .campaign-log-avatar.lead-created { color: #287851; background: #e7f5ed; }
+
+.notification-row.has-notification-message { flex-wrap: wrap; align-items: flex-start; }
+.notification-message-content { order: 3; flex: 1 0 100%; min-width: 0; margin: -2px 0 12px 40px; overflow-wrap: anywhere; }
+.notification-message-content .notification-message { display: block; max-height: 7em; overflow: auto; color: #6f7b90; font-size: 10px; line-height: 1.5; }
+.notification-message-content .notification-message p { display: block; margin: 0 0 5px; }
+.notification-message-content .notification-message a:focus-visible { outline: 2px solid var(--accent, #526db0); outline-offset: 2px; border-radius: 2px; }
