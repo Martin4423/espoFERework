@@ -7,7 +7,7 @@ type Row = Record<string, any>;
 type Result = { list?: Row[]; total?: number };
 
 /** Server paged replacement for EspoCRM select-records modal. */
-export default function SelectRecordsDialog({ entity, metadata, multiple, selectedIds, selectedRows, primaryFilter, boolFilterList = [], fixedWhere = [], onClose, onSelect, onSkip, skipLabel = "Pokračovat bez záznamu" }: { entity: string; metadata: Metadata; multiple: boolean; selectedIds: string[]; selectedRows: Row[]; primaryFilter?: string; boolFilterList?: string[]; fixedWhere?: Row[]; onClose: () => void; onSelect: (rows: Row[]) => void; onSkip?: () => void; skipLabel?: string }) {
+export default function SelectRecordsDialog({ entity, metadata, multiple, selectedIds, selectedRows, primaryFilter, boolFilterList = [], fixedWhere = [], mandatorySelectAttributeList = [], onClose, onSelect, onSkip, skipLabel = "Pokračovat bez záznamu" }: { entity: string; metadata: Metadata; multiple: boolean; selectedIds: string[]; selectedRows: Row[]; primaryFilter?: string; boolFilterList?: string[]; fixedWhere?: Row[]; mandatorySelectAttributeList?: string[]; onClose: () => void; onSelect: (rows: Row[]) => void; onSkip?: () => void; skipLabel?: string }) {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
@@ -19,6 +19,7 @@ export default function SelectRecordsDialog({ entity, metadata, multiple, select
   const [error, setError] = useState("");
   const pageSize = 20;
   const fixedWhereKey = JSON.stringify(fixedWhere);
+  const mandatorySelectKey = mandatorySelectAttributeList.join(",");
   const fields = metadata.entityDefs?.[entity]?.fields || {};
   const acl = metadata.userAcl?.fieldTable?.[entity] || {};
   useEffect(() => {
@@ -35,6 +36,8 @@ export default function SelectRecordsDialog({ entity, metadata, multiple, select
     setBusy(true); setError("");
     const sortField = fields.name ? "name" : fields.subject ? "subject" : "createdAt";
     const params = new URLSearchParams({ maxSize: String(pageSize), offset: String(offset), orderBy: sortField, order: "asc" });
+    const select = [...new Set([...columns, ...mandatorySelectAttributeList])];
+    if (select.length) params.set("select", select.join(","));
     const where: Row[] = [...fixedWhere];
     if (search.trim()) where.push({ type: "textFilter", value: search.trim() });
     if (primaryFilter) params.set("primaryFilter", primaryFilter);
@@ -46,7 +49,7 @@ export default function SelectRecordsDialog({ entity, metadata, multiple, select
       setSelected((current) => { const next = new Map(current); (result.list || []).forEach((row) => { if (next.has(row.id)) next.set(row.id, row); }); return next; });
     }).catch((cause) => live && setError(cause instanceof Error ? cause.message : "Záznamy se nepodařilo načíst.")).finally(() => live && setBusy(false));
     return () => { live = false; };
-  }, [entity, offset, search, primaryFilter, boolFilterList.join(","), fixedWhereKey]);
+  }, [entity, offset, search, primaryFilter, boolFilterList.join(","), fixedWhereKey, mandatorySelectKey, columns.join(",")]);
   useEffect(() => {
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close);

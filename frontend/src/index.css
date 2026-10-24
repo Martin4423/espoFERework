@@ -663,6 +663,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .mass-email-template-field > .field-input { flex: 1; min-width: 0; }
 .mass-email-template-field > .button { flex: 0 0 auto; margin-bottom: 1px; }
 .email-compose-fields { padding: 17px 22px 4px; overflow: auto; }
+.email-recipient-input { display: flex; align-items: center; gap: 7px; }
+.email-recipient-input input { min-width: 0; flex: 1; }
+.email-recipient-input .button { flex: 0 0 auto; padding: 8px 10px; }
 .email-modal .modal-footer kbd { margin-left: 5px; padding: 2px 4px; border: 1px solid currentColor; border-radius: 4px; font: 8px ui-monospace, monospace; opacity: .65; }
 .email-compose-fields label { display: grid; gap: 6px; margin-bottom: 12px; color: #68748a; font-size: 10px; font-weight: 600; }
 .email-compose-fields input, .email-compose-fields textarea { width: 100%; padding: 9px 10px; border: 1px solid #e1e5ed; border-radius: 7px; background: #fff; color: var(--ink); font-size: 11px; outline: 0; }
