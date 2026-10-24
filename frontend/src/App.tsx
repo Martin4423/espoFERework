@@ -1283,7 +1283,6 @@ function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNav
       else if (Array.isArray(item?.itemList)) walk(item.itemList);
     });
     walk(tabs);
-    Object.entries(metadata.scopes || {}).filter(([scope, definition]) => definition.tab && hasTabAccess(scope)).forEach(([scope]) => add(entityLabel(metadata, scope, true), scope));
     if (isAdmin) Object.values((metadata.app as any)?.adminPanel || {}).flatMap((panel: any) => panel?.itemList || []).filter((item: any) => item.tabQuickSearch && item.label && item.url).forEach((item: any) => {
       const route = String(item.url).match(/^#Admin\/([^/?#]+)/)?.[1];
       const target = route ? quickAdminTargets[route] : String(item.url).match(/^#([^/?#]+)$/)?.[1];
@@ -1310,11 +1309,13 @@ function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNav
     let live = true;
     const timer = window.setTimeout(() => {
       setBusy(true); setError("");
-      const params = new URLSearchParams({ q: normalized, maxSize: "15" });
+      const configuredMaxSize = Number(metadata.appSettings?.globalSearchMaxSize);
+      const maxSize = Number.isFinite(configuredMaxSize) && configuredMaxSize > 0 ? Math.floor(configuredMaxSize) : 10;
+      const params = new URLSearchParams({ q: normalized, maxSize: String(maxSize) });
       request<PageResult>(`GlobalSearch?${params}`).then((result) => { if (live) { setResults(result.list || []); setSelectedIndex(0); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Vyhledávání selhalo.")).finally(() => live && setBusy(false));
     }, 240);
     return () => { live = false; window.clearTimeout(timer); };
-  }, [query]);
+  }, [query, metadata.appSettings?.globalSearchMaxSize]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [onClose]);
   function selectResult(index: number) {
     const record = results[index];
