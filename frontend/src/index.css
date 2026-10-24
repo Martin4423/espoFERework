@@ -2733,6 +2733,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .relationship-open strong, .relationship-candidates strong { overflow: hidden; color: var(--text, #202b40); text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .relationship-open small, .relationship-candidates small { overflow: hidden; color: var(--muted, #778198); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .relationship-row-icon { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 8px; color: #4562a5; background: #eef2fb; }
+.relationship-send-article:hover:not(:disabled) { color: var(--primary); background: #f3f1ff; }
 .relationship-position { display: flex; align-items: center; gap: 6px; }
 .relationship-position select { min-height: 32px; max-width: 150px; }
 .relationship-unlink { width: 30px; height: 30px; flex: 0 0 30px; }
