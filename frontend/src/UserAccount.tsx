@@ -46,6 +46,26 @@ function choices(name: string, def: FieldDef, metadata: Metadata, settings: Data
   });
 }
 
+function PreferenceChecklist({ label, options, value, onChange }: { label: string; options: Array<[string, string]>; value: any; onChange: (value: string[]) => void }) {
+  const [query, setQuery] = useState("");
+  const selected: string[] = Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean) : [];
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filtered = options.filter(([, title]) => title.toLocaleLowerCase().includes(normalizedQuery));
+  const allVisibleSelected = filtered.length > 0 && filtered.every(([key]) => selected.includes(key));
+  function toggle(key: string, checked: boolean) {
+    onChange(checked ? [...new Set([...selected, key])] : selected.filter((item) => item !== key));
+  }
+  function toggleVisible() {
+    const visibleKeys = new Set(filtered.map(([key]) => key));
+    onChange(allVisibleSelected ? selected.filter((item) => !visibleKeys.has(item)) : [...new Set([...selected, ...visibleKeys])]);
+  }
+  return <fieldset className="preference-checklist">
+    <legend>{label}<span className="preference-selection-count">{selected.length} vybráno</span></legend>
+    <div className="preference-checklist-tools"><label className="preference-checklist-search"><span className="sr-only">Filtrovat {label}</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Hledat v možnostech…"/></label><button type="button" className="button subtle" onClick={toggleVisible} disabled={!filtered.length}>{allVisibleSelected ? "Odebrat zobrazené" : "Vybrat zobrazené"}</button></div>
+    <div className="preference-checklist-options">{filtered.map(([key, title]) => <label className={selected.includes(key) ? "selected" : ""} key={key}><input type="checkbox" checked={selected.includes(key)} onChange={(event) => toggle(key, event.target.checked)}/><span>{title}</span></label>)}{!filtered.length && <p className="preference-checklist-empty">Žádná možnost neodpovídá hledání.</p>}</div>
+  </fieldset>;
+}
+
 function PreferenceControl({ field, value, metadata, settings, themeParams, onChange, onThemeParamsChange }: { field: PrefField; value: any; metadata: Metadata; settings: Data; themeParams: Data; onChange: (value: any) => void; onThemeParamsChange: (value: Data) => void }) {
   const { name, def } = field;
   const label = fieldLabel(name, def, "Preferences", metadata);
@@ -68,8 +88,7 @@ function PreferenceControl({ field, value, metadata, settings, themeParams, onCh
   }
   if (type === "bool") return <label className="preference-toggle" htmlFor={controlId}><span><strong>{label}</strong><small>{def.tooltip || "Osobní nastavení účtu."}</small></span><input id={controlId} type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)}/><i/></label>;
   if (optionList && ["checklist", "multiEnum"].includes(type)) {
-    const selected: string[] = Array.isArray(value) ? value.map(String) : [];
-    return <fieldset className="preference-checklist"><legend>{label}</legend><div>{optionList.map(([key, title]) => <label key={key}><input type="checkbox" checked={selected.includes(key)} onChange={(event) => onChange(event.target.checked ? [...selected, key] : selected.filter((item) => item !== key))}/>{title}</label>)}</div></fieldset>;
+    return <PreferenceChecklist label={label} options={optionList} value={value} onChange={onChange}/>;
   }
   if (optionList) return <label className="field-input" htmlFor={controlId}><span>{label}{def.required && <i> *</i>}</span><select id={controlId} value={value ?? ""} required={def.required} onChange={(event) => onChange(event.target.value === "" ? "" : ["enumInt"].includes(type) || name === "weekStart" ? Number(event.target.value) : event.target.value)}><option value="">Výchozí nastavení</option>{optionList.map(([key, title]) => <option value={key} key={key}>{title}</option>)}</select></label>;
   if (type === "bool") return null;
