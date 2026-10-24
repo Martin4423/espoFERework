@@ -4092,6 +4092,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const autoPublishDate = useRef(false);
   const [dateTimeZone, setDateTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [changingAppSecret, setChangingAppSecret] = useState(!activeRecord);
+  const [changingUserPassword, setChangingUserPassword] = useState(!record);
   const [passwordStrengthParams, setPasswordStrengthParams] = useState<PasswordRecoveryInfo["strengthParams"] | null>(null);
   useEffect(() => {
     if (entity !== "User" || getSession()?.user.type !== "admin") return;
@@ -4595,6 +4596,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const taskReminderVisible = entity !== "Task" || Boolean(values.dateEnd || values.dateEndDate) && !taskNonReminderStatus && currentUserAssignedToTask;
   const editorFieldVisible = (name: string) => (entity !== "InboundEmail" || inboundEmailFieldVisible(name, values)) && (entity !== "EmailAccount" || emailAccountFieldVisible(name, values)) && (name !== "reminders" || taskReminderVisible);
   const renderField = (name: string) => {
+    if (entity === "User" && name === "passwordConfirm" && activeRecord && !changingUserPassword) return null;
     if (!editorFieldVisible(name)) return null;
     if ((entity === "InboundEmail" || entity === "EmailAccount") && name === "testConnection") return <div className="email-test-field" key={name}><button type="button" className="button subtle" onClick={() => void testMailConnection()} disabled={connectionTestBusy || !values.host}><Network size={14}/>{connectionTestBusy ? "Testuji připojení…" : "Testovat IMAP připojení"}</button></div>;
     if ((entity === "InboundEmail" || entity === "EmailAccount") && name === "smtpTestSend") return values.smtpHost ? <div className="email-test-field" key={name}><button type="button" className="button subtle" onClick={() => { setTestEmailTo(String((getSession()?.user as User & { emailAddress?: string } | undefined)?.emailAddress || "")); setTestEmailError(""); setTestEmailOpen(true); }} disabled={testEmailBusy}><Mail size={14}/>{testEmailBusy ? "Odesílám…" : "Odeslat testovací e-mail"}</button></div> : null;
@@ -4693,6 +4695,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       })}/>;
     }
     if (entity === "User" && name === "password") {
+      if (activeRecord && !changingUserPassword) return <div className="user-password-unchanged" key={name}><div className="user-password-unchanged-copy"><strong>Heslo zůstává beze změny</strong><span>Nové heslo se nastaví pouze tehdy, když o to výslovně požádáte.</span></div><button type="button" className="button subtle" onClick={() => { setChangingUserPassword(true); setValues((old) => ({ ...old, password: "", passwordConfirm: "", passwordPreview: "" })); }}><KeyRound size={14}/> Změnit heslo</button></div>;
       const password = String(values.password || "");
       const strength = passwordStrengthParams || {};
       const hasPasswordRules = Object.values(strength).some(Boolean);

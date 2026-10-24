@@ -3061,6 +3061,11 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .field-manager-link-chip button { border: 0; background: transparent; cursor: pointer; }
 @media (max-width: 720px) { .field-manager-option-row { grid-template-columns: 1fr 1fr 30px 30px 30px; } .field-manager-option-code { grid-column: 1 / -1; } }
 .user-password-control { display: grid; gap: 12px; min-width: 0; }
+.user-password-unchanged { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 16px; border: 1px solid var(--line, #e7eaf0); border-radius: 11px; background: var(--surface-muted, #f8f9fb); }
+.user-password-unchanged-copy { display: grid; gap: 4px; min-width: 0; }
+.user-password-unchanged-copy strong { color: var(--text, #252b36); font-size: 13px; font-weight: 650; }
+.user-password-unchanged-copy span { color: var(--muted, #768092); font-size: 12px; line-height: 1.5; }
+.user-password-unchanged > .button { flex: 0 0 auto; min-height: 38px; }
 .user-password-rules { display: grid; gap: 5px; margin: 0; padding: 10px 12px; border: 1px solid var(--line, #e7eaf0); border-radius: 9px; background: var(--surface-muted, #f8f9fb); list-style: none; color: var(--muted, #8b95a5); font-size: 11px; }
 .user-password-rules li { display: flex; align-items: center; gap: 8px; }
 .user-password-rules li > span { width: 12px; text-align: center; }
@@ -3071,6 +3076,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .user-password-preview { margin: 0; }
 .user-password-preview input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 @media (max-width: 680px) { .user-password-input { align-items: stretch; flex-direction: column; } }
+@media (max-width: 680px) { .user-password-unchanged { align-items: stretch; flex-direction: column; } .user-password-unchanged > .button { align-self: flex-start; } }
 
 .admin-tab-list-field { grid-column: 1 / -1; }
 .admin-tab-list-editor { display: grid; gap: 12px; }
