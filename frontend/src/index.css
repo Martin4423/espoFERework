@@ -479,6 +479,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .url-field-display a:hover { text-decoration: underline; }
 .url-copy-button { display: inline-flex; align-items: center; padding: 2px; margin-left: 3px; border: 0; border-radius: 3px; background: transparent; color: var(--muted); cursor: pointer; vertical-align: middle; }
 .url-copy-button:hover { color: var(--accent, #625bd7); background: var(--surface-muted, #f2f3f8); }
+.contact-field-display a { color: var(--accent, #625bd7); text-decoration: none; }
+.contact-field-display a:hover { text-decoration: underline; }
 .calendar-participant-filter { min-height: 30px; white-space: nowrap; }
 .calendar-view-switch { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: #fafbfc; }
 .calendar-view-switch button { padding: 5px 9px; border: 0; border-radius: 5px; background: transparent; color: #8892a2; font-size: 9px; cursor: pointer; }
