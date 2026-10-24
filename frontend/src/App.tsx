@@ -2980,6 +2980,17 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   const [error, setError] = useState("");
   const fields = metadata.entityDefs?.[entity]?.fields || {};
   const readableFieldPermissions = metadata.userAcl?.fieldTable?.[entity] || {};
+  const auditFieldReadable = (name: string) => Boolean(fields[name] && readableFieldPermissions[name]?.read !== "no");
+  const auditMetaValue = (base: "created" | "modified") => {
+    const atName = `${base}At`;
+    const byName = `${base}By`;
+    const hasAt = auditFieldReadable(atName) && Boolean(record[atName]);
+    const hasBy = auditFieldReadable(byName) && Boolean(record[`${byName}Id`]);
+    if (!hasAt && !hasBy) return "—";
+    return <>{hasAt && <span>{formatDate(record[atName], dateTimeZone)}</span>}{hasAt && hasBy && <i> · </i>}{hasBy && (canAccessEntity(metadata, "User") ? <button type="button" className="drawer-meta-link" onClick={() => onOpenRelated("User", { id: record[`${byName}Id`], name: record[`${byName}Name`] || "Uživatel" })}>{record[`${byName}Name`] || "Uživatel"}</button> : record[`${byName}Name`] || "")}</>;
+  };
+  const showComplexCreated = entity !== "User" && ((auditFieldReadable("createdAt") && Boolean(record.createdAt)) || (auditFieldReadable("createdBy") && Boolean(record.createdById)));
+  const showComplexModified = entity !== "User" && ((auditFieldReadable("modifiedAt") && Boolean(record.modifiedAt)) || (auditFieldReadable("modifiedBy") && Boolean(record.modifiedById))) && (Boolean(record.modifiedById) || record.modifiedAt !== record.createdAt);
   const canEditRecord = !record.deleted && !["AuthLogRecord", "EmailQueueItem", "LeadCaptureLogRecord"].includes(entity) && canChangeEntity(metadata, entity, "edit") && !metadata.clientDefs?.[entity]?.editDisabled;
   const canDeleteRecord = !record.deleted && canChangeEntity(metadata, entity, "delete");
   const canDuplicateRecord = !record.deleted && entity !== "LeadCaptureLogRecord" && canCreateEntity(metadata, entity) && !metadata.clientDefs?.[entity]?.duplicateDisabled;
@@ -3235,7 +3246,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     {!record.deleted && <Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/>Načítám související záznamy…</div>}><RecordRelationships entity={entity} record={record} metadata={metadata} onOpenRecord={onOpenRelated} onOpenTaskList={(scope, where) => onOpenEntity(scope, where)} onComposeEmail={onComposeEmail} renderActivityEditor={(scope, initialValues, onActivitySaved, onActivityClose) => <RecordEditor key={`${scope}-${initialValues.id || "new"}`} entity={scope} fields={getEditorFields(metadata, scope)} metadata={metadata} record={initialValues.id ? initialValues : undefined} initialValues={initialValues} onClose={onActivityClose} onSaved={onActivitySaved}/>}/></Suspense>}
     {!record.deleted && entity === "OAuthAccount" && <OAuthConnectionPanel record={record} onChanged={(next) => { setRecord(next); onChanged(next); }}/>}
     {!record.deleted && aclLevel(metadata, entity, "stream") !== "no" && <Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/>Načítám aktivitu…</div>}><RecordStream entity={entity} record={record} metadata={metadata} onOpenNote={(note) => { void request<Row>(`Note/${encodeURIComponent(note.id)}`).then((fresh) => onOpenRelated("Note", fresh)).catch(() => onOpenRelated("Note", note)); }}/></Suspense>}
-    <div className="drawer-meta"><span>Vytvořeno</span><b>{formatDate(record.createdAt, dateTimeZone)}</b><span>Naposledy upraveno</span><b>{formatDate(record.modifiedAt, dateTimeZone)}</b></div>
+    {showComplexCreated || showComplexModified ? <div className="drawer-meta">{showComplexCreated && <><span>Vytvořeno</span><b>{auditMetaValue("created")}</b></>}{showComplexModified && <><span>Upraveno</span><b>{auditMetaValue("modified")}</b></>}</div> : null}
   </aside>
   {mapAddress && <div className="modal-backdrop address-map-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMapAddress(null)}><section className="record-modal address-map-modal"><div className="modal-heading"><div><span className="eyebrow">MAPA ADRESY</span><h2>{addressText(mapAddress)}</h2></div><button className="icon-button" onClick={() => setMapAddress(null)} aria-label="Zavřít"><X size={17}/></button></div><GoogleAddressMap address={mapAddress} apiKey={String(metadata.appSettings?.googleMapsApiKey || "")} mapId={String(metadata.appSettings?.googleMapsMapId || "")}/><a className="button subtle" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText(mapAddress))}`} target="_blank" rel="noreferrer">Otevřít větší mapu <ArrowRight size={14}/></a></section></div>}
   {acceptanceOpen && <MeetingAcceptanceDialog entity={entity as "Meeting" | "Call"} eventName={record.name || ""} choices={meetingAcceptanceChoices} selected={meetingAcceptanceStatus} onClose={() => setAcceptanceOpen(false)} onSelect={setMeetingAcceptance}/>}

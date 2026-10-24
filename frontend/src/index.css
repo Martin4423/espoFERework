@@ -670,6 +670,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .detail-field span, .drawer-meta span { color: #98a2b3; font-size: 9px; }
 .detail-field strong, .drawer-meta b { color: #46536b; font-size: 10px; font-weight: 600; overflow-wrap: anywhere; }
 .drawer-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 15px; padding: 18px 5px; }
+.drawer-meta-link { padding: 0; border: 0; background: transparent; color: var(--primary, #675fce); font: inherit; text-align: left; cursor: pointer; }
+.drawer-meta-link:hover { text-decoration: underline; }
+.drawer-meta-link:focus-visible { border-radius: 2px; outline: 2px solid var(--primary, #675fce); outline-offset: 2px; }
 .record-stream { margin: 20px -27px 0; padding: 19px 27px 12px; border-top: 1px solid var(--line); background: #fbfbfd; }
 .record-stream-heading, .record-stream-heading > div, .record-stream-actions { display: flex; align-items: center; }
 .record-stream-heading { justify-content: space-between; gap: 12px; margin-bottom: 14px; }
