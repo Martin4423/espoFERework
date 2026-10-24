@@ -474,6 +474,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-toolbar { min-height: 61px; display: flex; align-items: center; justify-content: space-between; padding: 0 17px; border-bottom: 1px solid var(--line); }
 .calendar-toolbar-actions { display: flex; align-items: center; gap: 8px; }
 .calendar-shared-view-select { max-width: 155px; min-height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 11px; }
+.url-field-display { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.url-field-display a { color: var(--accent, #625bd7); overflow-wrap: anywhere; text-decoration: none; }
+.url-field-display a:hover { text-decoration: underline; }
 .calendar-participant-filter { min-height: 30px; white-space: nowrap; }
 .calendar-view-switch { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: #fafbfc; }
 .calendar-view-switch button { padding: 5px 9px; border: 0; border-radius: 5px; background: transparent; color: #8892a2; font-size: 9px; cursor: pointer; }
