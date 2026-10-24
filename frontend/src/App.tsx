@@ -181,6 +181,10 @@ async function fetchPortalBranding(): Promise<PortalBranding | null> {
 }
 
 function formFieldValueFromRecord(name: string, def: FieldDef, record: Row): unknown {
+  if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) {
+    const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+    return { from: record[`from${upperName}`] ?? null, to: record[`to${upperName}`] ?? null, currency: record[`from${upperName}Currency`] || record[`to${upperName}Currency`] || "" };
+  }
   if (def.type === "duration" && def.start && def.end && record[def.start] && record[def.end]) {
     const start = new Date(String(record[def.start]).replace(" ", "T")).getTime();
     const end = new Date(String(record[def.end]).replace(" ", "T")).getTime();
@@ -215,6 +219,7 @@ function valuesFromRecordFields(entity: string, fields: [string, FieldDef][], re
 }
 
 function fieldAttributeList(entity: string, name: string, def: FieldDef): string[] {
+  if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) { const upperName = name.charAt(0).toUpperCase() + name.slice(1); return [`from${upperName}`, `to${upperName}`, ...(def.type === "rangeCurrency" ? [`from${upperName}Currency`, `to${upperName}Currency`] : [])]; }
   if (["email", "phone"].includes(def.type || "")) return [name, `${name}Data`, `${name}IsOptedOut`, `${name}IsInvalid`];
   if (def.type === "currency") return [name, `${name}Currency`];
   if (def.type === "duration") return [String(def.start || ""), String(def.end || "")].filter(Boolean);
@@ -230,6 +235,12 @@ function fieldAttributeList(entity: string, name: string, def: FieldDef): string
 
 function attributesFromFormField(entity: string, name: string, def: FieldDef, values: Row): Row {
   const value = values[name];
+  if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) {
+    const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+    const from = value?.from == null || value.from === "" ? null : Number(value.from);
+    const to = value?.to == null || value.to === "" ? null : Number(value.to);
+    return { [`from${upperName}`]: from, [`to${upperName}`]: to, ...(def.type === "rangeCurrency" ? { [`from${upperName}Currency`]: from == null ? null : value.currency || null, [`to${upperName}Currency`]: to == null ? null : value.currency || null } : {}) };
+  }
   if (["email", "phone"].includes(def.type || "")) return { [name]: value || null, [`${name}Data`]: values[`${name}Data`] || [], [`${name}IsOptedOut`]: values[`${name}IsOptedOut`] ?? false, [`${name}IsInvalid`]: values[`${name}IsInvalid`] ?? false };
   if (def.type === "currency") return { [name]: value == null || value === "" ? null : Number(value), [`${name}Currency`]: values[`${name}Currency`] || null };
   if (def.type === "duration") return { ...(def.start ? { [def.start]: values[def.start] ?? null } : {}), ...(def.end ? { [def.end]: values[def.end] ?? null } : {}) };
@@ -604,7 +615,22 @@ function PublicLeadCapturePage({ recordId }: { recordId: string }) {
       const def = form.fieldDefs[name];
       const value = values[name];
       if (value == null || value === "") continue;
-      if (def.type === "personName") {
+      if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) {
+        const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+        const from = value.from == null || value.from === "" ? null : Number(value.from);
+        const to = value.to == null || value.to === "" ? null : Number(value.to);
+        if ((from != null && to != null && from > to) || (from != null && !Number.isFinite(from)) || (to != null && !Number.isFinite(to)) || def.type === "rangeInt" && (from != null && !Number.isInteger(from) || to != null && !Number.isInteger(to))) {
+          setError(`${fieldLabel(name, def, "Lead", metadata)}: zkontrolujte pořadí a formát hodnot rozsahu.`);
+          setBusy(false);
+          return;
+        }
+        payload[`from${upperName}`] = from;
+        payload[`to${upperName}`] = to;
+        if (def.type === "rangeCurrency") {
+          payload[`from${upperName}Currency`] = from == null ? null : value.currency || form.config?.defaultCurrency || form.metadata?.app?.defaultCurrency || "USD";
+          payload[`to${upperName}Currency`] = to == null ? null : value.currency || form.config?.defaultCurrency || form.metadata?.app?.defaultCurrency || "USD";
+        }
+      } else if (def.type === "personName") {
         const prefix = name === "name" ? "" : name[0].toUpperCase() + name.slice(1);
         if (value.firstName) payload[`${prefix}firstName`] = value.firstName;
         if (value.middleName) payload[`${prefix}middleName`] = value.middleName;
@@ -2648,6 +2674,23 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     event.preventDefault(); if (!massField) return;
     setMassBusy(true); setError("");
     const def = fieldDefs[massField];
+    if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def?.type || "")) {
+      const from = massValue?.from == null || massValue.from === "" ? null : Number(massValue.from);
+      const to = massValue?.to == null || massValue.to === "" ? null : Number(massValue.to);
+      if (from != null && to != null && from > to) { setError("Hodnota „Od“ musí být menší nebo stejná jako „Do“."); setMassBusy(false); return; }
+      if ((from != null && !Number.isFinite(from)) || (to != null && !Number.isFinite(to)) || def.type === "rangeInt" && (from != null && !Number.isInteger(from) || to != null && !Number.isInteger(to))) { setError("Zadejte platné hodnoty rozsahu."); setMassBusy(false); return; }
+      const upperName = massField.charAt(0).toUpperCase() + massField.slice(1);
+      const values: Row = { [`from${upperName}`]: from, [`to${upperName}`]: to };
+      if (def.type === "rangeCurrency") {
+        const currency = massValue?.currency || metadata.appSettings?.defaultCurrency || (metadata.app as any)?.currency?.list?.[0] || "USD";
+        values[`from${upperName}Currency`] = from == null ? null : currency;
+        values[`to${upperName}Currency`] = to == null ? null : currency;
+      }
+      try { await request("MassAction", { method: "POST", body: JSON.stringify({ entityType: entity, action: "update", params: massSelectionParams, data: { values, actions: {} } }) }); setMassEdit(false); setSelectedIds([]); setAllResultsSelected(false); await load(); }
+      catch (e) { setError(e instanceof Error ? e.message : "Hromadná úprava selhala."); }
+      finally { setMassBusy(false); }
+      return;
+    }
     const value = def?.type === "bool" ? Boolean(massValue) : ["int", "float", "currency", "enumInt"].includes(def?.type || "") && massValue !== "" ? Number(massValue) : massValue;
     const values = { [massField]: value, ...(def?.type === "currency" ? { [`${massField}Currency`]: massCurrency || metadata.appSettings?.defaultCurrency || (metadata.app as any)?.currency?.list?.[0] || "USD" } : {}) };
     try { await request("MassAction", { method: "POST", body: JSON.stringify({ entityType: entity, action: "update", params: massSelectionParams, data: { values, actions: {} } }) }); setMassEdit(false); setSelectedIds([]); setAllResultsSelected(false); await load(); }
@@ -3384,6 +3427,12 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     for (const [name, def] of fields) if (def.type === "personName" && record) initial[name] = { firstName: record.firstName || "", middleName: record.middleName || "", lastName: record.lastName || "" };
     for (const [name, def] of fields) if (def.type === "address" && record) initial[name] = Object.fromEntries(["street", "city", "state", "postalCode", "country"].map((part) => [part, record[`${name}${part[0].toUpperCase()}${part.slice(1)}`] || ""]));
     for (const [name, def] of fields) {
+      if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) {
+        const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+        const fromName = `from${upperName}`;
+        const toName = `to${upperName}`;
+        initial[name] = { from: initial[fromName] ?? null, to: initial[toName] ?? null, currency: initial[`from${upperName}Currency`] || initial[`to${upperName}Currency`] || metadata.appSettings?.defaultCurrency || (metadata.app as any)?.currency?.list?.[0] || "USD" };
+      }
       if (["email", "phone"].includes(def.type || "") && (!Array.isArray(initial[`${name}Data`]) || (!initial[`${name}Data`].length && initial[name]))) {
         const email = def.type === "email";
         const key = email ? "emailAddress" : "phoneNumber";
@@ -3536,7 +3585,8 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       if (logic.visible?.conditionGroup && !conditionGroupMatches(logic.visible, values, dynamicLogicUser)) continue;
       if (logic.required?.conditionGroup && conditionGroupMatches(logic.required, values, dynamicLogicUser)) {
         const value = values[name];
-        const empty = value == null || value === "" || (Array.isArray(value) && !value.length) || (typeof value === "object" && !Array.isArray(value) && !value.id && !value.type && !Object.values(value).some(Boolean));
+        const isRange = ["rangeInt", "rangeFloat", "rangeCurrency"].includes(fieldMap.get(name)?.type || "");
+        const empty = isRange ? value?.from == null && value?.to == null : value == null || value === "" || (Array.isArray(value) && !value.length) || (typeof value === "object" && !Array.isArray(value) && !value.id && !value.type && !Object.values(value).some(Boolean));
         if (empty) { setError(`Pole „${fieldLabel(name, fieldMap.get(name), entity, metadata)}“ je povinné.`); setBusy(false); return; }
       }
       const invalid = logic.invalid;
@@ -3562,12 +3612,50 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
         if (!valid) { setError(`${fieldLabel(name, def, entity, metadata)}: ${email ? "zadejte platnou e-mailovou adresu nebo ji označte jako neplatnou" : "zkontrolujte formát telefonního čísla"}.`); setBusy(false); return; }
       }
     }
+    for (const [name, def] of fields) {
+      if (!["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) continue;
+      const range = values[name] || {};
+      const from = range.from === "" || range.from == null ? null : Number(range.from);
+      const to = range.to === "" || range.to == null ? null : Number(range.to);
+      if (from != null && to != null && from > to) {
+        setError(`${fieldLabel(name, def, entity, metadata)}: hodnota „Od“ musí být menší nebo stejná jako „Do“.`);
+        setBusy(false);
+        return;
+      }
+      if ((from != null && !Number.isFinite(from)) || (to != null && !Number.isFinite(to)) || def.type === "rangeInt" && (from != null && !Number.isInteger(from) || to != null && !Number.isInteger(to))) {
+        setError(`${fieldLabel(name, def, entity, metadata)}: zadejte platné ${def.type === "rangeInt" ? "celé číslo" : "číselné hodnoty"}.`);
+        setBusy(false);
+        return;
+      }
+      const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+      for (const [side, endpointValue] of [["Od", from], ["Do", to]] as const) {
+        const endpointDef = metadata.entityDefs?.[entity]?.fields?.[`${side === "Od" ? "from" : "to"}${upperName}`] || {};
+        if (endpointValue != null && endpointDef.min != null && endpointValue < Number(endpointDef.min) || endpointValue != null && endpointDef.max != null && endpointValue > Number(endpointDef.max)) {
+          setError(`${fieldLabel(name, def, entity, metadata)} (${side}): hodnota je mimo povolený rozsah.`);
+          setBusy(false);
+          return;
+        }
+      }
+    }
     const payload: Row = {};
     for (const [name, def] of fields) {
       if (name === "passwordConfirm") continue;
       if (entity === "AppSecret" && name === "value" && activeRecord && !changingAppSecret) continue;
       if (def.type === "duration") continue;
       const value = values[name];
+      if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) {
+        const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+        const range = value || {};
+        const from = range.from === "" || range.from == null ? null : Number(range.from);
+        const to = range.to === "" || range.to == null ? null : Number(range.to);
+        payload[`from${upperName}`] = from;
+        payload[`to${upperName}`] = to;
+        if (def.type === "rangeCurrency") {
+          payload[`from${upperName}Currency`] = from == null ? null : range.currency || metadata.appSettings?.defaultCurrency || (metadata.app as any)?.currency?.list?.[0] || "USD";
+          payload[`to${upperName}Currency`] = to == null ? null : range.currency || metadata.appSettings?.defaultCurrency || (metadata.app as any)?.currency?.list?.[0] || "USD";
+        }
+        continue;
+      }
       if (["email", "phone"].includes(def.type || "")) {
         const email = def.type === "email";
         const valueKey = email ? "emailAddress" : "phoneNumber";
@@ -3694,7 +3782,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       const def = fieldMap.get(field.name);
       if (!def) continue;
       const primaryLink = primaryLinkForField(entity, field.name, def);
-      const keys = [field.name, ...(def.type === "currency" ? [`${field.name}Currency`] : []), ...(def.type === "linkMultiple" && def.columns ? [`${field.name}Columns`] : []), ...(def.type === "linkMultiple" && primaryLink ? [`${primaryLink}Id`, `${primaryLink}Name`] : [])];
+      const keys = [field.name, ...fieldAttributeList(entity, field.name, def), ...(def.type === "linkMultiple" && def.columns ? [`${field.name}Columns`] : []), ...(def.type === "linkMultiple" && primaryLink ? [`${primaryLink}Id`, `${primaryLink}Name`] : [])];
       for (const key of keys) if (key in source) next[key] = source[key];
     }
     if (entity === "User") next.teamsColumns = saveConflict.latest.teamsColumns || {};
@@ -3751,6 +3839,11 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   function updateFieldValue(name: string, value: any) {
     setSaveNotice("");
     setValues((old) => {
+      const fieldDef = fieldMap.get(name);
+      if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(fieldDef?.type || "")) {
+        const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+        return { ...old, [name]: value, [`from${upperName}`]: value?.from ?? null, [`to${upperName}`]: value?.to ?? null };
+      }
       if (entity === "EmailAccount" && name === "assignedUser") return { ...old, assignedUser: value, emailFolder: "" };
       if (entity === "EmailAccount" && name === "security") return { ...old, security: value, port: value === "SSL" ? 993 : 143 };
       if (entity === "EmailAccount" && name === "smtpSecurity") return { ...old, smtpSecurity: value, smtpPort: value === "SSL" ? 465 : value === "TLS" ? 587 : 25 };
@@ -4688,6 +4781,24 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const currencySettings = metadata.appSettings || {};
   const currencyList = (currencySettings.currencyList || (metadata.app as any)?.currency?.list || []) as string[];
   const defaultCurrency = String(currencySettings.defaultCurrency || currencyList[0] || "USD");
+  if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(type)) {
+    const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+    const fromName = `from${upperName}`;
+    const toName = `to${upperName}`;
+    const entityFields = metadata.entityDefs?.[entity]?.fields || {};
+    const fromDef = entityFields[fromName] || {};
+    const toDef = entityFields[toName] || {};
+    const current = value && typeof value === "object" ? value : {};
+    const format = (raw: unknown) => raw == null || raw === "" ? "" : String(raw);
+    const endpoint = (side: "from" | "to", endpointDef: FieldDef) => {
+      const endpointValue = current[side];
+      const required = Boolean(endpointDef.required || def.required);
+      const min = endpointDef.min;
+      const max = endpointDef.max;
+      return <label className="range-field-endpoint" key={side}><span>{side === "from" ? "Od" : "Do"}{required && <i> *</i>}</span><input aria-label={`${label} ${side === "from" ? "od" : "do"}`} type="number" inputMode={type === "rangeInt" ? "numeric" : "decimal"} step={type === "rangeInt" ? "1" : "any"} min={min == null ? undefined : Number(min)} max={max == null ? undefined : Number(max)} required={required} disabled={fieldDisabled} value={format(endpointValue)} onChange={(event) => onChange({ ...current, [side]: event.target.value === "" ? null : Number(event.target.value) })}/>{(min != null || max != null) && <small>{min != null && max != null ? `Od ${min} do ${max}` : min != null ? `Nejméně ${min}` : `Nejvýše ${max}`}</small>}</label>;
+    };
+    return <fieldset className={`field-input range-field-input ${type === "rangeCurrency" ? "currency-range-field" : ""}`} disabled={fieldDisabled}><legend>{label}{(fromDef.required || toDef.required) && <i> *</i>}</legend><div className="range-field-controls">{endpoint("from", fromDef)}<span className="range-field-separator" aria-hidden="true">—</span>{endpoint("to", toDef)}{type === "rangeCurrency" && <label className="range-field-currency"><span>Měna</span><select aria-label={`${label} měna`} value={current.currency || currencyValue || defaultCurrency} onChange={(event) => onChange({ ...current, currency: event.target.value })}>{currencyList.map((currency) => <option key={currency} value={currency}>{currency} · {((metadata.app as any)?.currency?.symbolMap || {})[currency] || currency}</option>)}</select></label>}</div></fieldset>;
+  }
   if (type === "currency") return <CurrencyFieldInput label={label} value={value} currency={currencyValue || defaultCurrency} currencies={currencyList} symbols={(metadata.app as any)?.currency?.symbolMap || {}} defaultCurrency={defaultCurrency} decimalPlaces={currencySettings.currencyDecimalPlaces} def={def} onChange={onChange} onCurrencyChange={onCurrencyChange}/>;
   if (name === "theme" && ["Settings", "Portal"].includes(entity)) {
     const themes = ((metadata as any).themes || {}) as Row;
@@ -5128,6 +5239,23 @@ function EmptyState({ label }: { label: string }) { return <div className="empty
 
 function recordFieldDisplayValue(entity: string, name: string, record: Row): any {
   const value = record[name];
+  const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+  const from = record[`from${upperName}`];
+  const to = record[`to${upperName}`];
+  if ((from != null && from !== "") || (to != null && to !== "")) {
+    const currency = record[`from${upperName}Currency`] || record[`to${upperName}Currency`];
+    const format = (raw: unknown) => {
+      const number = Number(raw);
+      if (currency) {
+        try { return new Intl.NumberFormat("cs-CZ", { style: "currency", currency: String(currency), maximumFractionDigits: 2 }).format(number); }
+        catch { return `${new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 2 }).format(number)} ${currency}`; }
+      }
+      return new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 10 }).format(number);
+    };
+    if (from != null && from !== "" && to != null && to !== "") return `${format(from)} – ${format(to)}`;
+    if (from != null && from !== "") return `≥ ${format(from)}`;
+    if (to != null && to !== "") return `≤ ${format(to)}`;
+  }
   if (entity === "Job" && name === "name" && !value) return [record.serviceName, record.methodName].filter((part) => part != null && part !== "").join(": ");
   return value;
 }

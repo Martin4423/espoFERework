@@ -863,6 +863,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-input:has(textarea) { grid-column: 1 / -1; }
 .field-input select[multiple] { min-height: 96px; }
 .person-name-field { min-width: 0; grid-column: 1 / -1; margin: 0 0 14px; padding: 0; border: 0; }
+.range-field-input { min-width: 0; grid-column: 1 / -1; margin: 0 0 14px; padding: 0; border: 0; }
+.range-field-input legend { padding: 0 0 6px; color: #68748a; font-size: 10px; font-weight: 600; }
+.range-field-input legend i, .range-field-endpoint i { color: #d06b74; font-style: normal; }
+.range-field-controls { display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); align-items: end; gap: 8px; }
+.range-field-endpoint, .range-field-currency { display: grid; min-width: 0; gap: 5px; color: #8893a6; font-size: 9px; font-weight: 500; }
+.range-field-endpoint input, .range-field-currency select { width: 100%; min-width: 0; }
+.range-field-endpoint small { color: #8993a5; font-size: 9px; font-weight: 400; }
+.range-field-separator { align-self: center; margin-top: 15px; color: #8993a5; text-align: center; }
+.range-field-currency { grid-column: 1 / -1; grid-template-columns: auto minmax(110px, 180px); align-items: center; }
+.currency-range-field .range-field-currency { grid-column: 1 / -1; }
 .person-name-field legend { padding: 0 0 6px; color: #68748a; font-size: 10px; font-weight: 600; }
 .person-name-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .person-name-controls label { display: grid; gap: 5px; color: #8893a6; font-size: 9px; font-weight: 500; }
