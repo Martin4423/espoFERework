@@ -3092,6 +3092,10 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .category-nav-node .category-nav-row { width: 100%; }
 .category-nav-loading, .category-nav-error, .category-nav-empty { padding: 9px 7px; color: var(--muted); font-size: 10px; }
 .category-nav-error { color: var(--danger, #b54747); }
+.category-nav-error button { margin-left: 6px; padding: 0; border: 0; background: transparent; color: var(--primary, #655bd4); font-size: inherit; font-weight: 650; cursor: pointer; }
+.category-nav-load-more { display: inline-flex; align-items: center; gap: 6px; min-height: 27px; margin: 3px 5px 4px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent; color: var(--primary, #655bd4); font-size: 10px; text-align: left; cursor: pointer; }
+.category-nav-load-more:hover { background: rgba(99, 91, 219, .08); }
+.category-nav-load-more:disabled { color: var(--muted, #8490a2); cursor: wait; }
 .category-navigation .spinner { width: 12px; height: 12px; }
 @media (max-width: 850px) {
   .records-surface.has-category-navigation { grid-template-columns: 1fr; }
