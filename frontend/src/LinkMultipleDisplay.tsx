@@ -1,4 +1,4 @@
-import { Check, X } from "./Icons";
+import { Check, Phone, X } from "./Icons";
 import type { FieldDef, Metadata } from "./api";
 
 type Row = Record<string, any>;
@@ -48,12 +48,15 @@ export default function LinkMultipleDisplay({ entity, name, record, def, metadat
     const isCanceled = canceledStatuses.includes(status);
     const hasTaskStatusIcon = isTaskStatusView && Boolean(status) && (["success", "info", "danger", "warning"].includes(style));
     const inactive = entity === "Contact" && name === "accounts" && Boolean(rowColumns.isInactive);
+    const phoneNumber = entity === "Call" && name === "contacts" ? String(record.phoneNumbersMap?.[`${relatedEntity}_${id}`] || "") : "";
+    const dialNumber = phoneNumber.replace(/[^\d+*#,;]/g, "");
     const link = onOpen && relatedEntity
       ? <button type="button" className={`link-multiple-name${inactive ? " inactive-account-reference" : ""}`} onClick={(event) => { event.stopPropagation(); onOpen(relatedEntity, id); }}>{label}</button>
       : <span className={`link-multiple-name${inactive ? " inactive-account-reference" : ""}`}>{label}</span>;
     return <span className="link-multiple-display-item" key={id}>
       {hasTaskStatusIcon && <span className={`link-multiple-status-icon ${style}`} title={statusLabel} aria-label={statusLabel}>{style === "success" ? <Check size={11}/> : isCanceled ? <X size={11}/> : <i/>}</span>}
       {link}
+      {phoneNumber && <a className="attendee-phone-link" href={`tel:${dialNumber}`} aria-label={`Zavolat ${label} na ${phoneNumber}`} title={`Zavolat ${phoneNumber}`} onClick={(event) => event.stopPropagation()}><Phone size={12}/><span>{phoneNumber}</span></a>}
       {columnsToShow.map((column) => {
         const value = rowColumns[column.key];
         if (value == null || value === "") return null;
