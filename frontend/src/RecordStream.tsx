@@ -49,6 +49,7 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
   const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
   const [followed, setFollowed] = useState(Boolean(record.isFollowed));
+  const [followEntityOnStreamPost, setFollowEntityOnStreamPost] = useState(false);
   const [starred, setStarred] = useState(Boolean(record.isStarred));
   const [reactions, setReactions] = useState<string[]>(["Like"]);
   const [fileError, setFileError] = useState("");
@@ -82,6 +83,12 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
   }, []);
   useEffect(() => {
     let live = true;
+    if (!session?.user.id) return () => { live = false; };
+    request<Note>(`Preferences/${encodeURIComponent(session.user.id)}`).then((preferences) => live && setFollowEntityOnStreamPost(Boolean(preferences.followEntityOnStreamPost))).catch(() => live && setFollowEntityOnStreamPost(false));
+    return () => { live = false; };
+  }, [session?.user.id]);
+  useEffect(() => {
+    let live = true;
     if (!mentionTerm || mentionPermission === "no") { setMentionUsers([]); setMentionIndex(0); return () => { live = false; }; }
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams({ q: mentionTerm, primaryFilter: "active", maxSize: String(metadata.appParams?.recordsPerPage || 20), select: "id,name,userName", orderBy: "name", order: "asc" });
@@ -101,6 +108,10 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
     setPosting(true); setError("");
     try {
       await request("Note", { method: "POST", body: JSON.stringify({ parentType: entity, parentId: record.id, type: "Post", post: post.trim() || null, attachmentsIds: attachments.map((item) => item.id), attachmentsNames: Object.fromEntries(attachments.map((item) => [item.id, item.name])), attachmentsTypes: Object.fromEntries(attachments.map((item) => [item.id, item.type])) }) });
+      if (followEntityOnStreamPost && !followed) {
+        try { await request(`${encodeURIComponent(entity)}/${encodeURIComponent(record.id)}/subscription`, { method: "PUT" }); setFollowed(true); }
+        catch { setError("Příspěvek byl zveřejněn, ale automatické sledování záznamu se nepodařilo zapnout."); }
+      }
       draftAttachmentIds.current = []; setAttachments([]); setPost(""); await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Příspěvek se nepodařilo publikovat."); }
     finally { setPosting(false); }
