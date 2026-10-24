@@ -1542,6 +1542,7 @@ function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNav
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [searchRetry, setSearchRetry] = useState(0);
   const quickTabs = useMemo<QuickSearchTab[]>(() => {
     const items: QuickSearchTab[] = [];
     const add = (label: string, target: string, admin = false) => { if (label && !items.some((item) => item.target === target || item.label.toLocaleLowerCase() === label.toLocaleLowerCase())) items.push({ label, target, admin }); };
@@ -1594,7 +1595,7 @@ function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNav
       request<PageResult>(`GlobalSearch?${params}`).then((result) => { if (live) { setResults(result.list || []); setSelectedIndex(0); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Vyhledávání selhalo.")).finally(() => live && setBusy(false));
     }, 240);
     return () => { live = false; window.clearTimeout(timer); };
-  }, [query, metadata.appSettings?.globalSearchMaxSize]);
+  }, [query, searchRetry, metadata.appSettings?.globalSearchMaxSize]);
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = dialogRef.current;
@@ -1633,9 +1634,28 @@ function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNav
     else if (event.key === "ArrowUp" && selectableCount) { event.preventDefault(); setSelectedIndex((index) => (index - 1 + selectableCount) % selectableCount); }
     else if (event.key === "Enter" && selectableCount) { event.preventDefault(); selectItem(Math.min(selectedIndex, selectableCount - 1)); }
   }
-  return <div className="global-search-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><section ref={dialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Vyhledávání v CRM"><div className="global-search-input"><Search size={19}/><input autoFocus role="combobox" aria-autocomplete="list" aria-expanded={selectableCount > 0} aria-controls="global-search-results" aria-activedescendant={selectableCount ? `global-search-result-${selectedIndex}` : undefined} value={query} onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }} onKeyDown={handleSearchKeyDown} placeholder="Hledat moduly, administraci a záznamy…"/><kbd>ESC</kbd><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
-    {query.trim().length < 1 ? <div className="global-search-hint">Začněte psát název modulu, administrace nebo záznamu.</div> : <div className="global-search-results" id="global-search-results" role="listbox">{matchingTabs.length > 0 && <><div className="global-search-section-label">Rychlé přechody</div>{matchingTabs.map((item, index) => <button id={`global-search-result-${index}`} role="option" aria-selected={selectedIndex === index} className={`global-search-result ${selectedIndex === index ? "active" : ""}`} key={item.target} onMouseEnter={() => setSelectedIndex(index)} onClick={() => selectItem(index)}><span className="global-result-icon"><ArrowRight size={15}/></span><span><strong>{item.label}</strong><small>{item.admin ? "Administrace" : item.target.startsWith("url:") ? "Odkaz" : "Modul"}</small></span><ArrowRight size={14}/></button>)}</>}{query.trim().length >= 2 && <><div className="global-search-section-label">Záznamy</div>{busy ? <div className="global-search-state"><span className="spinner"/>Hledám v CRM…</div> : error ? <div className="global-search-state error">{error}</div> : results.length ? results.map((record, index) => { const scope = record.entityType || record.scope || record._scope || ""; const itemIndex = matchingTabs.length + index; return <button id={`global-search-result-${itemIndex}`} role="option" aria-selected={selectedIndex === itemIndex} className={`global-search-result ${selectedIndex === itemIndex ? "active" : ""}`} key={`${scope}-${record.id}-${index}`} onMouseEnter={() => setSelectedIndex(itemIndex)} onClick={() => selectItem(itemIndex)}><span className="global-result-icon"><EntityIcon name={scope} size={15}/></span><span><strong>{recordFieldDisplayValue(scope, "name", record) || record.subject || "Záznam"}</strong><small>{entityLabel(metadata, scope)}{record.accountName ? ` · ${record.accountName}` : ""}</small></span><ArrowRight size={14}/></button>; }) : <div className="global-search-state">Nenašli jsme žádné odpovídající záznamy.</div>}</>}</div>}
-    <footer className="global-search-footer"><span><kbd>↵</kbd> otevřít záznam</span><span>Vyhledávání respektuje oprávnění účtu</span></footer>
+  return <div className="global-search-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <section ref={dialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Vyhledávání v CRM">
+      <div className="global-search-input">
+        <Search size={19}/>
+        <input autoFocus type="search" role="combobox" aria-autocomplete="list" aria-expanded={query.trim().length > 0} aria-controls="global-search-results" aria-activedescendant={selectableCount ? `global-search-result-${selectedIndex}` : undefined} value={query} onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }} onKeyDown={handleSearchKeyDown} placeholder="Hledat moduly, administraci a záznamy…"/>
+        <kbd>ESC</kbd><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button>
+      </div>
+      {query.trim().length < 1 ? <div className="global-search-hint">Začněte psát název modulu, administrace nebo záznamu.</div> : <div className="global-search-results" id="global-search-results" role="listbox" aria-busy={busy}>
+        {matchingTabs.length > 0 && <>
+          <div className="global-search-section-label" role="presentation">Rychlé přechody</div>
+          {matchingTabs.map((item, index) => <button id={`global-search-result-${index}`} role="option" aria-selected={selectedIndex === index} className={`global-search-result ${selectedIndex === index ? "active" : ""}`} key={item.target} onMouseEnter={() => setSelectedIndex(index)} onClick={() => selectItem(index)}><span className="global-result-icon"><ArrowRight size={15}/></span><span><strong>{item.label}</strong><small>{item.admin ? "Administrace" : item.target.startsWith("url:") ? "Odkaz" : "Modul"}</small></span><ArrowRight size={14}/></button>)}
+        </>}
+        {query.trim().length >= 2 && <>
+          <div className="global-search-section-label" role="presentation">Záznamy</div>
+          {busy ? <div className="global-search-state" role="status"><span className="spinner"/>Hledám v CRM…</div> : error ? <div className="global-search-state error" role="alert"><span>{error}</span><button className="button subtle" onClick={() => setSearchRetry((count) => count + 1)}>Zkusit znovu</button></div> : results.length ? results.map((record, index) => {
+            const scope = record.entityType || record.scope || record._scope || "";
+            const itemIndex = matchingTabs.length + index;
+            return <button id={`global-search-result-${itemIndex}`} role="option" aria-selected={selectedIndex === itemIndex} className={`global-search-result ${selectedIndex === itemIndex ? "active" : ""}`} key={`${scope}-${record.id}-${index}`} onMouseEnter={() => setSelectedIndex(itemIndex)} onClick={() => selectItem(itemIndex)}><span className="global-result-icon"><EntityIcon name={scope} size={15}/></span><span><strong>{recordFieldDisplayValue(scope, "name", record) || record.subject || "Záznam"}</strong><small>{entityLabel(metadata, scope)}{record.accountName ? ` · ${record.accountName}` : ""}</small></span><ArrowRight size={14}/></button>;
+          }) : <div className="global-search-state" role="status">Nenalezli jsme žádné odpovídající záznamy.</div>}
+        </>}
+      </div>}
+      <footer className="global-search-footer"><span><kbd>↵</kbd> otevřít záznam</span><span>Vyhledávání respektuje oprávnění účtu</span></footer>
   </section></div>;
 }
 
