@@ -2460,6 +2460,12 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .relationship-panel-head > div:first-child { display: grid; gap: 3px; }
 .relationship-panel-head > div:first-child > small { color: var(--muted, #778198); font-size: 11px; }
 .relationship-panel-actions { display: flex; align-items: center; gap: 7px; }
+.relationship-list-search { display: flex; align-items: center; gap: 7px; min-width: min(210px, 30vw); height: 34px; padding: 0 9px; border: 1px solid var(--line, #e1e5ed); border-radius: 8px; background: var(--surface, #fff); color: var(--muted, #778198); }
+.relationship-list-search:focus-within { border-color: var(--primary, #526db0); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #526db0) 12%, transparent); }
+.relationship-list-search input { width: 100%; min-width: 70px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--ink, #253047); font: inherit; font-size: 11px; }
+.relationship-list-search input::placeholder { color: var(--muted, #8992a4); }
+.relationship-list-search button { display: grid; width: 21px; height: 21px; flex: 0 0 21px; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted, #778198); cursor: pointer; }
+.relationship-list-search button:hover { background: #f0f2f7; color: var(--ink, #253047); }
 .relationship-panel-actions select { min-height: 34px; max-width: 160px; }
 .relationship-list, .relationship-candidates { display: grid; gap: 5px; }
 .field-manager-multienum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 7px 12px; min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line, #e5e9f0); border-radius: 10px; }
@@ -2617,7 +2623,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .activity-panel-empty { display: grid; justify-items: center; gap: 10px; padding: 24px 12px; color: #8994a6; font-size: 11px; text-align: center; }
 .activity-panel-empty > div { display: flex; justify-content: center; gap: 7px; flex-wrap: wrap; }
 @media (max-width: 760px) { .activity-panel-head { align-items: flex-start; flex-direction: column; } .activity-panel-tools { justify-content: flex-start; } .activity-panel-row { grid-template-columns: 28px minmax(120px, 1fr) auto; } .activity-panel-date { grid-column: 2; grid-row: 2; } .activity-panel-owner { display: none; } .activity-panel-actions { grid-column: 3; grid-row: 1 / span 2; } }
-@media (max-width: 620px) { .relationship-panel-head { align-items: flex-start; flex-direction: column; } .relationship-panel-actions { width: 100%; } .relationship-panel-actions select { flex: 1; max-width: none; } .relationship-row { flex-wrap: wrap; } .relationship-position { width: calc(100% - 38px); margin-left: 40px; } .relationship-position select { flex: 1; max-width: none; } .relationship-unlink { margin-left: auto; } }
+@media (max-width: 620px) { .relationship-panel-head { align-items: flex-start; flex-direction: column; } .relationship-panel-actions { width: 100%; flex-wrap: wrap; } .relationship-list-search { flex: 1 1 100%; } .relationship-panel-actions select { flex: 1; max-width: none; } .relationship-row { flex-wrap: wrap; } .relationship-position { width: calc(100% - 38px); margin-left: 40px; } .relationship-position select { flex: 1; max-width: none; } .relationship-unlink { margin-left: auto; } }
 .espo-native-icon.icon-rotate-90 { transform: rotate(90deg); }
 .html-field { grid-column: 1 / -1; }
 .html-field-editor { display: grid; gap: 8px; min-width: 0; }
