@@ -1356,13 +1356,15 @@ type ActivityEvent = { id: string; recordId: string; scope: string; title?: stri
 
 function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: Metadata; onOpenRecord: (name: string, row: Row) => void; userId?: string; userName?: string }) {
   const scopes = useMemo(() => Object.entries(metadata.scopes || {}).filter(([name, scope]) => scope.calendar && metadata.entityDefs?.[name]?.fields).map(([name]) => name), [metadata]);
+  const calendarPreferenceKey = `via:calendar:${getSession()?.user.id || "guest"}`;
+  const readCalendarPreference = () => { try { return JSON.parse(localStorage.getItem(calendarPreferenceKey) || "null") as Row | null; } catch { return null; } };
   const [anchor, setAnchor] = useState(() => new Date());
-  const [activeScopes, setActiveScopes] = useState<string[]>(scopes);
-  const [calendarUsers, setCalendarUsers] = useState<Array<{ id: string; name: string }>>([]);
-  const [calendarTeams, setCalendarTeams] = useState<Array<{ id: string; name: string }>>([]);
+  const [activeScopes, setActiveScopes] = useState<string[]>(() => { const stored = readCalendarPreference()?.scopes; return Array.isArray(stored) ? stored.filter((item): item is string => typeof item === "string" && scopes.includes(item)) : scopes; });
+  const [calendarUsers, setCalendarUsers] = useState<Array<{ id: string; name: string }>>(() => { const stored = readCalendarPreference()?.users; return Array.isArray(stored) ? stored.filter((item): item is { id: string; name: string } => Boolean(item && typeof item.id === "string" && typeof item.name === "string")) : []; });
+  const [calendarTeams, setCalendarTeams] = useState<Array<{ id: string; name: string }>>(() => { const stored = readCalendarPreference()?.teams; return Array.isArray(stored) ? stored.filter((item): item is { id: string; name: string } => Boolean(item && typeof item.id === "string" && typeof item.name === "string")) : []; });
   const [calendarFilterPicker, setCalendarFilterPicker] = useState<"users" | "teams" | null>(null);
   const [events, setEvents] = useState<ActivityEvent[]>([]);
-  const [viewMode, setViewMode] = useState<"day" | "week" | "month" | "agenda" | "timeline">("week");
+  const [viewMode, setViewMode] = useState<"day" | "week" | "month" | "agenda" | "timeline">(() => { const mode = readCalendarPreference()?.mode; return ["day", "week", "month", "agenda", "timeline"].includes(mode) ? mode : "week"; });
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [createEntity, setCreateEntity] = useState<string | null>(null);
@@ -1392,7 +1394,8 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   const canSelectCalendarUsers = !userId && calendarPermission !== "no" && viewMode === "timeline";
   const canSelectCalendarTeams = !userId && calendarPermission !== "no" && ["day", "week", "month"].includes(viewMode);
 
-  useEffect(() => { setActiveScopes(scopes); }, [scopes]);
+  useEffect(() => { setActiveScopes((current) => current.filter((scope) => scopes.includes(scope))); }, [scopes]);
+  useEffect(() => { try { localStorage.setItem(calendarPreferenceKey, JSON.stringify({ mode: viewMode, scopes: activeScopes, users: calendarUsers, teams: calendarTeams })); } catch { /* Preferences are optional when storage is unavailable. */ } }, [calendarPreferenceKey, viewMode, activeScopes, calendarUsers, calendarTeams]);
   useEffect(() => {
     let live = true;
     if (!scopeParam) { setEvents([]); setBusy(false); return; }
