@@ -2599,13 +2599,29 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   const notActualStatuses = metadata.entityDefs?.Lead?.fields?.status?.notActualOptions || [];
   const convertible = entity === "Lead" && Boolean(record.status) && ![...notActualStatuses, "Converted"].includes(record.status);
   const hasPersonalData = Boolean((metadata.scopes[entity] as any)?.hasPersonalData);
-  const personalFields = Object.entries(fields).filter(([name, def]) => {
-    if (!(def as any).isPersonalData) return false;
+  const personalFields = Object.entries(fields).flatMap(([name, def]) => {
+    if (!(def as any).isPersonalData) return [];
     const restriction = aclMap.fieldTable?.[entity]?.[name];
-    if (restriction === false || restriction?.read === false || restriction?.read === "no") return false;
-    const value = record[name] ?? record[`${name}Name`] ?? record[`${name}Id`] ?? record[`${name}Ids`];
-    return value != null && value !== "" && (!Array.isArray(value) || value.length > 0);
-  }).map(([name, def]) => ({ name, def, value: record[name] ?? record[`${name}Name`] ?? record[`${name}Id`] ?? record[`${name}Ids`] }));
+    if (restriction === false || restriction?.read === false || restriction?.read === "no") return [];
+    const fieldType = String(def.type || "");
+    const fieldDefinition = metadata.fields?.[fieldType];
+    const naming = fieldDefinition?.naming || "suffix";
+    const actualFields = fieldDefinition?.actualFields;
+    const attributeNames = actualFields?.length
+      ? actualFields.map((part: string) => !part ? name : naming === "prefix" ? `${part}${name[0].toUpperCase()}${name.slice(1)}` : `${name}${part[0].toUpperCase()}${part.slice(1)}`)
+      : [name];
+    const attributes = [...new Set([...attributeNames, ...((def as any).additionalAttributeList || [])])]
+      .map((attribute) => ({ name: attribute, value: record[attribute] }))
+      .filter(({ value }) => Boolean(value) && (!Array.isArray(value) || value.length > 0));
+    if (!attributes.length) return [];
+    const value = attributes.length === 1 ? attributes[0].value : Object.fromEntries(attributes.map((attribute) => {
+      const prefix = `${name[0].toLowerCase()}${name.slice(1)}`;
+      let label = attribute.name === name ? name : attribute.name.startsWith(name) ? attribute.name.slice(name.length) : attribute.name.startsWith(prefix) ? attribute.name.slice(prefix.length) : attribute.name;
+      label = label.replace(/^./, (part: string) => part.toLowerCase()) || name;
+      return [label, attribute.value];
+    }));
+    return [{ name, def, value, attributes }];
+  });
   const canViewPersonalData = hasPersonalData && aclMap.dataPrivacyPermission === "yes";
   const canErasePersonalData = canViewPersonalData && Boolean(aclMap.table?.[entity]?.edit) && aclMap.table?.[entity]?.edit !== "no";
   const sessionUser = getSession()?.user;
@@ -2772,7 +2788,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   {userSecurityOpen && <div className="modal-backdrop user-security-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setUserSecurityOpen(false)}><section className="user-security-modal"><UserSecurityView user={{ id: record.id, name: record.name || record.userName, userName: record.userName, type: record.type }} adminMode onBack={() => setUserSecurityOpen(false)}/></section></div>}
   {followersOpen && <FollowersDialog entity={entity} recordId={record.id} metadata={metadata} canManage={canManageFollowers} currentUserId={sessionUser?.id} onClose={() => setFollowersOpen(false)} onOpenUser={(user) => onOpenRelated("User", user)} onChanged={() => { void request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(record.id)}`).then((fresh) => { setRecord(fresh); onChanged(fresh); }).catch(() => {}); }} />}
   {currencyConvertOpen && <CurrencyConversionDialog entity={entity} metadata={metadata} fields={currencyFields} recordId={record.id} onClose={() => setCurrencyConvertOpen(false)} onComplete={(next) => { setCurrencyConvertOpen(false); if (next) { setRecord(next); onChanged(next); } else void request<Row>(`${entity}/${record.id}`).then((fresh) => { setRecord(fresh); onChanged(fresh); }).catch(() => {}); }}/>}
-  {dashboardDeployOpen && <DashboardTemplateDeploy id={record.id} name={record.name || "Dashboard"} onClose={() => setDashboardDeployOpen(false)} onComplete={setUserNotice}/>}{editor && <RecordEditor entity={entity} fields={getEditorFields(metadata, entity)} metadata={metadata} record={record} onClose={() => setEditor(false)} onSaved={(next) => { const safeNext = entity === "AppSecret" ? { ...next, value: "" } : next; setEditor(false); setRecord(safeNext); onChanged(safeNext); }} />}{duplicateValues && <RecordEditor entity={entity} fields={getEditorFields(metadata, entity)} metadata={metadata} initialValues={duplicateValues} duplicate onClose={() => setDuplicateValues(null)} onSaved={(created) => { setDuplicateValues(null); onClose(); onOpenRelated(entity, created); }}/ >}{convertOpen && <LeadConversion metadata={metadata} lead={record} onClose={() => setConvertOpen(false)} onConverted={(next) => { setRecord(next); onChanged(next); setConvertOpen(false); }}/>}{personalDataOpen && <PersonalDataDialog entity={entity} record={record} fields={personalFields.map(({ name, def, value }) => ({ name, def, value, label: fieldLabel(name, def, entity, metadata) }))} canErase={canErasePersonalData} onClose={() => setPersonalDataOpen(false)} onErased={(next) => { setRecord(next); onChanged(next); }}/>}</>;
+  {dashboardDeployOpen && <DashboardTemplateDeploy id={record.id} name={record.name || "Dashboard"} onClose={() => setDashboardDeployOpen(false)} onComplete={setUserNotice}/>}{editor && <RecordEditor entity={entity} fields={getEditorFields(metadata, entity)} metadata={metadata} record={record} onClose={() => setEditor(false)} onSaved={(next) => { const safeNext = entity === "AppSecret" ? { ...next, value: "" } : next; setEditor(false); setRecord(safeNext); onChanged(safeNext); }} />}{duplicateValues && <RecordEditor entity={entity} fields={getEditorFields(metadata, entity)} metadata={metadata} initialValues={duplicateValues} duplicate onClose={() => setDuplicateValues(null)} onSaved={(created) => { setDuplicateValues(null); onClose(); onOpenRelated(entity, created); }}/ >}{convertOpen && <LeadConversion metadata={metadata} lead={record} onClose={() => setConvertOpen(false)} onConverted={(next) => { setRecord(next); onChanged(next); setConvertOpen(false); }}/>}{personalDataOpen && <PersonalDataDialog entity={entity} record={record} fields={personalFields.map(({ name, def, value, attributes }) => ({ name, def, value, attributes, label: fieldLabel(name, def, entity, metadata) }))} canErase={canErasePersonalData} onClose={() => setPersonalDataOpen(false)} onErased={(next) => { setRecord(next); onChanged(next); }}/>}</>;
 }
 
 function LeadConversion({ metadata, lead, onClose, onConverted }: { metadata: Metadata; lead: Row; onClose: () => void; onConverted: (record: Row) => void }) {

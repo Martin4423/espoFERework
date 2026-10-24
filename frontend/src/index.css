@@ -1584,6 +1584,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .personal-data-row input, .personal-data-list-head input { accent-color: #7069df; }
 .personal-data-row strong { color: #455169; font-size: 10px; }
 .personal-data-row > span { overflow-wrap: anywhere; color: #6e798d; font-size: 10px; }
+.personal-data-attributes { margin-top: 5px; color: #8b95a5; font-size: 9px; }
+.personal-data-attributes summary { width: fit-content; cursor: pointer; color: #7069df; }
+.personal-data-attributes dl { display: grid; gap: 4px; margin: 6px 0 0; }
+.personal-data-attributes dl > div { display: grid; grid-template-columns: minmax(70px,.45fr) minmax(0,1fr); gap: 8px; }
+.personal-data-attributes dt { color: #939cad; }
+.personal-data-attributes dd { margin: 0; color: #5b6679; overflow-wrap: anywhere; }
 .personal-data-note { display: flex; gap: 8px; margin: 12px 18px 0; padding: 9px 11px; border-radius: 7px; background: #f6f7fb; color: #8590a1; font-size: 9px; line-height: 1.5; }
 .personal-data-note svg { flex: 0 0 auto; color: #7069df; }
 @media(max-width:560px) { .personal-data-list { padding: 0 10px; } .personal-data-list-head, .personal-data-row { grid-template-columns: minmax(130px,.8fr) minmax(0,1.2fr); gap: 8px; } .personal-data-row strong, .personal-data-row > span { font-size: 9px; } }
