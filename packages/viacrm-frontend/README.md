@@ -4,7 +4,7 @@ This EspoCRM extension installs the React frontend and its API bridge in one upl
 
 ## Install or upgrade
 
-1. Build `packages/ViaCRM-Frontend-2.0.57.zip` with `./scripts/package-frontend-extension.sh`.
+1. Build `packages/ViaCRM-Frontend-2.0.58.zip` with `./scripts/package-frontend-extension.sh`.
 2. In EspoCRM, open **Administration → Extensions**, upload the ZIP and click **Install**.
 3. Open the frontend at `/client/custom/viacrm/` on the same site origin as EspoCRM.
 

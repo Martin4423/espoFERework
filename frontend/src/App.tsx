@@ -2,6 +2,7 @@ import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useS
 import type { ChangeEvent, ComponentType, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, History, Inbox as InboxIcon, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
+import { phoneCountryLabels, phoneCountryOptions } from "./phoneCountries";
 import DOMPurify from "dompurify";
 import cronstrue from "cronstrue";
 import "cronstrue/locales/cs";
@@ -4462,6 +4463,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     if (type === "arrayInt") return resolvedOptions.options;
     if (type !== "multiEnum" || resolvedOptions.options.length) return resolvedOptions.options;
     if (entity === "Settings" && name === "currencyList") return ((metadata.app as any)?.currency?.list || []) as string[];
+    if (entity === "Settings" && name === "phoneNumberPreferredCountryList") return phoneCountryOptions;
     if (entity === "Settings" && name === "auth2FAMethodList") return Object.entries((metadata.app as any)?.authentication2FAMethods || {}).filter(([, method]: [string, any]) => method?.settings?.isAvailable).map(([method]) => method);
     const scopes = metadata.scopes as Record<string, any>;
     const view = String(def.view || "");
@@ -4479,7 +4481,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
       if (def.translation?.includes("scopeNames")) return Boolean(item.entity && item.object);
       return true;
     }).sort((a, b) => entityLabel(metadata, a, true).localeCompare(entityLabel(metadata, b, true), "cs"));
-  }, [resolvedOptions.options, metadata, name, type]);
+  }, [resolvedOptions.options, metadata, entity, name, type, def.view, def.translation]);
   const fieldOptions = useMemo(() => {
     if (resolvedOptions.options.length) return resolvedOptions.options;
     if (entity === "Settings" && name === "dateFormat") return ((metadata.app as any)?.dateTime?.dateFormatList || []) as string[];
@@ -4499,7 +4501,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const attachmentSourceFixedWhere = relatedContext?.parentType === "Account" && relatedContext.parentId && metadata.entityDefs?.[attachmentSource]?.fields?.account?.type === "link" && metadata.entityDefs?.[attachmentSource]?.links?.account?.entity === "Account"
     ? [{ type: "equals", attribute: "accountId", value: String(relatedContext.parentId) }]
     : [];
-  const dynamicOptionLabels = Object.fromEntries(dynamicEnumOptions.map((option) => [String(option), type === "multiEnum" && metadata.scopes?.[String(option)] ? entityLabel(metadata, String(option), def.translation?.includes("Plural") ?? true) : optionLabel(option)]));
+  const dynamicOptionLabels = Object.fromEntries(dynamicEnumOptions.map((option) => [String(option), entity === "Settings" && name === "phoneNumberPreferredCountryList" ? phoneCountryLabels[String(option)] || String(option) : type === "multiEnum" && metadata.scopes?.[String(option)] ? entityLabel(metadata, String(option), def.translation?.includes("Plural") ?? true) : optionLabel(option)]));
   const relationEntity = metadata.entityDefs?.[entity]?.links?.[name]?.entity || (["link", "linkOne", "linkMultiple"].includes(type) ? def.entity : undefined);
   const parentCandidates: string[] = entity === "Note" && name === "parent" ? Object.keys(metadata.scopes || {}) : def.entityList || (metadata.entityDefs?.[entity]?.links?.[name] as any)?.entityList || Object.keys(metadata.scopes || {}).filter((scope) => metadata.scopes[scope].entity);
   const attachmentParentExcluded = new Set(["Preferences", "ExternalAccount", "Notification", "Note", "ArrayValue", "Attachment"]);
