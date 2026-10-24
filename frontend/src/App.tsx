@@ -1686,7 +1686,7 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
           {record.parentName && <span><b>Záznam</b>{record.parentName}</span>}
         </div>
       </div>
-      <EmailEventPanel record={record} metadata={metadata} onCreate={createCalendarEvent} onOpenRecord={onOpenEntityRecord}/>
+      <EmailEventPanel record={record} metadata={metadata} timeZone={timeZone} onCreate={createCalendarEvent} onOpenRecord={onOpenEntityRecord}/>
       {(threadBusy || threadError || thread.length > 1) && <section className="email-thread-panel"><div className="email-thread-head"><div><strong>Konverzace</strong><small>{threadBusy ? "Načítám návazné zprávy…" : threadError || `${thread.length} zpráv`}</small></div>{threadBusy && <span className="spinner"/>}</div>{!threadBusy && thread.map((item) => <button type="button" className={`email-thread-item${item.id === record.id ? " active" : ""}`} key={item.id} style={{ marginLeft: `${Math.min(item.threadDepth || 0, 6) * 12}px` }} aria-current={item.id === record.id ? "page" : undefined} onClick={() => item.id !== record.id && onOpenRecord(item as Row)}><span className="email-thread-dot"/><span className="email-thread-copy"><strong>{item.subject || "(bez předmětu)"}</strong><small>{item.personStringData || item.fromString || "E-mail"}</small></span><time>{item.dateSent ? formatEspoDateTimeShort(item.dateSent, timeZone) : item.status === "Draft" ? "Koncept" : "—"}</time></button>)}</section>}
       {attachmentIds.length > 0 && <div className="email-attachments">{attachmentIds.map((id) => <button key={id} onClick={() => void downloadAttachment(id, attachmentNames[id] || "priloha")}><Paperclip size={14}/>{attachmentNames[id] || "Příloha"}<span>Stáhnout</span></button>)}</div>}
       {record.isHtml ? <div className="email-body-html" dangerouslySetInnerHTML={{ __html: safeHtml }}/> : <pre className="email-body-plain">{record.bodyPlain || record.body || ""}</pre>}
@@ -1705,6 +1705,7 @@ function Dashboard({ entities, metadata, user, refreshKey, onOpenEntity, onOpenR
 }
 
 function ClassicDashboard({ entities, metadata, onOpenEntity, onOpenRecord }: { entities: string[]; metadata: Metadata; onOpenEntity: (name: string) => void; onOpenRecord: (name: string, row: Row) => void }) {
+  const timeZone = useEspoTimeZone();
   const [stats, setStats] = useState<{ name: string; count: number | string; entity: string; tone: string }[]>([]);
   const [recent, setRecent] = useState<{ entity: string; row: Row }[]>([]);
   const [error, setError] = useState("");
@@ -1722,7 +1723,7 @@ function ClassicDashboard({ entities, metadata, onOpenEntity, onOpenRecord }: { 
     return () => { live = false; };
   }, [entities]);
 
-  const today = new Intl.DateTimeFormat("cs-CZ", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  const today = new Intl.DateTimeFormat("cs-CZ", { weekday: "long", day: "numeric", month: "long", timeZone }).format(new Date());
   return <div className="dashboard-view">
     <div className="welcome-row"><div><span className="eyebrow">{today.toLocaleUpperCase("cs-CZ")}</span><h1>Dobrý den, <span>vítáme vás.</span></h1><p>Tady je přehled toho, co se děje ve vašem CRM.</p></div><div className="welcome-art"><div className="art-orbit orbit-one"/><div className="art-orbit orbit-two"/><span>v</span><i>✦</i></div></div>
     {error && <div className="inline-error">{error}</div>}
@@ -1730,7 +1731,7 @@ function ClassicDashboard({ entities, metadata, onOpenEntity, onOpenRecord }: { 
     <div className="stat-grid">{stats.map((item) => <button className="stat-card" key={item.entity} onClick={() => onOpenEntity(item.entity)}><span className={`stat-icon ${item.tone}`}><EntityIcon name={item.entity} size={17}/></span><span className="stat-label">{item.name}</span><strong>{item.count}</strong><span className="stat-foot">Zobrazit záznamy <b><ArrowRight size={13}/></b></span></button>)}</div>
     <div className="dashboard-grid">
       <section className="surface recent-card"><div className="card-heading"><div><h2>Nedávná aktivita</h2><p>Poslední změněné záznamy napříč CRM</p></div><span className="activity-mark"><Activity size={15}/></span></div>
-        {recent.length ? <div className="recent-list">{recent.map(({ entity, row }, i) => <button className="recent-row" key={`${entity}-${row.id}-${i}`} onClick={() => onOpenRecord(entity, row)}><span className={`recent-icon tone-${i % 4}`}><EntityIcon name={entity} size={15}/></span><span className="recent-info"><strong>{row.name || row.subject || [row.firstName, row.lastName].filter(Boolean).join(" ") || "Bez názvu"}</strong><small>{entityLabel(metadata, entity)}{row.accountName ? ` · ${row.accountName}` : ""}</small></span><span className="recent-date">{formatDate(row.modifiedAt || row.createdAt)}</span><span className="row-arrow"><ArrowRight size={14}/></span></button>)}</div> : <EmptyState label="Zatím tu nejsou žádné záznamy" />}
+        {recent.length ? <div className="recent-list">{recent.map(({ entity, row }, i) => <button className="recent-row" key={`${entity}-${row.id}-${i}`} onClick={() => onOpenRecord(entity, row)}><span className={`recent-icon tone-${i % 4}`}><EntityIcon name={entity} size={15}/></span><span className="recent-info"><strong>{row.name || row.subject || [row.firstName, row.lastName].filter(Boolean).join(" ") || "Bez názvu"}</strong><small>{entityLabel(metadata, entity)}{row.accountName ? ` · ${row.accountName}` : ""}</small></span><span className="recent-date">{formatEspoDateTimeShort(row.modifiedAt || row.createdAt, timeZone)}</span><span className="row-arrow"><ArrowRight size={14}/></span></button>)}</div> : <EmptyState label="Zatím tu nejsou žádné záznamy" />}
         {entities.includes("Account") && <button className="text-link" onClick={() => onOpenEntity("Account")}>Otevřít firmy <span>→</span></button>}
       </section>
       <section className="surface shortcuts-card"><div className="card-heading"><div><h2>Rychlý přístup</h2><p>Pokračujte tam, kde pracujete</p></div><span className="activity-mark"><Clock3 size={15}/></span></div><div className="shortcut-list">{entities.slice(0, 7).map((entity) => <button key={entity} className="shortcut" onClick={() => onOpenEntity(entity)}><span className="shortcut-icon"><EntityIcon name={entity} size={14}/></span><span>{entityLabel(metadata, entity, true)}</span><b><ArrowRight size={13}/></b></button>)}</div></section>
@@ -3170,7 +3171,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     {!record.deleted && <Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/>Načítám související záznamy…</div>}><RecordRelationships entity={entity} record={record} metadata={metadata} onOpenRecord={onOpenRelated} onOpenTaskList={(scope, where) => onOpenEntity(scope, where)} onComposeEmail={onComposeEmail} renderActivityEditor={(scope, initialValues, onActivitySaved, onActivityClose) => <RecordEditor key={`${scope}-${initialValues.id || "new"}`} entity={scope} fields={getEditorFields(metadata, scope)} metadata={metadata} record={initialValues.id ? initialValues : undefined} initialValues={initialValues} onClose={onActivityClose} onSaved={onActivitySaved}/>}/></Suspense>}
     {!record.deleted && entity === "OAuthAccount" && <OAuthConnectionPanel record={record} onChanged={(next) => { setRecord(next); onChanged(next); }}/>}
     {!record.deleted && aclLevel(metadata, entity, "stream") !== "no" && <Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/>Načítám aktivitu…</div>}><RecordStream entity={entity} record={record} metadata={metadata} onOpenNote={(note) => { void request<Row>(`Note/${encodeURIComponent(note.id)}`).then((fresh) => onOpenRelated("Note", fresh)).catch(() => onOpenRelated("Note", note)); }}/></Suspense>}
-    <div className="drawer-meta"><span>Vytvořeno</span><b>{formatDate(record.createdAt)}</b><span>Naposledy upraveno</span><b>{formatDate(record.modifiedAt)}</b></div>
+    <div className="drawer-meta"><span>Vytvořeno</span><b>{formatDate(record.createdAt, dateTimeZone)}</b><span>Naposledy upraveno</span><b>{formatDate(record.modifiedAt, dateTimeZone)}</b></div>
   </aside>
   {mapAddress && <div className="modal-backdrop address-map-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMapAddress(null)}><section className="record-modal address-map-modal"><div className="modal-heading"><div><span className="eyebrow">MAPA ADRESY</span><h2>{addressText(mapAddress)}</h2></div><button className="icon-button" onClick={() => setMapAddress(null)} aria-label="Zavřít"><X size={17}/></button></div><GoogleAddressMap address={mapAddress} apiKey={String(metadata.appSettings?.googleMapsApiKey || "")} mapId={String(metadata.appSettings?.googleMapsMapId || "")}/><a className="button subtle" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText(mapAddress))}`} target="_blank" rel="noreferrer">Otevřít větší mapu <ArrowRight size={14}/></a></section></div>}
   {acceptanceOpen && <MeetingAcceptanceDialog entity={entity as "Meeting" | "Call"} eventName={record.name || ""} choices={meetingAcceptanceChoices} selected={meetingAcceptanceStatus} onClose={() => setAcceptanceOpen(false)} onSelect={setMeetingAcceptance}/>}
@@ -4036,7 +4037,7 @@ function CampaignStatsPanel({ record, metadata }: { record: Row; metadata: Metad
   })}</div></section>;
 }
 
-function EmailEventPanel({ record, metadata, onCreate, onOpenRecord }: { record: Row; metadata: Metadata; onCreate: () => void; onOpenRecord: (entity: string, row: Row) => void }) {
+function EmailEventPanel({ record, metadata, timeZone, onCreate, onOpenRecord }: { record: Row; metadata: Metadata; timeZone: string; onCreate: () => void; onOpenRecord: (entity: string, row: Row) => void }) {
   const configured = (metadata.clientDefs?.Email?.sidePanels?.detail || []).some((item: any) => item?.name === "event");
   if (!configured) return null;
   const eventData = record.icsEventData || {};
@@ -4046,7 +4047,7 @@ function EmailEventPanel({ record, metadata, onCreate, onOpenRecord }: { record:
   const eventName = record.createdEventName || created?.name;
   if (!record.icsEventData && !eventId) return null;
   const canCreate = Boolean(eventData.valueMap) && !eventId && canCreateEntity(metadata, "Meeting");
-  return <section className="detail-panel native-info-panel email-event-panel"><div className="drawer-section-title">POZVÁNKA V KALENDÁŘI</div>{record.icsEventDateStart && <div className="email-event-date"><CalendarDays size={14}/><span><small>Začátek události</small><strong>{formatDate(record.icsEventDateStart)}</strong></span></div>}{eventId ? <button type="button" className="relationship-open email-created-event" onClick={() => onOpenRecord(eventType, { id: eventId, name: eventName || "Schůzka" })}><span><small>Vytvořená událost</small><strong>{eventName || "Otevřít událost"}</strong></span><ArrowRight size={14}/></button> : canCreate ? <><p>V e-mailu je kalendářová pozvánka. Založte z ní schůzku v CRM.</p><button type="button" className="button primary" onClick={onCreate}><Plus size={14}/> Vytvořit schůzku</button></> : null}</section>;
+  return <section className="detail-panel native-info-panel email-event-panel"><div className="drawer-section-title">POZVÁNKA V KALENDÁŘI</div>{record.icsEventDateStart && <div className="email-event-date"><CalendarDays size={14}/><span><small>Začátek události</small><strong>{formatEspoDateTime(record.icsEventDateStart, timeZone)}</strong></span></div>}{eventId ? <button type="button" className="relationship-open email-created-event" onClick={() => onOpenRecord(eventType, { id: eventId, name: eventName || "Schůzka" })}><span><small>Vytvořená událost</small><strong>{eventName || "Otevřít událost"}</strong></span><ArrowRight size={14}/></button> : canCreate ? <><p>V e-mailu je kalendářová pozvánka. Založte z ní schůzku v CRM.</p><button type="button" className="button primary" onClick={onCreate}><Plus size={14}/> Vytvořit schůzku</button></> : null}</section>;
 }
 
 function EmailTemplatePlaceholdersPanel({ metadata }: { metadata: Metadata }) {
@@ -5295,11 +5296,9 @@ function renderCell(value: any, def?: FieldDef, currency?: unknown, metadata?: M
   return text;
 }
 
-function formatDate(value: any) {
+function formatDate(value: any, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC") {
   if (!value || typeof value !== "string") return "—";
-  const date = new Date(value.replace(" ", "T"));
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", year: "numeric" }).format(date);
+  return formatEspoDateTime(value, timeZone);
 }
 
 export default App;
