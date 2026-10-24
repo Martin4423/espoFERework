@@ -320,6 +320,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-manager-fields > .setting-field { font-size: 12px; }
 .field-manager-fields > .setting-field > input, .field-manager-fields > .setting-field > select, .field-manager-fields > .setting-field > textarea { font-size: 13px; }
 .field-manager-fields small { color: #7f8ba0; font-size: 12px; line-height: 1.5; }
+.field-manager-name-count { align-self: flex-end; font-variant-numeric: tabular-nums; }
 .field-manager-actions { display: flex; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
 .field-manager-actions .button { display: inline-flex; align-items: center; gap: 6px; }
 .field-dynamic-logic { margin-top: 18px; padding: 13px; border: 1px solid #e8e9ef; border-radius: 8px; background: #fbfbfd; }
