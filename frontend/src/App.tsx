@@ -3203,6 +3203,7 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
   const [draftLoading, setDraftLoading] = useState(Boolean(initial.id));
   const recipientEntities = (Array.isArray(metadata.appParams?.emailAddressSelectEntityTypeList) ? metadata.appParams.emailAddressSelectEntityTypeList : []).filter((entity: string) => canAccessEntity(metadata, entity));
   const [recipientPickerField, setRecipientPickerField] = useState<"to" | "cc" | "bcc" | null>(null);
+  const [recipientCreate, setRecipientCreate] = useState<{ entity: string; field: "to" | "cc" | "bcc" } | null>(null);
   const [recipientEntity, setRecipientEntity] = useState(String(recipientEntities[0] || "Contact"));
   const initialAttachments = (initial.attachmentsIds || []).map((id: string) => ({ id, name: initial.attachmentsNames?.[id] || "Příloha", type: initial.attachmentsTypes?.[id] || "application/octet-stream" }));
   const originalAttachments = useRef(initialAttachments);
@@ -3296,6 +3297,14 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
   function recipientInput(field: "to" | "cc" | "bcc", label: string, value: string, onChange: (value: string) => void) {
     return <label>{label}<div className="email-recipient-input"><input type="text" required={field === "to"} value={value} onChange={(event) => onChange(event.target.value)} placeholder={field === "to" ? "jmeno@firma.cz" : "volitelné adresy oddělené středníkem"} autoFocus={field === "to" && !initial.id}/>{recipientEntities.length > 0 && <button type="button" className="button subtle" onClick={() => { if (!recipientEntities.includes(recipientEntity)) setRecipientEntity(recipientEntities[0]); setRecipientPickerField(field); }}>Vybrat z CRM</button>}</div></label>;
   }
+  function appendRecipientRows(field: "to" | "cc" | "bcc", rows: Row[]) {
+    const additions = rows.filter((row) => !row.emailAddressIsInvalid).map((row) => String(row.emailAddress || "").trim()).filter(Boolean);
+    const setter = field === "to" ? setTo : field === "cc" ? setCc : setBcc;
+    const current = (field === "to" ? to : field === "cc" ? cc : bcc).split(/[;,]/).map((item: string) => item.trim()).filter(Boolean);
+    if (!additions.length) { setError("Záznam nemá platnou e-mailovou adresu. Doplňte ji a zkuste výběr znovu."); return; }
+    setter([...new Map([...current, ...additions].map((address) => [address.toLowerCase(), address])).values()].join("; "));
+    setError("");
+  }
   function closeComposer() { if (!hasUnsavedChanges || window.confirm("E-mail obsahuje neuložené změny. Opravdu chcete zavřít editor?")) onClose(); }
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -3318,7 +3327,7 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
     </div>}
     {error && <div className="inline-error">{error}</div>}
     <div className="modal-footer"><button type="button" className="button subtle" title="Ctrl+S" onClick={() => void submit("Draft")} disabled={busy || uploading || draftLoading}>Uložit koncept <kbd>Ctrl+S</kbd></button><button className="button primary" title="Ctrl+Enter" disabled={busy || uploading || draftLoading}>{busy ? "Odesílám…" : sendAt ? "Naplánovat odeslání" : "Odeslat e-mail"}<kbd>Ctrl+Enter</kbd><ArrowRight size={14}/></button></div>
-  </form>{recipientPickerField && recipientEntities.length > 0 && <SelectRecordsDialog entity={recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]} metadata={metadata} multiple selectedIds={[]} selectedRows={[]} mandatorySelectAttributeList={["emailAddress", "emailAddressIsInvalid"]} fixedWhere={[{ type: "isNotNull", attribute: "emailAddress" }, { type: "notEquals", attribute: "emailAddress", value: "" }, { type: "isFalse", attribute: "emailAddressIsInvalid" }]} onClose={() => setRecipientPickerField(null)} onSelect={(rows) => { const additions = rows.map((row) => String(row.emailAddress || "").trim()).filter(Boolean); const setter = recipientPickerField === "to" ? setTo : recipientPickerField === "cc" ? setCc : setBcc; const current = (recipientPickerField === "to" ? to : recipientPickerField === "cc" ? cc : bcc).split(/[;,]/).map((item: string) => item.trim()).filter(Boolean); setter([...new Map([...current, ...additions].map((address) => [address.toLowerCase(), address])).values()].join("; ")); setRecipientPickerField(null); }}/>}</div>;
+  </form>{recipientPickerField && recipientEntities.length > 0 && <SelectRecordsDialog entity={recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]} metadata={metadata} multiple selectedIds={[]} selectedRows={[]} mandatorySelectAttributeList={["emailAddress", "emailAddressIsInvalid"]} fixedWhere={[{ type: "isNotNull", attribute: "emailAddress" }, { type: "notEquals", attribute: "emailAddress", value: "" }, { type: "isFalse", attribute: "emailAddressIsInvalid" }]} onCreate={recipientPickerField && !["User", "Team", "Role", "Portal"].includes(recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]) && !metadata.clientDefs?.[recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]]?.createDisabled && canCreateEntity(metadata, recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]) ? () => { const entityType = recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]; setRecipientCreate({ entity: entityType, field: recipientPickerField }); setRecipientPickerField(null); } : undefined} onClose={() => setRecipientPickerField(null)} onSelect={(rows) => { if (recipientPickerField) appendRecipientRows(recipientPickerField, rows); setRecipientPickerField(null); }}/ >}{recipientCreate && <RecordEditor entity={recipientCreate.entity} fields={getFormFields(metadata, recipientCreate.entity)} metadata={metadata} onClose={() => setRecipientCreate(null)} onSaved={(created) => { const field = recipientCreate.field; setRecipientCreate(null); appendRecipientRows(field, [created]); }}/>}</div>;
 }
 
 function addCalendarPeriod(timestamp: number, period: string) {
