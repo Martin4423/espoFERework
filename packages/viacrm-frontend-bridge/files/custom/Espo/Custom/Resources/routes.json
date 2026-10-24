@@ -46,5 +46,15 @@
     "method": "get",
     "actionClassName": "Espo\\Custom\\Api\\GetPasswordRecoveryInfo",
     "noAuth": true
+  },
+  {
+    "route": "/UserSecurity/currentSessions",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetCurrentUserSessions"
+  },
+  {
+    "route": "/UserSecurity/currentSession/:id",
+    "method": "delete",
+    "actionClassName": "Espo\\Custom\\Api\\DeleteCurrentUserSession"
   }
 ]

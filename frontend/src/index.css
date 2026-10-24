@@ -2614,3 +2614,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .stream-filter-tabs button { min-height:29px; padding:5px 11px; border:0; border-radius:6px; color:var(--muted); background:transparent; font-size:11px; cursor:pointer; }
 .stream-filter-tabs button.active { color:var(--ink); background:var(--surface); box-shadow:0 1px 3px rgba(22,31,52,.12); font-weight:650; }
 .stream-filter-tabs button:disabled { cursor:default; }
+.account-sessions { margin-top: 16px; padding: 18px; }
+.account-session-list { display: grid; gap: 8px; }
+.account-session-list article { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px; border: 1px solid #e6e9f0; border-radius: 8px; background: #fbfcfe; }
+.account-session-icon { display: grid; place-items: center; color: #71809a; }
+.account-session-list article > div { display: grid; gap: 4px; min-width: 0; }
+.account-session-list strong { color: #38455c; font-size: 11px; font-weight: 650; }
+.account-session-list small { color: #8993a5; font-size: 10px; }
+.account-session-list .button { display: inline-flex; align-items: center; gap: 6px; }
+.account-session-list .button > svg:last-child { display: none; }
+@media (max-width: 560px) { .account-session-list article { grid-template-columns: 24px minmax(0,1fr); } .account-session-list article .button { grid-column: 2; justify-self: start; } }

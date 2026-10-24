@@ -713,7 +713,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
       <main className="content-area">{accountPage === "preferences"
         ? <UserPreferencesView metadata={metadata} user={preferencesTarget || user} onBack={() => { const target = preferencesTarget; setAccountPage(null); setPreferencesTarget(null); if (target) { setEntity("User"); setRecord(target as Row); } }} />
         : accountPage === "security"
-        ? <UserSecurityView user={user} onBack={() => setAccountPage(null)} />
+        ? <UserSecurityView user={user} onBack={() => setAccountPage(null)} onLogout={onLogout} />
         : lastViewedOpen
         ? <LastViewedView metadata={metadata} onBack={() => setLastViewedOpen(false)} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); setLastViewedOpen(false); }} />
         : notificationsOpen
