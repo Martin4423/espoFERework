@@ -720,6 +720,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .user-security-modal .entity-heading h1 { font-size: 22px; }
 .user-security-modal .security-grid { grid-template-columns: minmax(0, 1fr); }
 .user-security-modal .admin-user-security .security-grid { grid-template-columns: minmax(0, 1fr); }
+.security-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .user-api-credentials { display: grid; gap: 8px; }
 .user-api-credentials > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid #e6e9f0; border-radius: 8px; background: #fbfcfe; }
 .user-api-credentials > div > span { display: grid; gap: 4px; min-width: 0; }
