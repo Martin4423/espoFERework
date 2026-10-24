@@ -1900,7 +1900,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
     const id = sharedViewEditor.id || Math.random().toString(36).slice(2, 12);
     const data = { id, name: sharedViewEditor.name.trim(), mode: nativeCalendarMode(sharedViewEditor.mode, metadata), teamIdList: sharedViewEditor.teams.map((team) => team.id), teamNames: Object.fromEntries(sharedViewEditor.teams.map((team) => [team.id, team.name])) };
     const next = sharedViewEditor.id ? sharedCalendarViews.map((item) => item.id === id ? data : { ...item, mode: nativeCalendarMode(item.mode, metadata) }) : [...sharedCalendarViews.map((item) => ({ ...item, mode: nativeCalendarMode(item.mode, metadata) })), data];
-    try { await request(`Preferences/${encodeURIComponent(getSession()?.user.id || "")}`, { method: "PUT", body: JSON.stringify({ calendarViewDataList: next }) }); setSharedCalendarViews(next); setSharedViewEditor(null); }
+    try { await request(`Preferences/${encodeURIComponent(getSession()?.user.id || "")}`, { method: "PUT", body: JSON.stringify({ calendarViewDataList: next }) }); setSharedCalendarViews(next.map((item) => ({ ...item, mode: calendarModeForUi(item.mode) }))); setSharedViewEditor(null); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Sdílený pohled se nepodařilo uložit."); }
     finally { setSharedViewsBusy(false); }
   }
@@ -1908,7 +1908,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
     if (!selectedSharedViewId || !window.confirm("Opravdu odstranit tento sdílený pohled?")) return;
     setSharedViewsBusy(true);
     const next = sharedCalendarViews.filter((item) => item.id !== selectedSharedViewId).map((item) => ({ ...item, mode: nativeCalendarMode(item.mode, metadata) }));
-    try { await request(`Preferences/${encodeURIComponent(getSession()?.user.id || "")}`, { method: "PUT", body: JSON.stringify({ calendarViewDataList: next }) }); setSharedCalendarViews(next); setSelectedSharedViewId(""); }
+    try { await request(`Preferences/${encodeURIComponent(getSession()?.user.id || "")}`, { method: "PUT", body: JSON.stringify({ calendarViewDataList: next }) }); setSharedCalendarViews(next.map((item) => ({ ...item, mode: calendarModeForUi(item.mode) }))); setSelectedSharedViewId(""); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Sdílený pohled se nepodařilo odstranit."); }
     finally { setSharedViewsBusy(false); }
   }
