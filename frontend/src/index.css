@@ -2329,6 +2329,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .select-records-dialog > header p { margin: 0; color: var(--muted, #778198); font-size: 11px; }
 .select-records-search { display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 7px 9px; border: 1px solid var(--line, #dce1ea); border-radius: 9px; color: var(--muted, #778198); }
 .select-records-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text, #202b40); }
+.select-records-content { display: flex; flex: 1; min-height: 180px; gap: 10px; overflow: hidden; }
+.select-records-content > .category-navigation { flex: 0 0 190px; width: 190px; min-height: 0; overflow: auto; border: 1px solid var(--line, #e5e9f0); border-radius: 9px; }
+.select-records-content > .select-records-table-wrap { flex: 1; min-width: 0; }
 .select-records-table-wrap { flex: 1; min-height: 120px; overflow: auto; border: 1px solid var(--line, #e5e9f0); border-radius: 9px; }
 .select-records-table { width: 100%; border-collapse: collapse; text-align: left; }
 .select-records-table th, .select-records-table td { max-width: 300px; padding: 9px 10px; border-bottom: 1px solid var(--line, #edf0f5); color: var(--text, #303c54); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
