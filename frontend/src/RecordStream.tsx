@@ -33,6 +33,10 @@ function relativeTime(value: string) {
 
 export default function RecordStream({ entity, record, metadata, onOpenNote }: { entity: string; record: Note; metadata: Metadata; onOpenNote?: (note: Note) => void }) {
   const session = getSession();
+  const filterStorageKey = `via:stream-filter:${entity}`;
+  const [streamFilter, setStreamFilter] = useState<"all" | "posts" | "updates">(() => {
+    try { const value = localStorage.getItem(filterStorageKey); return value === "posts" || value === "updates" ? value : "all"; } catch { return "all"; }
+  });
   const [notes, setNotes] = useState<Note[]>([]);
   const [pinned, setPinned] = useState<Note[]>([]);
   const [total, setTotal] = useState(0);
@@ -60,11 +64,12 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
     setBusy(true); setError("");
     try {
       const params = new URLSearchParams({ maxSize: "30", offset: "0", orderBy: "createdAt", order: "desc" });
+      if (streamFilter !== "all") params.set("filter", streamFilter);
       const data = await request<Page>(`${encodeURIComponent(entity)}/${encodeURIComponent(record.id)}/stream?${params}`);
       setNotes(data.list || []); setPinned(data.pinnedList || []); setTotal(data.total || 0);
     } catch (e) { setError(e instanceof Error ? e.message : "Záznamový stream se nepodařilo načíst."); }
     finally { setBusy(false); }
-  }, [entity, record.id]);
+  }, [entity, record.id, streamFilter]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => () => { void Promise.allSettled(draftAttachmentIds.current.map((id) => request(`Attachment/${encodeURIComponent(id)}`, { method: "DELETE" }))); }, []);
@@ -185,6 +190,7 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
     setLoadingMore(true); setError("");
     try {
       const params = new URLSearchParams({ maxSize: "30", offset: String(notes.length), orderBy: "createdAt", order: "desc" });
+      if (streamFilter !== "all") params.set("filter", streamFilter);
       const data = await request<Page>(`${encodeURIComponent(entity)}/${encodeURIComponent(record.id)}/stream?${params}`);
       setNotes((old) => [...old, ...(data.list || []).filter((item) => !old.some((existing) => existing.id === item.id))]);
       setTotal(data.total || 0);
@@ -227,6 +233,7 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
   if (!streamEnabled) return null;
   return <section className="record-stream">
     <div className="record-stream-heading"><div><h3><Activity size={15}/> Aktivita</h3><span>{total} záznamů</span></div><div className="record-stream-actions"><button className={`stream-toggle ${followed ? "is-on" : ""}`} onClick={() => void toggleSubscription("subscription")} disabled={Boolean(actionId) || !canFollow} title={followed ? "Přestat sledovat" : "Sledovat záznam"}>{followed ? <Check size={14}/> : <Activity size={14}/>} {followed ? "Sledujete" : "Sledovat"}</button><button className={`icon-button ${starred ? "stream-starred" : ""}`} onClick={() => void toggleSubscription("starSubscription")} disabled={Boolean(actionId)} title={starred ? "Odebrat z oblíbených" : "Přidat do oblíbených"}><Star size={15} fill={starred ? "currentColor" : "none"}/></button><button className="icon-button" onClick={() => void load()} disabled={busy} title="Obnovit aktivitu"><RefreshCw size={14}/></button></div></div>
+    <div className="stream-filter-tabs" role="group" aria-label="Filtrovat aktivitu">{([["all", "Vše"], ["posts", "Příspěvky"], ["updates", "Změny"]] as const).map(([key, label]) => <button type="button" key={key} className={streamFilter === key ? "active" : ""} aria-pressed={streamFilter === key} onClick={() => { setStreamFilter(key); try { if (key === "all") localStorage.removeItem(filterStorageKey); else localStorage.setItem(filterStorageKey, key); } catch {} }} disabled={busy && streamFilter === key}>{label}</button>)}</div>
     {error && <div className="stream-error">{error}<button onClick={() => void load()}>Načíst znovu</button></div>}
     <form className="stream-composer" onSubmit={(event) => void submitPost(event)}><div className="stream-composer-input"><textarea ref={postInput} value={post} onChange={(event) => handlePostChange(event.target.value, event.currentTarget.selectionStart)} onPaste={pasteAttachments} onKeyDown={handleComposerKeyDown} rows={2} placeholder="Sdílejte novinku…"/>{mentionUsers.length > 0 && <div className="stream-mention-menu" role="listbox">{mentionUsers.map((user, index) => <button type="button" role="option" aria-selected={index === mentionIndex} className={index === mentionIndex ? "active" : ""} key={user.id} onMouseDown={(event) => event.preventDefault()} onClick={() => insertMention(user)}><span>{String(user.name || user.userName || "?").slice(0, 1).toUpperCase()}</span><strong>{user.name || user.userName}</strong><small>@{user.userName}</small></button>)}</div>}</div>{attachments.length > 0 && <div className="stream-draft-files">{attachments.map((item) => <span key={item.id}>{item.name}<button type="button" onClick={() => void removeDraftAttachment(item.id)} aria-label={`Odebrat ${item.name}`}><X size={12}/></button></span>)}</div>}{fileError && <div className="stream-file-error">{fileError}</div>}<div><label className="stream-add-file"><input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ""; }} disabled={uploading || posting}/><Paperclip size={14}/>{uploading ? "Nahrávám…" : "Přiložit soubor"}</label><small>Příspěvek uvidí uživatelé s přístupem ke streamu.</small><button className="button primary" disabled={posting || uploading || (!post.trim() && !attachments.length)}>{posting ? "Odesílám…" : "Publikovat"}<Send size={13}/></button></div></form>
     {pinned.length > 0 && <div className="stream-pinned"><div className="stream-subheading"><Pin size={13}/> Připnuté příspěvky</div>{pinned.map((note) => <StreamItem key={`pin-${note.id}`} note={note} reactions={reactions} currentUserId={session?.user.id} busy={actionId === note.id} onReact={toggleReaction} onPin={togglePin} onRemove={removeNote} onEdit={editNote} onQuote={quoteReply} onOpen={onOpenNote} pinned/>)}</div>}

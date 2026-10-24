@@ -2600,3 +2600,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .portal-scope-list-row>div { display:flex; flex:none; }
 .portal-scope-list-add { display:flex; flex-wrap:wrap; gap:8px; }
 .portal-scope-list-add select { min-width:220px; flex:1; }
+.stream-filter-tabs { display:flex; gap:4px; width:max-content; max-width:100%; margin:0 0 13px; padding:3px; border:1px solid var(--line); border-radius:9px; background:var(--canvas); }
+.stream-filter-tabs button { min-height:29px; padding:5px 11px; border:0; border-radius:6px; color:var(--muted); background:transparent; font-size:11px; cursor:pointer; }
+.stream-filter-tabs button.active { color:var(--ink); background:var(--surface); box-shadow:0 1px 3px rgba(22,31,52,.12); font-weight:650; }
+.stream-filter-tabs button:disabled { cursor:default; }
