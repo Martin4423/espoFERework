@@ -1666,6 +1666,15 @@ const systemMailFolders: MailFolder[] = [
   { id: "archive", name: "Archiv" }, { id: "trash", name: "Koš" }, { id: "all", name: "Všechny zprávy" },
 ];
 
+function shiftDateOnly(value: string, amount: number) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (date.getUTCFullYear() !== Number(match[1]) || date.getUTCMonth() !== Number(match[2]) - 1 || date.getUTCDate() !== Number(match[3])) return value;
+  date.setUTCDate(date.getUTCDate() + amount);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
 function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: Metadata; refresh: number; onCompose: () => void; onOpenRecord: (record: Row) => void }) {
   const timeZone = useEspoTimeZone();
   const [emailFilters, setEmailFilters] = useState({ from: "", subject: "", dateFrom: "", dateTo: "" });
@@ -1705,10 +1714,10 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     const where: Row[] = [{ type: "inFolder", attribute: "folderId", value: folderId }];
     if (emailFilters.from.trim()) where.push({ type: "contains", attribute: "fromAddress", value: emailFilters.from.trim() });
     if (emailFilters.subject.trim()) where.push({ type: "contains", attribute: "subject", value: emailFilters.subject.trim() });
-    if (emailFilters.dateFrom) where.push({ type: "after", attribute: "dateSent", value: `${emailFilters.dateFrom} 00:00:00` });
-    if (emailFilters.dateTo) where.push({ type: "before", attribute: "dateSent", value: `${emailFilters.dateTo} 23:59:59` });
+    if (emailFilters.dateFrom) where.push({ type: "after", attribute: "dateSent", value: shiftDateOnly(emailFilters.dateFrom, -1), dateTime: true, timeZone });
+    if (emailFilters.dateTo) where.push({ type: "before", attribute: "dateSent", value: shiftDateOnly(emailFilters.dateTo, 1), dateTime: true, timeZone });
     return where;
-  }, [folderId, emailFilters]);
+  }, [folderId, emailFilters, timeZone]);
   useEffect(() => {
     const handleComposeShortcut = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
