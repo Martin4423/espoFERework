@@ -2881,7 +2881,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     try {
       const result = await request<Row>("Pdf/action/massPrint", { method: "POST", body: JSON.stringify({ idList: selectedIds, entityType: entity, templateId: template.id }) });
       if (!result?.id) throw new Error("EspoCRM nevytvořilo soubor PDF.");
-      window.open(`?entryPoint=download&id=${encodeURIComponent(result.id)}`, "_blank", "noopener,noreferrer");
+      await downloadAttachment(result.id, `${entityLabel(metadata, entity, true).replace(/[^a-z0-9_-]+/gi, "-")}-vybrane-zaznamy.pdf`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "PDF se nepodařilo vygenerovat."); }
     finally { setMassBusy(false); }
   }
