@@ -55,7 +55,7 @@ function notificationTitle(item: NotificationItem, metadata: Metadata) {
     return actor ? `${actor} reagoval/a na příspěvek${reaction ? ` · ${reaction}` : ""}` : "Reakce na příspěvek";
   }
   if (item.type === "Assign") return entityType ? `Byl vám přiřazen ${entityLabel(metadata, entityType)}` : "Záznam vám byl přiřazen";
-  if (item.type === "EventAttendee") return actor ? `${actor} vás přidal/a k události` : "Byli jste přidáni k události";
+  if (item.type === "EventAttendee") return customNotificationMessage(item, metadata) || (actor ? `${actor} vás přidal/a k události` : "Byli jste přidáni k události");
   if (item.type === "EmailInbox") return actor ? `${actor} přidal/a e-mail do vaší schránky` : "Nový e-mail ve schránce";
   if (item.type === "EmailReceived") return "Nový e-mail";
   if (item.type === "EntityRemoved") return actor ? `${actor} odstranil/a záznam` : "Záznam byl odstraněn";
