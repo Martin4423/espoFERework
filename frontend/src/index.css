@@ -2683,3 +2683,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .portal-navbar-top .sidebar-bottom { margin-left: auto; }
   .portal-rtl:not(.portal-navbar-top) .sidebar { right: auto; left: 0; }
 }
+.portal-login .login-story { background: radial-gradient(ellipse at 82% 82%, color-mix(in srgb, var(--primary) 38%, transparent), transparent 32%), radial-gradient(ellipse at 3% 15%, color-mix(in srgb, var(--primary-dark) 38%, transparent), transparent 40%), #1c2744; }
+.portal-login .login-side { background: var(--canvas); }
+.portal-login .login-card h2 { color: var(--ink); }
+.portal-login .login-card input { color: var(--ink); background: var(--surface); border-color: var(--line); }
+.portal-login .login-card input:focus { border-color: var(--primary); }
+.portal-login .login-bottom { color: var(--muted); }
+.portal-login .login-submit { background: var(--primary); border-color: var(--primary); }
+.portal-login .login-submit:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
