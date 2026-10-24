@@ -51,6 +51,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .login-hint { color: var(--muted); font-size: 13px; margin: 0 0 29px; }
 .login-card label, .field-input { display: grid; gap: 8px; color: #4b5871; font-size: 12px; font-weight: 600; margin-bottom: 17px; }
 .login-card input, .field-input input, .field-input select, .field-input textarea { width: 100%; border: 1px solid #e1e5ed; border-radius: 8px; background: #fff; color: var(--ink); padding: 11px 12px; min-height: 42px; outline: none; transition: border .15s, box-shadow .15s; }
+.login-password-control { position: relative; }
+.login-password-control input { padding-right: 44px; }
+.login-password-toggle { position: absolute; top: 50%; right: 5px; display: grid; width: 34px; height: 34px; place-items: center; transform: translateY(-50%); border: 0; border-radius: 6px; background: transparent; color: #8792a3; cursor: pointer; }
+.login-password-toggle:hover, .login-password-toggle:focus-visible { background: #f1f1fb; color: var(--primary); outline: none; }
 .login-card input:focus, .field-input input:focus, .field-input select:focus, .field-input textarea:focus { border-color: #aaa5f0; box-shadow: 0 0 0 3px rgba(99,91,219,.1); }
 .login-submit { width: 100%; height: 45px; justify-content: space-between; margin-top: 4px; padding: 0 15px; }
 .login-submit span { font-size: 17px; }

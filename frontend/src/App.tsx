@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ComponentType, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, History, Inbox as InboxIcon, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, type LucideIcon } from "./Icons";
+import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, History, Inbox as InboxIcon, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, EyeSlash, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
 import { phoneCountryLabels, phoneCountryOptions } from "./phoneCountries";
 import DOMPurify from "dompurify";
@@ -657,6 +657,7 @@ type PasswordRecoveryInfo = { passwordRecoveryEnabled?: boolean; requestFound?: 
 function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (username: string, password: string, pending?: PendingSecondStep, code?: string) => Promise<Session | PendingSecondStep>; error: string; portalBranding: PortalBranding | null }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [secondStep, setSecondStep] = useState<PendingSecondStep | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -672,7 +673,7 @@ function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (use
   useEffect(() => { let live = true; fetch("/api/v1/User/passwordRecoveryInfo").then((response) => response.json()).then((data: PasswordRecoveryInfo) => live && setRecoveryEnabled(Boolean(data.passwordRecoveryEnabled))).catch(() => live && setRecoveryEnabled(false)); return () => { live = false; }; }, []);
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
-    try { const result = await onLogin(username, password); if ("secondStepRequired" in result) { setSecondStep(result); setCode(""); } } catch (e) { setError(e instanceof Error ? e.message : "Přihlášení se nezdařilo."); }
+    try { const result = await onLogin(username, password); if ("secondStepRequired" in result) { setSecondStep(result); setCode(""); setPasswordVisible(false); } } catch (e) { setError(e instanceof Error ? e.message : "Přihlášení se nezdařilo."); }
     finally { setBusy(false); }
   }
   async function submitSecondStep(event: FormEvent) {
@@ -687,10 +688,10 @@ function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (use
       <div className="story-copy">{isPortalLogin ? <><span className="eyebrow">ZÁKAZNICKÝ PORTÁL</span><h1>Vítejte v portálu<br/>{portalTitle}.</h1><p>Po přihlášení najdete své požadavky, dokumenty a komunikaci s naším týmem.</p></> : <><span className="eyebrow">JEDNO MÍSTO PRO VÁŠ BYZNYS</span><h1>Dobré vztahy<br/>začínají přehledem.</h1><p>Klienti, obchod i každodenní práce. Všechno navazuje na sebe.</p></>}</div>
       <div className="story-foot"><span>{isPortalLogin ? portalTitle : "Klientské CRM"}</span><span>{isPortalLogin ? "Zabezpečený přístup" : "EspoCRM · připojeno"}</span></div>
     </section>
-    <section className="login-side"><form className="login-card" onSubmit={secondStep ? submitSecondStep : submit}>
+    <section className="login-side"><form className="login-card" onSubmit={secondStep ? submitSecondStep : submit} onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.requestSubmit(); } }}>
       <span className="eyebrow">{isPortalLogin ? portalTitle : "VÍTEJTE ZPĚT"}</span><h2>{isPortalLogin ? "Přihlášení do portálu" : "Přihlášení do CRM"}</h2><p className="login-hint">{isPortalLogin ? "Použijte přihlašovací údaje svého portálového účtu." : "Použijte svůj účet EspoCRM."}</p>
       {!secondStep ? <><label>Uživatelské jméno<input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required /></label>
-      <label>Heslo<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label></> : <><p className="login-hint">{secondStep.message || "Zadejte ověřovací kód z druhého kroku přihlášení."}</p><label>Ověřovací kód<input autoFocus inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} required /></label></>}
+      <label>Heslo<div className="login-password-control"><input id="login-password" type={passwordVisible ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" className="login-password-toggle" aria-label={passwordVisible ? "Skrýt heslo" : "Zobrazit heslo"} aria-pressed={passwordVisible} aria-controls="login-password" onClick={() => setPasswordVisible((visible) => !visible)}>{passwordVisible ? <EyeSlash size={16}/> : <Eye size={16}/>}</button></div></label></> : <><p className="login-hint">{secondStep.message || "Zadejte ověřovací kód z druhého kroku přihlášení."}</p><label>Ověřovací kód<input autoFocus inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} required /></label></>}
       {error && <div className="inline-error">{error}</div>}
       <button className="button primary login-submit" disabled={busy}>{busy ? "Ověřuji…" : secondStep ? "Ověřit a přihlásit se" : "Přihlásit se"}<span>→</span></button>
       {secondStep ? <button type="button" className="login-recovery-link" onClick={() => { setSecondStep(null); setCode(""); setError(""); }}>Zpět na přihlášení</button> : recoveryEnabled && <button type="button" className="login-recovery-link" onClick={() => setRecoveryOpen(true)}>Zapomněli jste heslo?</button>}

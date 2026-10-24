@@ -50,6 +50,7 @@ export const Database = icon("fas fa-database");
 export const Download = icon("fas fa-download");
 export const ExternalLink = icon("fas fa-arrow-up-right-from-square");
 export const Eye = icon("fas fa-eye");
+export const EyeSlash = icon("fas fa-eye-slash");
 export const File = icon("fas fa-file");
 export const FileImage = icon("fas fa-file-image");
 export const FileInput = icon("fas fa-file-import");
