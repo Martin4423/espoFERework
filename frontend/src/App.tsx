@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, ComponentType, CSSProperties, DragEvent as ReactDragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, SyntheticEvent } from "react";
+import type { ChangeEvent, ComponentType, CSSProperties, DragEvent as ReactDragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, SyntheticEvent } from "react";
 import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, GripVertical, History, Inbox as InboxIcon, Info, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, EyeSlash, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
 import { phoneCountryLabels, phoneCountryOptions } from "./phoneCountries";
@@ -1186,6 +1186,16 @@ const adminGroups = [
 
 function AdminHub({ metadata, onOpenEntity }: { metadata: Metadata; onOpenEntity: (name: string) => void }) {
   const [query, setQuery] = useState("");
+  const [adminNotices, setAdminNotices] = useState<Array<{ id: string; type: string; message: string }>>([]);
+  const [adminNoticesLoading, setAdminNoticesLoading] = useState(true);
+  const [adminNoticesError, setAdminNoticesError] = useState("");
+  const loadAdminNotices = useCallback(async () => {
+    setAdminNoticesLoading(true); setAdminNoticesError("");
+    try { setAdminNotices(await request<Array<{ id: string; type: string; message: string }>>("Admin/action/adminNotificationList")); }
+    catch (cause) { setAdminNoticesError(cause instanceof Error ? cause.message : "Systémová upozornění se nepodařilo načíst."); }
+    finally { setAdminNoticesLoading(false); }
+  }, []);
+  useEffect(() => { void loadAdminNotices(); }, [loadAdminNotices]);
   const normalized = query.trim().toLocaleLowerCase("cs");
   const nativePanels = metadata.app?.adminPanel as Record<string, { label?: string; order?: number; itemList?: Array<{ label?: string; url?: string; action?: string; iconClass?: string; description?: string }> }> | undefined;
   const nativeTargets: Record<string, string> = { settings: "__settings__", userInterface: "__ui-settings__", authentication: "__auth-settings__", ScheduledJob: "ScheduledJob", scheduledJob: "ScheduledJob", currency: "__currency-settings__", notifications: "__notification-settings__", integrations: "__integrations__", extensions: "__extensions__", systemRequirements: "__system-tools__", jobsSettings: "__jobs-settings__", upgrade: "__upgrade__", clearCache: "__system-tools__", rebuild: "__system-tools__", users: "User", teams: "Team", roles: "Role", authLog: "AuthLogRecord", authTokens: "__auth-tokens__", actionHistory: "ActionHistoryRecord", apiUsers: "__api-users__", entityManager: "__entity-manager__", layouts: "__layout-manager__", labelManager: "__label-manager__", templateManager: "__template-manager__", outboundEmails: "__outbound-settings__", inboundEmails: "__inbound-settings__", groupEmailAccounts: "EmailAccount", personalEmailAccounts: "EmailAccount", emailFilters: "EmailFilter", emailFolders: "EmailFolder", emailFolder: "EmailFolder", groupEmailFolders: "GroupEmailFolder", emailTemplates: "EmailTemplate", sms: "__sms-settings__", portals: "Portal", portalUsers: "__portal-users__", portalRoles: "PortalRole", workingTimeCalendars: "WorkingTimeCalendar", workingTimeCalendar: "WorkingTimeCalendar", layoutSets: "LayoutSet", dashboardTemplates: "DashboardTemplate", dashboardTemplate: "DashboardTemplate", leadCapture: "LeadCapture", pdfTemplates: "Template", webhooks: "Webhook", addressCountries: "AddressCountry", authenticationProviders: "AuthenticationProvider", authenticationProvider: "AuthenticationProvider", import: "__import__", attachments: "Attachment", jobs: "Job", emailAddresses: "EmailAddress", phoneNumbers: "PhoneNumber", appSecrets: "AppSecret", oAuthProviders: "OAuthProvider", appLog: "AppLogRecord", formulaSandbox: "__formula-sandbox__" };
@@ -1207,13 +1217,36 @@ function AdminHub({ metadata, onOpenEntity }: { metadata: Metadata; onOpenEntity
   })) : adminGroups.map((group) => ({ ...group, items: group.items.map((item) => ({ ...item })) }));
   const adminGroupsWithEditors = nativeGroups.map((group) => group.key === "customization" ? { ...group, items: [...group.items, { name: "fieldManager", label: "Správce polí", description: "Vytváření a úpravy vlastních polí CRM.", icon: SlidersHorizontal, target: "__field-manager__", disabled: false }, { name: "linkManager", label: "Správce vztahů", description: "Vytváření a úpravy vztahů mezi entitami.", icon: Network, target: "__link-manager__", disabled: false }] } : group);
   const visibleGroups = adminGroupsWithEditors.map((group) => ({ ...group, items: group.items.filter((item) => !normalized || `${item.label} ${item.description} ${item.name}`.toLocaleLowerCase("cs").includes(normalized)) })).filter((group) => group.items.length);
+  const internalNoticeTargets: Record<string, string> = { settings: "__settings__", jobsSettings: "__jobs-settings__", upgrade: "__upgrade__", systemRequirements: "__system-tools__", integrations: "__integrations__", extensions: "__extensions__" };
   return <div className="admin-view"><div className="entity-heading"><div><div className="eyebrow">SPRÁVA CRM</div><h1>Administrace</h1><p>Uživatelé, oprávnění, e-mail a konfigurace systému.</p></div><span className="admin-secure"><Shield size={15}/> Přístup administrátora</span></div>
+    {(adminNotices.length > 0 || adminNoticesError || adminNoticesLoading) && <section className="admin-notifications" aria-labelledby="admin-notifications-title"><div className="admin-notifications-heading"><div><span className="admin-notifications-icon"><Info size={16}/></span><div><h2 id="admin-notifications-title">Systémová upozornění</h2><p>{adminNoticesLoading ? "Kontroluji stav instalace…" : `${adminNotices.length} ${adminNotices.length === 1 ? "aktivní upozornění" : "aktivních upozornění"}`}</p></div></div><button type="button" className="icon-button" aria-label="Obnovit systémová upozornění" title="Obnovit" onClick={() => void loadAdminNotices()} disabled={adminNoticesLoading}><RefreshCw size={14}/></button></div>{adminNoticesError ? <div className="admin-notification-error" role="alert">{adminNoticesError}<button type="button" className="button subtle" onClick={() => void loadAdminNotices()}>Zkusit znovu</button></div> : adminNoticesLoading ? <div className="admin-notification-loading" role="status"><span className="spinner"/>Načítám upozornění…</div> : <div className="admin-notification-list" aria-live="polite">{adminNotices.map((item) => <div className="admin-notification-item" key={item.id}><span aria-hidden="true"><Info size={14}/></span><p>{renderAdminNoticeMessage(item.message, internalNoticeTargets, onOpenEntity)}</p></div>)}</div>}</section>}
     <label className="admin-settings-search"><Search size={15}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Najít správu uživatelů, šablon, logů…"/><span>{visibleGroups.reduce((sum, group) => sum + group.items.length, 0)} nástrojů</span></label>
     {visibleGroups.map((group) => <section className={`admin-group${group.key ? ` admin-group-${group.key}` : ""}`} key={group.key || group.title}><div className="admin-group-head"><div><h2>{group.title}</h2><p>{group.description}</p></div></div><div className="admin-cards">{group.items.map((item) => { const Icon = item.icon || Settings; const disabled = item.disabled ?? false;
       return <button className={`admin-card ${disabled ? "unavailable" : ""}`} key={item.name} disabled={disabled} onClick={() => { const target = item.target || ({ settings: "__settings__", fieldManager: "__field-manager__", layoutManager: "__layout-manager__", systemTools: "__system-tools__", entityManager: "__entity-manager__", linkManager: "__link-manager__", labelManager: "__label-manager__" } as Record<string, string>)[item.name] || item.name; onOpenEntity(target); }}><span className="admin-card-icon">{item.iconClass ? <EspoIcon className={item.iconClass} size={19}/> : <Icon size={19} strokeWidth={1.8}/>}</span><span className="admin-card-copy"><strong>{item.label}</strong><small>{disabled ? "Tato administrační část zatím nemá náhradní obrazovku" : item.description}</small></span><ArrowRight size={16} className="admin-card-arrow"/></button>;
     })}</div></section>)}
     <section className="admin-note"><span><Database size={17}/></span><div><strong>Data zůstávají ve vašem EspoCRM</strong><p>Administrativní změny se ukládají přímo přes API instalace.</p></div></section>
   </div>;
+}
+
+function renderAdminNoticeMessage(message: string, internalTargets: Record<string, string>, onOpenEntity: (name: string) => void) {
+  const nodes: ReactNode[] = [];
+  const pattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(message))) {
+    if (match.index > lastIndex) nodes.push(message.slice(lastIndex, match.index));
+    const [, label, href] = match;
+    if (href.startsWith("#Admin/") && internalTargets[href.slice("#Admin/".length)]) nodes.push(<button type="button" className="admin-notice-link" key={`${match.index}-${href}`} onClick={() => onOpenEntity(internalTargets[href.slice("#Admin/".length)])}>{label}</button>);
+    else if (href.startsWith("#")) nodes.push(label);
+    else {
+      let safeHref = "";
+      try { const url = new URL(href); if (["https:", "http:"].includes(url.protocol)) safeHref = url.href; } catch {}
+      nodes.push(safeHref ? <a key={`${match.index}-${href}`} className="admin-notice-link" href={safeHref} target="_blank" rel="noreferrer">{label}<ExternalLink size={11}/></a> : label);
+    }
+    lastIndex = pattern.lastIndex;
+  }
+  if (lastIndex < message.length) nodes.push(message.slice(lastIndex));
+  return nodes;
 }
 
 function useUnsavedChangesGuard(hasChanges: boolean, onLeave: () => void, message: string) {
