@@ -2944,6 +2944,13 @@ function inboundEmailFieldVisible(name: string, values: Row): boolean {
   return true;
 }
 
+function emailAccountFieldVisible(name: string, values: Row): boolean {
+  const smtpFields = ["smtpHost", "smtpPort", "smtpAuth", "smtpSecurity", "smtpTestSend"];
+  if (!values.useSmtp && smtpFields.includes(name)) return false;
+  if ((!values.useSmtp || !values.smtpAuth) && ["smtpUsername", "smtpPassword", "smtpAuthMechanism"].includes(name)) return false;
+  return true;
+}
+
 function InboundMailFolderField({ label, value, multiple, values, recordId, onChange }: { label: string; value: string | string[]; multiple?: boolean; values: Row; recordId?: string; onChange: (value: string | string[]) => void }) {
   const [options, setOptions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -3309,9 +3316,10 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     setValues(next); setRecordBaseline(saveConflict.latest); setVersionNumber(saveConflict.latest.versionNumber ?? null); setSaveConflict(null); setError("Zkontrolujte sloučený formulář a znovu uložte.");
   }
   const fieldMap = new Map(fields);
-  const inboundSmtpFieldNames = new Set(entity === "InboundEmail"
+  const smtpPanelFieldNames = new Set(["InboundEmail", "EmailAccount"].includes(entity)
     ? detailLayout.filter((panel) => panel.tabLabel === "$label:SMTP").flatMap((panel) => (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name ? [item.name] : []))
     : []);
+  const emailTestActionFields = new Set(["InboundEmail", "EmailAccount"].includes(entity) ? ["testConnection", "smtpTestSend"] : []);
   const used = new Set<string>();
   if (entity === "Portal" && fieldMap.has("themeParams")) used.add("themeParams");
   const currentUserType = entity === "User" ? String(values.type || record?.type || initialValues.type || "regular") : "";
@@ -3346,13 +3354,14 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     ["data", "fieldData"].forEach((name) => { if (fieldMap.has(name)) used.add(name); });
   } else {
     groups = editorDetailLayout.flatMap((panel, index) => {
-      const names = (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name && fieldMap.has(item.name) && !used.has(item.name) ? [item.name] : []);
+      const names = (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name && (fieldMap.has(item.name) || emailTestActionFields.has(item.name)) && !used.has(item.name) ? [item.name] : []);
       names.forEach((name) => used.add(name));
       return names.length ? [{ title: panel.label || (index === 0 ? "Základní informace" : `Další údaje ${index}`), names }] : [];
     });
   }
   const unplaced = fields.map(([name]) => name).filter((name) => !used.has(name) && isUserFieldVisible(name));
   if (unplaced.length) groups.push({ title: groups.length ? "Další pole" : "Údaje", names: unplaced });
+  const mailActionNames = new Set(groups.flatMap((group) => group.names));
   const emailFilterActions = values.isGlobal ? ["Skip"] : values.parent?.type === "User" ? ["Skip", "Move to Folder", "None"] : values.parent?.type === "InboundEmail" ? ["Skip", "Move to Group Folder"] : values.parent?.type === "EmailAccount" ? ["Skip"] : ["Skip"];
   function updateFieldValue(name: string, value: any) {
     setValues((old) => {
@@ -3475,11 +3484,13 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     (values.assignedUsers || values.assignedUsersIds || []).includes?.(currentEditorUserId)
   ));
   const taskReminderVisible = entity !== "Task" || Boolean(values.dateEnd || values.dateEndDate) && !taskNonReminderStatus && currentUserAssignedToTask;
-  const editorFieldVisible = (name: string) => (entity !== "InboundEmail" || inboundEmailFieldVisible(name, values)) && (name !== "reminders" || taskReminderVisible);
+  const editorFieldVisible = (name: string) => (entity !== "InboundEmail" || inboundEmailFieldVisible(name, values)) && (entity !== "EmailAccount" || emailAccountFieldVisible(name, values)) && (name !== "reminders" || taskReminderVisible);
   const renderField = (name: string) => {
     if (!editorFieldVisible(name)) return null;
+    if ((entity === "InboundEmail" || entity === "EmailAccount") && name === "testConnection") return <div className="email-test-field" key={name}><button type="button" className="button subtle" onClick={() => void testMailConnection()} disabled={connectionTestBusy || !values.host}><Network size={14}/>{connectionTestBusy ? "Testuji připojení…" : "Testovat IMAP připojení"}</button></div>;
+    if ((entity === "InboundEmail" || entity === "EmailAccount") && name === "smtpTestSend") return values.smtpHost ? <div className="email-test-field" key={name}><button type="button" className="button subtle" onClick={() => { setTestEmailTo(String((getSession()?.user as User & { emailAddress?: string } | undefined)?.emailAddress || "")); setTestEmailError(""); setTestEmailOpen(true); }} disabled={testEmailBusy}><Mail size={14}/>{testEmailBusy ? "Odesílám…" : "Odeslat testovací e-mail"}</button></div> : null;
     let def = fieldMap.get(name)!;
-    if (inboundSmtpFieldNames.has(name)) {
+    if (smtpPanelFieldNames.has(name)) {
       const label = fieldLabel(name, def, entity, metadata);
       if (/^SMTP\s+/i.test(label)) def = { ...def, label: label.replace(/^SMTP\s+/i, "").replace(/^./, (character) => character.toLocaleUpperCase()) };
     }
@@ -3586,7 +3597,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     {entity === "Template" && values.entityType && <TemplatePlaceholderPicker metadata={metadata} entityType={String(values.entityType)} onInsert={(target, code) => setValues((old) => ({ ...old, [target]: `${String(old[target] || "")}${old[target] ? " " : ""}${code}` }))}/>}
     {entity === "Meeting" && (metadata.clientDefs?.Meeting?.bottomPanels?.edit || []).some((panel: any) => panel.name === "scheduler") && <MeetingScheduler metadata={metadata} userIds={values.users || []} userNames={values.usersNames} assignedUserId={values.assignedUserId} assignedUserName={values.assignedUserName} dateStart={values.isAllDay ? values.dateStartDate : values.dateStart} dateEnd={values.isAllDay ? values.dateEndDate : values.dateEnd} allDay={Boolean(values.isAllDay)} entityId={record?.id}/>}
     {(entity === "Role" || entity === "PortalRole") && <RoleAclEditor metadata={metadata} type={entity === "PortalRole" ? "aclPortal" : "acl"} data={values.data || {}} fieldData={values.fieldData || {}} onChange={(data, fieldData) => setValues((old) => ({ ...old, data, fieldData }))}/>}
-    {!["EmailAccount", "InboundEmail"].includes(entity) ? null : <div className="email-test-bar"><span>Ověřte nastavení připojení před uložením účtu.</span><div><button type="button" className="button subtle" onClick={() => void testMailConnection()} disabled={connectionTestBusy || !values.host}>{connectionTestBusy ? "Testuji připojení…" : "Testovat připojení"}<Network size={14}/></button><button type="button" className="button subtle" onClick={() => { setTestEmailTo(String((getSession()?.user as User & { emailAddress?: string } | undefined)?.emailAddress || "")); setTestEmailError(""); setTestEmailOpen(true); }} disabled={testEmailBusy || !values.smtpHost || !values.emailAddress || (entity === "InboundEmail" && !values.useSmtp)}>{testEmailBusy ? "Odesílám…" : "Odeslat testovací e-mail"}<Mail size={14}/></button></div></div>}
+    {!["EmailAccount", "InboundEmail"].includes(entity) || mailActionNames.has("testConnection") && mailActionNames.has("smtpTestSend") ? null : <div className="email-test-bar"><span>Ověřte nastavení připojení před uložením účtu.</span><div><button type="button" className="button subtle" onClick={() => void testMailConnection()} disabled={connectionTestBusy || !values.host}>{connectionTestBusy ? "Testuji připojení…" : "Testovat připojení"}<Network size={14}/></button><button type="button" className="button subtle" onClick={() => { setTestEmailTo(String((getSession()?.user as User & { emailAddress?: string } | undefined)?.emailAddress || "")); setTestEmailError(""); setTestEmailOpen(true); }} disabled={testEmailBusy || !values.smtpHost || !values.emailAddress || (entity === "InboundEmail" && !values.useSmtp)}>{testEmailBusy ? "Odesílám…" : "Odeslat testovací e-mail"}<Mail size={14}/></button></div></div>}
     {connectionTestNotice && <div className="save-confirm"><Check size={15}/>{connectionTestNotice}</div>}
     {testEmailNotice && <div className="save-confirm"><Check size={15}/>{testEmailNotice}</div>}
     {error && <div className="inline-error">{error}</div>}

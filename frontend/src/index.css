@@ -1587,6 +1587,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .lead-convert-group h3 { margin: 0 0 9px; color: #798499; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .lead-convert-group .modal-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
 .duplicate-notice { padding: 11px 14px; color: #795c30; background: #fff8e9; border-bottom: 1px solid #f0dfbd; font-size: 10px; }
+.email-test-field { display: flex; align-items: center; min-width: 0; min-height: 34px; }
+.email-test-field .button { max-width: 100%; white-space: normal; text-align: left; }
 @media(max-width:760px) { .lead-convert-group .modal-fields { grid-template-columns: 1fr; } .lead-convert-content { padding: 10px; } }
 .email-test-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 18px; border-top: 1px solid #eff0f4; color: #8490a3; font-size: 9px; }
 .email-test-bar > div { display: flex; flex-wrap: wrap; gap: 7px; }
