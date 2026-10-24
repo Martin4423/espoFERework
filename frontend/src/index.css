@@ -2660,6 +2660,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .image-crop-controls span { width: 42px; color: var(--muted, #778198); text-align: right; font-size: 10px; }
 .relationship-open-picker { width: fit-content; min-height: 32px; }
 .meeting-acceptance-actions { padding: 0 0 16px; border: 0; }
+.meeting-acceptance-actions .button { min-height: 34px; }
 .meeting-acceptance-action { justify-content: flex-start; }
 .meeting-acceptance-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted, #8a93a3); }
 .meeting-acceptance-dot.success { background: #2e9b68; }
@@ -2676,6 +2677,20 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .meeting-acceptance-option.warning { --acceptance-color: #a97819; }
 .meeting-acceptance-option { color: var(--acceptance-color, var(--text, #303c54)); }
 .meeting-acceptance-dialog > .inline-error { margin: 0 22px 12px; }
+.meeting-invitation-backdrop { z-index: 215; }
+.meeting-invitation-dialog { display: flex; width: min(680px, calc(100vw - 28px)); max-height: min(720px, calc(100dvh - 24px)); flex-direction: column; overflow: hidden; }
+.meeting-invitation-dialog .modal-heading p { margin: 5px 0 0; color: var(--muted, #778198); font-size: 11px; }
+.meeting-invitation-list { min-height: 140px; overflow-y: auto; padding: 0 22px; }
+.meeting-invitation-select-all, .meeting-invitation-attendee { display: flex; min-height: 46px; align-items: center; gap: 10px; border-bottom: 1px solid var(--line, #edf0f5); cursor: pointer; }
+.meeting-invitation-select-all { position: sticky; top: 0; z-index: 1; min-height: 38px; background: var(--surface, #fff); color: var(--muted, #778198); font-size: 10px; font-weight: 650; }
+.meeting-invitation-select-all input, .meeting-invitation-attendee > input { flex: 0 0 auto; accent-color: var(--accent, #526db0); }
+.meeting-invitation-name { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.meeting-invitation-name strong { overflow: hidden; color: var(--text, #303c54); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.meeting-invitation-name small, .meeting-invitation-status { overflow: hidden; color: var(--muted, #778198); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.meeting-invitation-empty { display: grid; min-height: 150px; align-content: center; justify-items: center; gap: 6px; color: var(--muted, #778198); text-align: center; font-size: 11px; }
+.meeting-invitation-empty strong { color: var(--text, #303c54); }
+.meeting-invitation-count { margin-right: auto; align-self: center; color: var(--muted, #778198); font-size: 10px; }
+.meeting-invitation-dialog > .modal-footer { flex: 0 0 auto; }
 .select-records-backdrop { z-index: 190; }
 .select-records-dialog { display: flex; flex-direction: column; width: min(940px, calc(100vw - 28px)); max-height: min(780px, calc(100vh - 24px)); padding: 14px; border: 1px solid var(--line, #e5e9f0); border-radius: 13px; background: var(--surface, #fff); box-shadow: 0 22px 70px #17233a44; }
 .select-records-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 8px; }
