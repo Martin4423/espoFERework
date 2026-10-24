@@ -2828,3 +2828,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .task-row-menu button:hover { background: var(--canvas); }
 .task-row-menu button:disabled { opacity: .55; cursor: wait; }
 .task-row-menu button.danger { color: #a82e35; }
+.reminder-display-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.reminder-display-list li { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+.reminder-display-list li > svg { flex: 0 0 auto; color: var(--primary); }
+.reminder-display-list li strong { margin-left: auto; color: var(--ink); font-size: 11px; font-weight: 550; }
+.reminder-display-empty { color: var(--muted); font-size: 12px; }
