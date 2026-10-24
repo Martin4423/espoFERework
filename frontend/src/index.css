@@ -1314,6 +1314,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .notification-unread-dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: #766fe0; }
 .notification-remove { display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #a1a9b7; cursor: pointer; }
 .notification-remove:hover { background: #fff0f0; color: #b85c65; }
+.notification-read-toggle:hover { background: #efefff; color: var(--primary); }
 .popup-reminder-stack { position: fixed; z-index: 100; top: 76px; right: 20px; display: grid; gap: 10px; width: min(370px,calc(100vw - 32px)); pointer-events: none; }
 .popup-reminder-card { display: flex; align-items: flex-start; gap: 11px; padding: 14px; border: 1px solid #e8e5fb; border-left: 3px solid #746dd1; border-radius: 12px; box-shadow: 0 14px 35px rgba(35,31,73,.16); pointer-events: auto; animation: popup-reminder-in .2s ease-out; }
 .popup-reminder-icon { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: #f0efff; color: #6d67c9; }
