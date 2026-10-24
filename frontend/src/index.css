@@ -753,6 +753,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .currency-rate-list label small { color: #8993a5; font-size: 10px; font-weight: 400; }
 .currency-rate-list input { width: 150px; padding: 8px 9px; border: 1px solid #e1e5ed; border-radius: 6px; color: var(--ink); font-size: 12px; }
 .field-input { gap: 6px; margin-bottom: 14px; font-size: 10px; }
+.theme-field-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
 .field-input > span:first-child { color: #68748a; }
 .field-input.required > span:first-child i { color: #d06b74; font-style: normal; }
 .field-input input, .field-input select { min-height: 36px; padding: 8px 10px; font-size: 11px; }
