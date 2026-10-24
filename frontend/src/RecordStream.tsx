@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, ArrowDown, Check, FileImage, Heart, MessageSquare, Paperclip, Pin, RefreshCw, Send, Smile, Star, ThumbsUp, Trash2, X } from "./Icons";
+import { Activity, ArrowDown, Check, ExternalLink, FileImage, Heart, MessageSquare, Paperclip, Pin, RefreshCw, Send, Smile, Star, ThumbsUp, Trash2, X } from "./Icons";
 import { downloadAttachment, getAttachmentPreviewUrl, getSession, request, uploadAttachment } from "./api";
 import type { Metadata } from "./api";
 import ImagePreviewDialog from "./ImagePreviewDialog";
@@ -31,7 +31,7 @@ function relativeTime(value: string) {
   return relative.format(Math.round(hours / 24), "day");
 }
 
-export default function RecordStream({ entity, record, metadata }: { entity: string; record: Note; metadata: Metadata }) {
+export default function RecordStream({ entity, record, metadata, onOpenNote }: { entity: string; record: Note; metadata: Metadata; onOpenNote?: (note: Note) => void }) {
   const session = getSession();
   const [notes, setNotes] = useState<Note[]>([]);
   const [pinned, setPinned] = useState<Note[]>([]);
@@ -101,7 +101,7 @@ export default function RecordStream({ entity, record, metadata }: { entity: str
     finally { setPosting(false); }
   }
 
-  async function addFiles(list: FileList | null) {
+  async function addFiles(list: FileList | File[] | null) {
     if (!list?.length) return;
     setUploading(true); setFileError("");
     try {
@@ -113,6 +113,17 @@ export default function RecordStream({ entity, record, metadata }: { entity: str
       setAttachments((old) => [...old, ...uploaded]);
     } catch (e) { setFileError(e instanceof Error ? e.message : "Přílohu se nepodařilo nahrát."); }
     finally { setUploading(false); }
+  }
+
+  function pasteAttachments(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const files = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file))
+      .map((file, index) => file.name ? file : new File([file], `vlozeny-obrazek-${Date.now()}-${index + 1}.${file.type.split("/")[1]?.replace("jpeg", "jpg") || "png"}`, { type: file.type }));
+    if (!files.length) return;
+    event.preventDefault();
+    void addFiles(files);
   }
 
   async function removeDraftAttachment(id: string) {
@@ -217,14 +228,14 @@ export default function RecordStream({ entity, record, metadata }: { entity: str
   return <section className="record-stream">
     <div className="record-stream-heading"><div><h3><Activity size={15}/> Aktivita</h3><span>{total} záznamů</span></div><div className="record-stream-actions"><button className={`stream-toggle ${followed ? "is-on" : ""}`} onClick={() => void toggleSubscription("subscription")} disabled={Boolean(actionId) || !canFollow} title={followed ? "Přestat sledovat" : "Sledovat záznam"}>{followed ? <Check size={14}/> : <Activity size={14}/>} {followed ? "Sledujete" : "Sledovat"}</button><button className={`icon-button ${starred ? "stream-starred" : ""}`} onClick={() => void toggleSubscription("starSubscription")} disabled={Boolean(actionId)} title={starred ? "Odebrat z oblíbených" : "Přidat do oblíbených"}><Star size={15} fill={starred ? "currentColor" : "none"}/></button><button className="icon-button" onClick={() => void load()} disabled={busy} title="Obnovit aktivitu"><RefreshCw size={14}/></button></div></div>
     {error && <div className="stream-error">{error}<button onClick={() => void load()}>Načíst znovu</button></div>}
-    <form className="stream-composer" onSubmit={(event) => void submitPost(event)}><div className="stream-composer-input"><textarea ref={postInput} value={post} onChange={(event) => handlePostChange(event.target.value, event.currentTarget.selectionStart)} onKeyDown={handleComposerKeyDown} rows={2} placeholder="Sdílejte novinku…"/>{mentionUsers.length > 0 && <div className="stream-mention-menu" role="listbox">{mentionUsers.map((user, index) => <button type="button" role="option" aria-selected={index === mentionIndex} className={index === mentionIndex ? "active" : ""} key={user.id} onMouseDown={(event) => event.preventDefault()} onClick={() => insertMention(user)}><span>{String(user.name || user.userName || "?").slice(0, 1).toUpperCase()}</span><strong>{user.name || user.userName}</strong><small>@{user.userName}</small></button>)}</div>}</div>{attachments.length > 0 && <div className="stream-draft-files">{attachments.map((item) => <span key={item.id}>{item.name}<button type="button" onClick={() => void removeDraftAttachment(item.id)} aria-label={`Odebrat ${item.name}`}><X size={12}/></button></span>)}</div>}{fileError && <div className="stream-file-error">{fileError}</div>}<div><label className="stream-add-file"><input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ""; }} disabled={uploading || posting}/><Paperclip size={14}/>{uploading ? "Nahrávám…" : "Přiložit soubor"}</label><small>Příspěvek uvidí uživatelé s přístupem ke streamu.</small><button className="button primary" disabled={posting || uploading || (!post.trim() && !attachments.length)}>{posting ? "Odesílám…" : "Publikovat"}<Send size={13}/></button></div></form>
-    {pinned.length > 0 && <div className="stream-pinned"><div className="stream-subheading"><Pin size={13}/> Připnuté příspěvky</div>{pinned.map((note) => <StreamItem key={`pin-${note.id}`} note={note} reactions={reactions} currentUserId={session?.user.id} busy={actionId === note.id} onReact={toggleReaction} onPin={togglePin} onRemove={removeNote} onEdit={editNote} onQuote={quoteReply} pinned/>)}</div>}
-    <div className="stream-list">{busy ? <div className="stream-loading"><span className="spinner"/> Načítám aktivitu…</div> : notes.length ? notes.map((note) => <StreamItem key={note.id} note={note} reactions={reactions} currentUserId={session?.user.id} busy={actionId === note.id || actionId.startsWith(`${note.id}:`)} onReact={toggleReaction} onPin={togglePin} onRemove={removeNote} onEdit={editNote} onQuote={quoteReply} pinned={pinnedIds.has(note.id)}/>) : <div className="stream-empty"><MessageSquare size={20}/><span>Zatím tu nejsou žádné příspěvky ani změny.</span></div>}</div>
+    <form className="stream-composer" onSubmit={(event) => void submitPost(event)}><div className="stream-composer-input"><textarea ref={postInput} value={post} onChange={(event) => handlePostChange(event.target.value, event.currentTarget.selectionStart)} onPaste={pasteAttachments} onKeyDown={handleComposerKeyDown} rows={2} placeholder="Sdílejte novinku…"/>{mentionUsers.length > 0 && <div className="stream-mention-menu" role="listbox">{mentionUsers.map((user, index) => <button type="button" role="option" aria-selected={index === mentionIndex} className={index === mentionIndex ? "active" : ""} key={user.id} onMouseDown={(event) => event.preventDefault()} onClick={() => insertMention(user)}><span>{String(user.name || user.userName || "?").slice(0, 1).toUpperCase()}</span><strong>{user.name || user.userName}</strong><small>@{user.userName}</small></button>)}</div>}</div>{attachments.length > 0 && <div className="stream-draft-files">{attachments.map((item) => <span key={item.id}>{item.name}<button type="button" onClick={() => void removeDraftAttachment(item.id)} aria-label={`Odebrat ${item.name}`}><X size={12}/></button></span>)}</div>}{fileError && <div className="stream-file-error">{fileError}</div>}<div><label className="stream-add-file"><input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ""; }} disabled={uploading || posting}/><Paperclip size={14}/>{uploading ? "Nahrávám…" : "Přiložit soubor"}</label><small>Příspěvek uvidí uživatelé s přístupem ke streamu.</small><button className="button primary" disabled={posting || uploading || (!post.trim() && !attachments.length)}>{posting ? "Odesílám…" : "Publikovat"}<Send size={13}/></button></div></form>
+    {pinned.length > 0 && <div className="stream-pinned"><div className="stream-subheading"><Pin size={13}/> Připnuté příspěvky</div>{pinned.map((note) => <StreamItem key={`pin-${note.id}`} note={note} reactions={reactions} currentUserId={session?.user.id} busy={actionId === note.id} onReact={toggleReaction} onPin={togglePin} onRemove={removeNote} onEdit={editNote} onQuote={quoteReply} onOpen={onOpenNote} pinned/>)}</div>}
+    <div className="stream-list">{busy ? <div className="stream-loading"><span className="spinner"/> Načítám aktivitu…</div> : notes.length ? notes.map((note) => <StreamItem key={note.id} note={note} reactions={reactions} currentUserId={session?.user.id} busy={actionId === note.id || actionId.startsWith(`${note.id}:`)} onReact={toggleReaction} onPin={togglePin} onRemove={removeNote} onEdit={editNote} onQuote={quoteReply} onOpen={onOpenNote} pinned={pinnedIds.has(note.id)}/>) : <div className="stream-empty"><MessageSquare size={20}/><span>Zatím tu nejsou žádné příspěvky ani změny.</span></div>}</div>
     {notes.length > 0 && notes.length < total && <button className="stream-load-more" onClick={() => void loadOlder()} disabled={loadingMore}>{loadingMore ? <span className="spinner"/> : <ArrowDown size={14}/>} Starší aktivita ({notes.length} z {total})</button>}
   </section>;
 }
 
-export function StreamItem({ note, reactions, currentUserId, busy, onReact, onPin, onRemove, onEdit, onQuote, pinned, allowPin = true }: { note: Note; reactions: string[]; currentUserId?: string; busy: boolean; onReact: (note: Note, type: string) => void; onPin: (note: Note) => void; onRemove: (note: Note) => void; onEdit: (note: Note, post: string) => Promise<void>; onQuote: (note: Note) => void; pinned: boolean; allowPin?: boolean }) {
+export function StreamItem({ note, reactions, currentUserId, busy, onReact, onPin, onRemove, onEdit, onQuote, onOpen, pinned, allowPin = true }: { note: Note; reactions: string[]; currentUserId?: string; busy: boolean; onReact: (note: Note, type: string) => void; onPin: (note: Note) => void; onRemove: (note: Note) => void; onEdit: (note: Note, post: string) => Promise<void>; onQuote: (note: Note) => void; onOpen?: (note: Note) => void; pinned: boolean; allowPin?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.post || "");
   const [editError, setEditError] = useState("");
@@ -244,6 +255,7 @@ export function StreamItem({ note, reactions, currentUserId, busy, onReact, onPi
       {editing ? <form className="stream-edit-form" onSubmit={(event) => { event.preventDefault(); setEditError(""); void onEdit(note, draft).then(() => setEditing(false)).catch((e) => setEditError(e instanceof Error ? e.message : "Uložení selhalo.")); }}><textarea value={draft} onChange={(event) => setDraft(event.target.value)}/>{editError && <small>{editError}</small>}<div><button type="button" className="stream-item-action" onClick={() => { setDraft(note.post || ""); setEditing(false); }}>Zrušit</button><button className="stream-item-action is-on" disabled={busy || !draft.trim()}>Uložit změny</button></div></form> : note.post ? <p className="stream-post-text">{note.post}</p> : note.data ? <SystemChange data={note.data}/> : null}
       {attachmentIds.length > 0 && <div className="stream-attachments">{attachmentIds.map((id) => { const imageAt = imageAttachments.findIndex((item) => item.id === id); const name = attachmentNames[id] || "Příloha"; return imageAt >= 0 ? <StreamImageAttachment key={id} id={id} name={name} onOpen={() => setImageIndex(imageAt)}/> : <button key={id} onClick={() => void downloadAttachment(id, name)}>{name}</button>; })}</div>}
       <div className="stream-item-footer">{reactions.map((reaction) => { const Icon = reactionIcons[reaction] || Smile; const count = Number(counts[reaction] || 0); const active = myReactions.includes(reaction); return <button key={reaction} className={`stream-reaction ${active ? "is-active" : ""}`} onClick={() => onReact(note, reaction)} disabled={busy} title={reactionNames[reaction] || reaction}><Icon size={13}/>{count > 0 ? count : ""}</button>; })}
+        {onOpen && <button className="stream-item-action" onClick={() => onOpen(note)} title="Otevřít samostatný záznam poznámky"><ExternalLink size={13}/> Otevřít</button>}
         {type === "Post" && note.post && <button className="stream-item-action" onClick={() => onQuote(note)} title="Citovat v odpovědi"><MessageSquare size={13}/> Odpovědět citací</button>}
         {isOwnPost && type === "Post" && <button className="stream-item-action" onClick={() => { setDraft(note.post || ""); setEditError(""); setEditing(true); }} disabled={busy}>Upravit</button>}
         {isOwnPost && type === "Post" && <button className="stream-item-action danger" onClick={() => onRemove(note)} disabled={busy} title="Odstranit příspěvek"><Trash2 size={13}/></button>}
