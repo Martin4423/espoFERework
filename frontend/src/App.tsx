@@ -1284,7 +1284,7 @@ function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNav
   </section></div>;
 }
 
-type MailFolder = { id: string; name: string; unread?: number };
+type MailFolder = { id: string; name: string; entityId?: string; unread?: number };
 const systemMailFolders: MailFolder[] = [
   { id: "inbox", name: "Doručené" }, { id: "important", name: "S hvězdičkou" },
   { id: "sent", name: "Odeslané" }, { id: "drafts", name: "Koncepty" },
@@ -1317,7 +1317,7 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     Promise.all([request<{ list: MailFolder[] }>("EmailFolder/action/listAll?maxSize=200"), request<Record<string, number>>("Email/inbox/notReadCounts"), groupFolderRequest]).then(([folderData, countData, groupFolderData]) => {
       if (!live) return;
       setFolders((folderData.list || []).filter((folder) => !systemMailFolders.some((system) => system.id === folder.id)));
-      setGroupFolders((groupFolderData.list || []).map((folder) => ({ id: folder.id, name: folder.name })));
+      setGroupFolders((groupFolderData.list || []).map((folder) => ({ id: `group:${folder.id}`, entityId: folder.id, name: folder.name })));
       setCounts(countData || {});
     }).catch((e) => live && setError(e instanceof Error ? e.message : "Složky schránky se nepodařilo načíst."));
     return () => { live = false; };
@@ -1382,7 +1382,7 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   }
   async function deleteFolder(entity: "EmailFolder" | "GroupEmailFolder", folder: MailFolder) {
     if (!window.confirm(`Opravdu odstranit složku „${folder.name}“? Zprávy ve složce zůstanou v CRM.`)) return;
-    try { await request(`${entity}/${encodeURIComponent(folder.id)}`, { method: "DELETE" }); if (folder.id === folderId) setFolderId("inbox"); setFolderReload((value) => value + 1); }
+    try { await request(`${entity}/${encodeURIComponent(folder.entityId || folder.id)}`, { method: "DELETE" }); if (folder.id === folderId) setFolderId("inbox"); setFolderReload((value) => value + 1); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Složku se nepodařilo odstranit."); }
   }
   const currentFolder = [...systemMailFolders, ...folders, ...groupFolders].find((folder) => folder.id === folderId);
@@ -1393,7 +1393,8 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   const renderCustomFolder = (folder: MailFolder, entityName: "EmailFolder" | "GroupEmailFolder", index: number, list: MailFolder[]) => {
     const canEdit = canChangeEntity(metadata, entityName, "edit");
     const canDelete = canChangeEntity(metadata, entityName, "delete");
-    return <div className="mail-folder-row" key={`${entityName}-${folder.id}`}><button className={`mail-folder ${folder.id === folderId ? "active" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{entityName === "GroupEmailFolder" ? <Users size={14}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>{(canEdit || canDelete) && <div className="mail-folder-actions">{canEdit && <><button className="icon-button" title="Posunout nahoru" aria-label={`Posunout složku ${folder.name} nahoru`} disabled={index === 0} onClick={() => void reorderFolder(entityName, folder.id, "Up")}><ArrowUp size={12}/></button><button className="icon-button" title="Posunout dolů" aria-label={`Posunout složku ${folder.name} dolů`} disabled={index === list.length - 1} onClick={() => void reorderFolder(entityName, folder.id, "Down")}><ArrowDown size={12}/></button><button className="icon-button" title="Upravit složku" aria-label={`Upravit složku ${folder.name}`} onClick={() => setFolderEditor({ entity: entityName, record: folder })}><Pencil size={12}/></button></>}{canDelete && <button className="icon-button danger-ghost" title="Odstranit složku" aria-label={`Odstranit složku ${folder.name}`} onClick={() => void deleteFolder(entityName, folder)}><Trash2 size={12}/></button>}</div>}</div>;
+    const entityId = folder.entityId || folder.id;
+    return <div className="mail-folder-row" key={`${entityName}-${folder.id}`}><button className={`mail-folder ${folder.id === folderId ? "active" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{entityName === "GroupEmailFolder" ? <Users size={14}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>{(canEdit || canDelete) && <div className="mail-folder-actions">{canEdit && <><button className="icon-button" title="Posunout nahoru" aria-label={`Posunout složku ${folder.name} nahoru`} disabled={index === 0} onClick={() => void reorderFolder(entityName, entityId, "Up")}><ArrowUp size={12}/></button><button className="icon-button" title="Posunout dolů" aria-label={`Posunout složku ${folder.name} dolů`} disabled={index === list.length - 1} onClick={() => void reorderFolder(entityName, entityId, "Down")}><ArrowDown size={12}/></button><button className="icon-button" title="Upravit složku" aria-label={`Upravit složku ${folder.name}`} onClick={() => setFolderEditor({ entity: entityName, record: { ...folder, id: entityId } })}><Pencil size={12}/></button></>}{canDelete && <button className="icon-button danger-ghost" title="Odstranit složku" aria-label={`Odstranit složku ${folder.name}`} onClick={() => void deleteFolder(entityName, folder)}><Trash2 size={12}/></button>}</div>}</div>;
   };
   return <div className="mail-page">
     <header className="mail-page-heading"><div><div className="eyebrow">KOMUNIKACE</div><h1>E-mail</h1><p>Schránka, složky a zprávy propojené se záznamy CRM.</p></div><div className="mail-heading-actions">{canCreateEntity(metadata, "Email") && <button type="button" className="button subtle" onClick={() => setImportEmlOpen(true)}><FileInput size={14}/>Importovat EML</button>}<button className="button primary" onClick={onCompose}><Plus size={15}/>Napsat e-mail</button></div></header>
