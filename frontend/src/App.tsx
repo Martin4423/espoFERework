@@ -2514,14 +2514,14 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   const isEmailQueueItem = entity === "EmailQueueItem";
   const hasNativeListSettings = Boolean(metadata.scopes?.[entity]?.object) || ["AppLogRecord", "AuthLogRecord", "Job"].includes(entity);
   const canEdit = canChangeEntity(metadata, entity, "edit") && !entityClientDefs.editDisabled && !isAuthLogRecord && !isEmailQueueItem && entity !== "Job" && !isLeadCaptureLogRecord;
-  const canDelete = canChangeEntity(metadata, entity, "delete");
+  const canDelete = canChangeEntity(metadata, entity, "delete") && !entityClientDefs.removeDisabled && entity !== "EmailFolder";
   const canExport = canUsePermission(metadata, "exportPermission") && !entityClientDefs.exportDisabled && !isAuthLogRecord && !inboundEmailList && !emailAccountList && entity !== "EmailFolder";
   const canMassUpdate = canUsePermission(metadata, "massUpdatePermission") && canEdit && !entityClientDefs.massUpdateDisabled && !isAuthLogRecord && !emailFilterList && entity !== "EmailFolder";
   const canMerge = canEdit && canDelete && !entityClientDefs.massActionsDisabled && !entityClientDefs.mergeDisabled && !isAuthLogRecord && !isEmailQueueItem && !inboundEmailList && !emailAccountList && !emailFilterList && entity !== "EmailFolder" && userType !== "api" && userType !== "portal";
   const currencyFields = Object.entries(fieldDefs).filter(([name, def]) => fieldPermissions[name]?.edit !== "no" && fieldPermissions[name]?.read !== "no" && def.type === "currency" && !def.readOnly && !def.disabled && !def.notStorable && !def.utility && !def.hidden);
   const currencyList = Array.isArray(metadata.appSettings?.currencyList) ? metadata.appSettings.currencyList : [];
   const canMassConvertCurrency = canMassUpdate && !entityClientDefs.convertCurrencyDisabled && !inboundEmailList && !emailAccountList && !emailFilterList && userType !== "api" && currencyList.length > 1 && currencyFields.length > 0;
-  const canMassRemove = canDelete && !entityClientDefs.massRemoveDisabled && entity !== "EmailFolder";
+  const canMassRemove = canDelete && !entityClientDefs.massRemoveDisabled;
   const canPrintPdf = Array.isArray(metadata.appParams?.templateEntityTypeList) && metadata.appParams.templateEntityTypeList.includes(entity) && !entityClientDefs.massPrintPdfDisabled && !inboundEmailList && !emailAccountList && !emailFilterList;
   const canMassFollow = Boolean(metadata.scopes?.[entity]?.stream) && aclLevel(metadata, entity, "stream") !== "no" && !entityClientDefs.massFollowDisabled && !inboundEmailList && userType !== "api";
   const currentUserId = getSession()?.user.id || "guest";
@@ -3543,7 +3543,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   const showComplexCreated = entity !== "User" && ((auditFieldReadable("createdAt") && Boolean(record.createdAt)) || (auditFieldReadable("createdBy") && Boolean(record.createdById)));
   const showComplexModified = entity !== "User" && ((auditFieldReadable("modifiedAt") && Boolean(record.modifiedAt)) || (auditFieldReadable("modifiedBy") && Boolean(record.modifiedById))) && (Boolean(record.modifiedById) || record.modifiedAt !== record.createdAt);
   const canEditRecord = !record.deleted && !["AuthLogRecord", "EmailQueueItem", "LeadCaptureLogRecord"].includes(entity) && canChangeEntity(metadata, entity, "edit") && !metadata.clientDefs?.[entity]?.editDisabled;
-  const canDeleteRecord = !record.deleted && canChangeEntity(metadata, entity, "delete");
+  const canDeleteRecord = !record.deleted && canChangeEntity(metadata, entity, "delete") && !metadata.clientDefs?.[entity]?.removeDisabled;
   const canDuplicateRecord = !record.deleted && !["LeadCaptureLogRecord", "Job"].includes(entity) && canCreateEntity(metadata, entity) && !metadata.clientDefs?.[entity]?.duplicateDisabled;
   const canPrintPdf = !record.deleted && Array.isArray(metadata.appParams?.templateEntityTypeList) && metadata.appParams.templateEntityTypeList.includes(entity);
   const currencyFields = Object.entries(fields).filter(([name, def]) => readableFieldPermissions[name]?.edit !== "no" && readableFieldPermissions[name]?.read !== "no" && def.type === "currency" && !def.readOnly && !def.disabled && !def.notStorable && !def.utility && !def.hidden);
