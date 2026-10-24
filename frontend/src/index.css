@@ -3380,3 +3380,8 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .dashlet-enum-label.primary { background: #efedff; color: #5c53c5; }
 .dashlet-enum-label.warning { background: #fff3dc; color: #946319; }
 .dashlet-enum-label.danger { background: #fdebed; color: #a82e35; }
+
+.category-subtree-toggle { display: inline-flex; align-items: center; gap: 4px; color: var(--muted, #778198); font-size: 9px; font-weight: 650; letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; }
+.category-subtree-toggle input { width: 13px; height: 13px; margin: 0; accent-color: var(--accent, #526db0); cursor: pointer; }
+.category-subtree-toggle:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+.category-subtree-toggle:focus-within { outline: 2px solid var(--accent, #526db0); outline-offset: 3px; border-radius: 3px; }
