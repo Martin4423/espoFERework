@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { ArrowLeft, Check, KeyRound, RotateCcw, Save, Shield, X } from "./Icons";
 import QRCode from "qrcode";
 import AccountSessions from "./AccountSessions";
+import WysiwygEditor from "./WysiwygEditor";
 import { fieldLabel, fetchLayout, request } from "./api";
 import type { DetailLayoutPanel, FieldDef, Metadata, User } from "./api";
 
@@ -70,10 +71,11 @@ function PreferenceControl({ field, value, metadata, settings, themeParams, onCh
   }
   if (optionList) return <label className="field-input" htmlFor={controlId}><span>{label}{def.required && <i> *</i>}</span><select id={controlId} value={value ?? ""} required={def.required} onChange={(event) => onChange(event.target.value === "" ? "" : ["enumInt"].includes(type) || name === "weekStart" ? Number(event.target.value) : event.target.value)}><option value="">Výchozí nastavení</option>{optionList.map(([key, title]) => <option value={key} key={key}>{title}</option>)}</select></label>;
   if (type === "bool") return null;
-  if (["jsonArray", "jsonObject", "array", "checklist", "multiEnum", "wysiwyg"].includes(type)) {
+  if (type === "wysiwyg") return <div className="field-input preference-signature"><span>{label}</span><WysiwygEditor value={String(value || "")} htmlMode entity="Preferences" field={name} onChange={onChange}/><small>HTML podpis se vkládá do nových e-mailů. Zprávy odeslané jako prostý text mohou odstranit formátování.</small></div>;
+  if (["jsonArray", "jsonObject", "array", "checklist", "multiEnum"].includes(type)) {
     const structuredArray = name === "tabList";
-    const serialized = type === "wysiwyg" ? String(value ?? "") : ["array", "checklist", "multiEnum"].includes(type) && !structuredArray ? (Array.isArray(value) ? value.join("\n") : String(value || "")) : typeof value === "string" ? value : JSON.stringify(value ?? (type === "jsonArray" || structuredArray ? [] : {}), null, 2);
-    return <label className="field-input preference-long-field" htmlFor={controlId}><span>{label}</span><textarea id={controlId} rows={type === "wysiwyg" ? 8 : 5} value={serialized} onChange={(event) => onChange(event.target.value)} placeholder={type === "wysiwyg" ? "Text podpisu…" : "Jedna hodnota na řádek nebo JSON"}/><small>{type === "wysiwyg" ? "HTML podpis e-mailu se ukládá do vašich osobních preferencí." : structuredArray ? "Upravte JSON panelů a odkazů; zachovává i oddělovače navigace." : "Pole se uloží ve formátu očekávaném EspoCRM."}</small></label>;
+    const serialized = ["array", "checklist", "multiEnum"].includes(type) && !structuredArray ? (Array.isArray(value) ? value.join("\n") : String(value || "")) : typeof value === "string" ? value : JSON.stringify(value ?? (type === "jsonArray" || structuredArray ? [] : {}), null, 2);
+    return <label className="field-input preference-long-field" htmlFor={controlId}><span>{label}</span><textarea id={controlId} rows={5} value={serialized} onChange={(event) => onChange(event.target.value)} placeholder="Jedna hodnota na řádek nebo JSON"/><small>{structuredArray ? "Upravte JSON panelů a odkazů; zachovává i oddělovače navigace." : "Pole se uloží ve formátu očekávaném EspoCRM."}</small></label>;
   }
   const inputType = ["int", "float", "enumInt"].includes(type) ? "number" : "text";
   return <label className="field-input" htmlFor={controlId}><span>{label}{def.required && <i> *</i>}</span><input id={controlId} type={inputType} value={value ?? ""} required={def.required} maxLength={def.maxLength} onChange={(event) => onChange(event.target.value === "" ? "" : inputType === "number" ? Number(event.target.value) : event.target.value)}/></label>;
