@@ -3306,6 +3306,9 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   }, [entity]);
   const [recordBaseline, setRecordBaseline] = useState<Row>(record || {});
   const [versionNumber, setVersionNumber] = useState(record?.versionNumber ?? null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const saveAndContinueRequested = useRef(false);
+  const [saveNotice, setSaveNotice] = useState("");
   const [saveConflict, setSaveConflict] = useState<{ fields: SaveConflictField[]; latest: Row } | null>(null);
   const [duplicateCheck, setDuplicateCheck] = useState<{ rows: Row[]; payload: Row } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -3376,7 +3379,10 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     finally { setTestEmailBusy(false); }
   }
   async function submit(event: FormEvent) {
-    event.preventDefault(); if (uploading) return; setBusy(true); setError("");
+    event.preventDefault();
+    const keepOpen = saveAndContinueRequested.current;
+    saveAndContinueRequested.current = false;
+    if (uploading) return; setBusy(true); setError(""); setSaveNotice("");
     if (entity === "User" && values.password && values.password !== values.passwordConfirm) { setError("Hesla se neshodují."); setBusy(false); return; }
     if (entity === "User" && values.password && passwordStrengthParams === null) { setError("Načítám pravidla hesla. Zkuste to prosím znovu za chvíli."); setBusy(false); return; }
     if (entity === "User" && values.password) { const passwordIssue = validateRequestedPassword(String(values.password), passwordStrengthParams || {}); if (passwordIssue) { setError(passwordIssue); setBusy(false); return; } }
@@ -3500,7 +3506,12 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       const saved = await request<Row>(record ? `${entity}/${record.id}` : entity, { method: record ? "PUT" : "POST", ...(optimisticConcurrency ? { headers: { "X-Version-Number": String(versionNumber) } } : {}), body: JSON.stringify(payload) });
       const keepIds = fields.flatMap(([name, def]) => def.type === "attachmentMultiple" ? (values[name] || []).map((item: Row) => item.id) : ["file", "image"].includes(def.type || "") && values[name]?.id ? [values[name].id] : []);
       await cleanupUploads(keepIds);
-      onSaved(saved);
+      if (keepOpen && record) {
+        setValues(valuesFromRecordFields(entity, fields, saved));
+        setRecordBaseline(saved);
+        setVersionNumber(saved.versionNumber ?? null);
+        setSaveNotice("Změny byly uloženy. Můžete pokračovat v úpravách.");
+      } else onSaved(saved);
     } catch (e) {
       if (e instanceof ApiError && !record && e.status === 409 && e.statusReason?.reason === "duplicate") {
         const data = e.statusReason.data;
@@ -3855,7 +3866,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     const primaryLink = primaryLinkForField(entity, name, def);
     return <FieldInput key={name} entity={entity} metadata={metadata} name={name} def={def} value={values[name]} themeParamsValue={values.themeParams} onThemeParamsChange={(themeParams) => setValues((old) => ({ ...old, themeParams }))} currencyValue={values[`${name}Currency`]} onCurrencyChange={(currency) => updateFieldValue(`${name}Currency`, currency)} columns={values[`${name}Columns`] || {}} primaryId={primaryLink ? values[`${primaryLink}Id`] : undefined} onPrimaryChange={primaryLink ? (id, label) => setValues((old) => ({ ...old, [`${primaryLink}Id`]: id, [`${primaryLink}Name`]: label || "" })) : undefined} relatedContext={values} onColumnsChange={def.type === "linkMultiple" && def.columns ? (columns) => setValues((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} onChange={(value) => updateFieldValue(name, value)} timeZone={dateTimeZone} onUploading={setUploading} onUploaded={(id) => setUploadedIds((old) => [...old, id])} onError={setError}/>;
   };
-  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && void cancel()}><form className="record-modal" onSubmit={submit}>
+  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && void cancel()}><form ref={formRef} className="record-modal" onSubmit={submit}>
     <div className="modal-heading"><div><span className="eyebrow">{record ? "UPRAVIT" : duplicate ? "KOPIE ZÁZNAMU" : "NOVÝ ZÁZNAM"} · {entityLabel(metadata, entity, true).toUpperCase()}</span><h2>{record ? "Upravit záznam" : duplicate ? `Duplikovat ${entityLabel(metadata, entity).toLowerCase()}` : `Vytvořit ${entityLabel(metadata, entity).toLowerCase()}`}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
     {entity === "EmailFilter" && <div className="email-filter-guidance"><strong>Jak pravidla vyhodnocovat</strong><span>Adresy a předmět podporují zástupný znak <code>*</code>. „Obsahuje některý“ projde při shodě alespoň jedné fráze; „Obsahuje všechny“ vyžaduje shodu všech zadaných frází.</span><small>Akce a cílová složka se řídí typem účtu, ke kterému je filtr přiřazen.</small></div>}
     <div className="record-editor-groups">{groups.filter((group) => group.names.some(editorFieldVisible)).map((group) => <section className="record-editor-group" key={group.title}><h3>{group.title}</h3><div className="modal-fields">{group.names.map(renderField)}</div></section>)}</div>
@@ -3865,8 +3876,9 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     {!["EmailAccount", "InboundEmail"].includes(entity) || mailActionNames.has("testConnection") && mailActionNames.has("smtpTestSend") ? null : <div className="email-test-bar"><span>Ověřte nastavení připojení před uložením účtu.</span><div><button type="button" className="button subtle" onClick={() => void testMailConnection()} disabled={connectionTestBusy || !values.host}>{connectionTestBusy ? "Testuji připojení…" : "Testovat připojení"}<Network size={14}/></button><button type="button" className="button subtle" onClick={() => { setTestEmailTo(String((getSession()?.user as User & { emailAddress?: string } | undefined)?.emailAddress || "")); setTestEmailError(""); setTestEmailOpen(true); }} disabled={testEmailBusy || !values.smtpHost || !values.emailAddress || (entity === "InboundEmail" && !values.useSmtp)}>{testEmailBusy ? "Odesílám…" : "Odeslat testovací e-mail"}<Mail size={14}/></button></div></div>}
     {connectionTestNotice && <div className="save-confirm"><Check size={15}/>{connectionTestNotice}</div>}
     {testEmailNotice && <div className="save-confirm"><Check size={15}/>{testEmailNotice}</div>}
+    {saveNotice && <div className="save-confirm" role="status"><Check size={15}/>{saveNotice}</div>}
     {error && <div className="inline-error">{error}</div>}
-    <div className="modal-footer"><button type="button" className="button subtle" onClick={() => void cancel()} disabled={busy}>Zrušit</button><button className="button primary" disabled={busy || uploading}>{uploading ? "Nahrávám soubor…" : busy ? "Ukládám…" : record ? "Uložit změny" : "Vytvořit záznam"}</button></div>
+    <div className="modal-footer"><button type="button" className="button subtle" onClick={() => void cancel()} disabled={busy}>Zrušit</button>{record && <button type="button" className="button subtle" disabled={busy || uploading} onClick={() => { saveAndContinueRequested.current = true; formRef.current?.requestSubmit(); }}>{uploading ? "Nahrávám soubor…" : "Uložit a pokračovat"}</button>}<button className="button primary" disabled={busy || uploading}>{uploading ? "Nahrávám soubor…" : busy ? "Ukládám…" : record ? "Uložit změny" : "Vytvořit záznam"}</button></div>
   </form>{oneOffTemplateOpen && <RecordEditor entity="EmailTemplate" fields={getFormFields(metadata, "EmailTemplate")} metadata={metadata} initialValues={{ oneOff: true }} onClose={() => setOneOffTemplateOpen(false)} onSaved={(created) => { setValues((old) => ({ ...old, emailTemplate: created.id, emailTemplateName: created.name })); setOneOffTemplateOpen(false); }}/ >}{duplicateCheck && <DuplicateCheckDialog entity={entity} duplicates={duplicateCheck.rows} metadata={metadata} busy={busy} onCreate={() => void createDespiteDuplicate()} onCancel={() => setDuplicateCheck(null)}/ >}{saveConflict && <SaveConflictDialog fields={saveConflict.fields} onApply={applySaveConflict} onCancel={() => setSaveConflict(null)}/ >}{testEmailOpen && <div className="modal-backdrop test-email-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !testEmailBusy && setTestEmailOpen(false)}><section className="record-modal test-email-dialog" role="dialog" aria-modal="true" aria-labelledby="test-email-title"><div className="modal-heading"><div><span className="eyebrow">SMTP · {values.smtpHost}</span><h2 id="test-email-title">Odeslat testovací e-mail</h2><p>Zkontrolujte přihlašovací údaje SMTP odesláním skutečné zprávy.</p></div><button type="button" className="icon-button" onClick={() => setTestEmailOpen(false)} disabled={testEmailBusy} aria-label="Zavřít"><X size={16}/></button></div><label className="field-input"><span>Odeslat na</span><input type="email" required autoFocus value={testEmailTo} onChange={(event) => setTestEmailTo(event.target.value)} placeholder="vas@email.cz"/></label>{testEmailError && <div className="inline-error test-email-error">{testEmailError}</div>}<div className="modal-footer"><button type="button" className="button subtle" onClick={() => setTestEmailOpen(false)} disabled={testEmailBusy}>Zrušit</button><button type="button" className="button primary" onClick={() => void sendTestEmail()} disabled={testEmailBusy || !testEmailTo.trim()}>{testEmailBusy ? "Odesílám…" : <><Send size={14}/> Odeslat testovací e-mail</>}</button></div></section></div>}</div>;
 }
 
