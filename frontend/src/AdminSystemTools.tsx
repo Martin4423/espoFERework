@@ -10,7 +10,7 @@ function readableRequirement(value: unknown): string {
   return String(value ?? "—").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/^./, (letter) => letter.toLocaleUpperCase("cs"));
 }
 
-export default function AdminSystemTools({ metadata, onBack }: { metadata: Metadata; onBack: () => void }) {
+export default function AdminSystemTools({ metadata, onBack, onRefreshMetadata }: { metadata: Metadata; onBack: () => void; onRefreshMetadata: () => Promise<void> }) {
   const [requirements, setRequirements] = useState<SystemData>({});
   const [jobs, setJobs] = useState<string[]>([]);
   const [cron, setCron] = useState<{ message?: string; command?: string }>({});
@@ -38,7 +38,7 @@ export default function AdminSystemTools({ metadata, onBack }: { metadata: Metad
     const labels = { clearCache: "vyčistit aplikační cache", rebuild: "spustit kompletní rebuild CRM" };
     if (!window.confirm(`Opravdu chcete ${labels[name]}?`)) return;
     setAction(name); setError(""); setNotice("");
-    try { await request(`Admin/${name}`, { method: "POST", body: JSON.stringify({}) }); setNotice(name === "clearCache" ? "Aplikační cache byla vyčištěna." : "Rebuild EspoCRM byl dokončen."); await load(); }
+    try { await request(`Admin/${name}`, { method: "POST", body: JSON.stringify({}) }); await onRefreshMetadata(); setNotice(name === "clearCache" ? "Aplikační cache byla vyčištěna a data rozhraní obnovena." : "Rebuild EspoCRM byl dokončen a data rozhraní obnovena."); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Akce se nepodařila dokončit."); }
     finally { setAction(""); }
   }
