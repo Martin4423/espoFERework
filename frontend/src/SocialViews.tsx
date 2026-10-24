@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { ClipboardEvent, FormEvent } from "react";
 import { Activity, ArrowDown, ArrowLeft, Bell, Check, ChevronRight, LoaderCircle, Paperclip, RefreshCw, Send, Trash2, Users, X } from "./Icons";
 import { canAccessEntity, request, uploadAttachment } from "./api";
 import type { Metadata, User } from "./api";
@@ -65,7 +65,7 @@ export function ActivityView({ user, metadata, onBack }: { user: User; metadata:
     finally { setPosting(false); }
   }
 
-  async function addFiles(fileList: FileList | null) {
+  async function addFiles(fileList: FileList | File[] | null) {
     if (!fileList?.length) return;
     setUploading(true); setFileError("");
     try {
@@ -74,6 +74,16 @@ export function ActivityView({ user, metadata, onBack }: { user: User; metadata:
       setFiles((old) => [...old, ...uploaded]);
     } catch (e) { setFileError(e instanceof Error ? e.message : "Přílohu se nepodařilo nahrát."); }
     finally { setUploading(false); }
+  }
+  function pasteAttachments(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const pasted = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file))
+      .map((file, index) => file.name ? file : new File([file], `vlozeny-obrazek-${Date.now()}-${index + 1}.${file.type.split("/")[1]?.replace("jpeg", "jpg") || "png"}`, { type: file.type }));
+    if (!pasted.length) return;
+    event.preventDefault();
+    void addFiles(pasted);
   }
   async function removeFile(id: string) {
     setFiles((old) => old.filter((file) => file.id !== id)); draftIds.current = draftIds.current.filter((item) => item !== id);
@@ -116,7 +126,7 @@ export function ActivityView({ user, metadata, onBack }: { user: User; metadata:
   return <div className="social-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Přehled</button><div className="eyebrow">STREAM A KOMUNIKACE</div><h1>Aktivita</h1><p>Příspěvky a aktualizace sdílené s vaším účtem.</p></div><button className="button subtle" onClick={() => void load()} disabled={busy}><RefreshCw size={14}/> Obnovit</button></div>
     <div className="social-tabs"><button className={mode === "stream" ? "active" : ""} onClick={() => setMode("stream")}><Users size={14}/> Stream pro mě</button><button className={mode === "own" ? "active" : ""} onClick={() => setMode("own")}><Activity size={14}/> Moje příspěvky</button></div>
     {error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
-    <form className="surface activity-composer" onSubmit={(event) => void submitPost(event)}>{targetOptions.length > 1 && <label className="activity-audience"><span>Publikovat pro</span><select value={targetType} onChange={(event) => setTargetType(event.target.value)}>{targetOptions.map((target) => <option value={target} key={target}>{targetLabels[target]}</option>)}</select></label>}{["users", "teams", "portals"].includes(targetType) && <button type="button" className="button subtle activity-audience-picker" onClick={() => setAudiencePicker(targetType as "users" | "teams" | "portals")}>{targetLabels[targetType]}{audience[targetType as "users" | "teams" | "portals"].length ? ` · ${audience[targetType as "users" | "teams" | "portals"].length} vybráno` : " · vybrat…"}</button>}<textarea value={post} onChange={(event) => setPost(event.target.value)} placeholder="Napište příspěvek…" rows={3}/>{files.length > 0 && <div className="stream-draft-files">{files.map((file) => <span key={file.id}>{file.name}<button type="button" onClick={() => void removeFile(file.id)} aria-label={`Odebrat ${file.name}`}><X size={12}/></button></span>)}</div>}{fileError && <small className="stream-file-error">{fileError}</small>}<div><label className="stream-add-file"><input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ""; }} disabled={uploading || posting}/><Paperclip size={14}/>{uploading ? "Nahrávám…" : "Přiložit soubor"}</label><small>{targetLabels[targetType]}</small><button className="button primary" disabled={posting || uploading || (!post.trim() && !files.length)}>{posting ? "Odesílám…" : "Publikovat"}<Send size={13}/></button></div></form>
+    <form className="surface activity-composer" onSubmit={(event) => void submitPost(event)}>{targetOptions.length > 1 && <label className="activity-audience"><span>Publikovat pro</span><select value={targetType} onChange={(event) => setTargetType(event.target.value)}>{targetOptions.map((target) => <option value={target} key={target}>{targetLabels[target]}</option>)}</select></label>}{["users", "teams", "portals"].includes(targetType) && <button type="button" className="button subtle activity-audience-picker" onClick={() => setAudiencePicker(targetType as "users" | "teams" | "portals")}>{targetLabels[targetType]}{audience[targetType as "users" | "teams" | "portals"].length ? ` · ${audience[targetType as "users" | "teams" | "portals"].length} vybráno` : " · vybrat…"}</button>}<textarea value={post} onChange={(event) => setPost(event.target.value)} onPaste={pasteAttachments} placeholder="Napište příspěvek…" rows={3}/>{files.length > 0 && <div className="stream-draft-files">{files.map((file) => <span key={file.id}>{file.name}<button type="button" onClick={() => void removeFile(file.id)} aria-label={`Odebrat ${file.name}`}><X size={12}/></button></span>)}</div>}{fileError && <small className="stream-file-error">{fileError}</small>}<div><label className="stream-add-file"><input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ""; }} disabled={uploading || posting}/><Paperclip size={14}/>{uploading ? "Nahrávám…" : "Přiložit soubor"}</label><small>{targetLabels[targetType]}</small><button className="button primary" disabled={posting || uploading || (!post.trim() && !files.length)}>{posting ? "Odesílám…" : "Publikovat"}<Send size={13}/></button></div></form>
     <section className="surface social-feed">{busy ? <div className="table-loading"><span className="spinner"/> Načítám aktivitu…</div> : items.length ? items.map((note) => <StreamItem key={note.id} note={note} reactions={reactions} currentUserId={user.id} busy={actionId === note.id || actionId.startsWith(`${note.id}:`)} onReact={react} onPin={() => {}} onRemove={remove} onEdit={edit} onQuote={quote} pinned={false} allowPin={false}/>) : <div className="stream-empty"><Activity size={22}/><span>Ve streamu zatím nejsou žádné příspěvky.</span></div>}{canLoadMore && !busy && <button className="stream-load-more" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Starší aktivita</button>}</section>
     {audiencePicker && <SelectRecordsDialog entity={pickerEntity} metadata={metadata} multiple selectedIds={selectedAudience.map((item) => item.id)} selectedRows={selectedAudience} primaryFilter={audiencePicker === "users" ? portalPermission === "yes" && messagePermission === "no" ? "activePortal" : "active" : undefined} boolFilterList={audiencePicker === "users" && messagePermission === "team" ? ["onlyMyTeam"] : []} filterList={audiencePicker === "users" && portalPermission === "yes" ? messagePermission === "no" ? ["activePortal"] : ["active", "activePortal"] : []} onClose={() => setAudiencePicker("")} onSelect={(rows) => { setAudience((old) => ({ ...old, [audiencePicker]: rows.map((row) => ({ id: row.id, name: row.name || row.userName || row.id })) })); setAudiencePicker(""); }}/ >}
   </div>;
