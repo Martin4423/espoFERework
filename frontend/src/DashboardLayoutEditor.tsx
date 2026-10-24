@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "./Icons";
 import type { Metadata } from "./api";
+import { findDashletPosition, packDashboardItems } from "./dashboardGrid";
 
 type Item = { id: string; name: string; x?: number; y?: number; width?: number; height?: number };
 type Tab = { id?: string; name: string; layout: Item[] };
@@ -42,7 +43,7 @@ export default function DashboardLayoutEditor({ value, options, metadata, disabl
     if (!selectedDashlet) return;
     const id = newId();
     const defaults = defs[selectedDashlet]?.options?.defaults || {};
-    const item: Item = { id, name: selectedDashlet, x: 0, y: current.layout.length, width: 2, height: 3 };
+    const item: Item = { id, name: selectedDashlet, ...findDashletPosition(current.layout), width: 2, height: 3 };
     updateTab(activeTab, { ...current, layout: [...current.layout, item] });
     onOptionsChange({ ...options, [id]: { ...defaults, title: defaults.title || labels[selectedDashlet] || selectedDashlet } });
     setSelectedDashlet("");
@@ -51,7 +52,7 @@ export default function DashboardLayoutEditor({ value, options, metadata, disabl
   function moveItem(index: number, delta: number) {
     const nextIndex = index + delta; if (nextIndex < 0 || nextIndex >= current.layout.length) return;
     const layout = [...current.layout]; [layout[index], layout[nextIndex]] = [layout[nextIndex], layout[index]];
-    updateTab(activeTab, { ...current, layout: layout.map((item, i) => ({ ...item, x: i % 2, y: Math.floor(i / 2) })) });
+    updateTab(activeTab, { ...current, layout: packDashboardItems(layout) });
   }
   function removeItem(item: Item) {
     updateTab(activeTab, { ...current, layout: current.layout.filter((candidate) => candidate.id !== item.id) });
