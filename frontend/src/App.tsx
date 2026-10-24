@@ -3309,6 +3309,9 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     setValues(next); setRecordBaseline(saveConflict.latest); setVersionNumber(saveConflict.latest.versionNumber ?? null); setSaveConflict(null); setError("Zkontrolujte sloučený formulář a znovu uložte.");
   }
   const fieldMap = new Map(fields);
+  const inboundSmtpFieldNames = new Set(entity === "InboundEmail"
+    ? detailLayout.filter((panel) => panel.tabLabel === "$label:SMTP").flatMap((panel) => (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name ? [item.name] : []))
+    : []);
   const used = new Set<string>();
   if (entity === "Portal" && fieldMap.has("themeParams")) used.add("themeParams");
   const currentUserType = entity === "User" ? String(values.type || record?.type || initialValues.type || "regular") : "";
@@ -3476,6 +3479,10 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const renderField = (name: string) => {
     if (!editorFieldVisible(name)) return null;
     let def = fieldMap.get(name)!;
+    if (inboundSmtpFieldNames.has(name)) {
+      const label = fieldLabel(name, def, entity, metadata);
+      if (/^SMTP\s+/i.test(label)) def = { ...def, label: label.replace(/^SMTP\s+/i, "").replace(/^./, (character) => character.toLocaleUpperCase()) };
+    }
     const owners = authenticationProviderFieldOwners.get(name);
     if (entity === "AuthenticationProvider" && owners?.length && !owners.includes(String(values.method || ""))) return null;
     if (entity === "Note" && name === "post") def = { ...def, required: !(values.attachments?.length || values.attachmentsIds?.length) };
