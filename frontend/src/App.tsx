@@ -3316,7 +3316,19 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
   }
   const dynamicLogicDefs = entity === "AuthenticationProvider" ? { ...baseDynamicLogicDefs, fields: { ...(baseDynamicLogicDefs.fields || {}), ...authenticationProviderDynamicFields } } : baseDynamicLogicDefs;
   const dynamicLogicUser = getSession()?.user as (User & { teamsIds?: string[] }) | undefined;
+  const currentEditorUserId = getSession()?.user.id || "";
+  const taskNonReminderStatus = [
+    ...((metadata.scopes?.Task as any)?.completedStatusList || ["Completed"]),
+    ...((metadata.scopes?.Task as any)?.canceledStatusList || ["Canceled"]),
+  ].includes(String(values.status || ""));
+  const currentUserAssignedToTask = Boolean(currentEditorUserId && (
+    values.assignedUserId === currentEditorUserId ||
+    (values.assignedUsers || values.assignedUsersIds || []).includes?.(currentEditorUserId)
+  ));
+  const taskReminderVisible = entity !== "Task" || Boolean(values.dateEnd || values.dateEndDate) && !taskNonReminderStatus && currentUserAssignedToTask;
+  const editorFieldVisible = (name: string) => (entity !== "InboundEmail" || inboundEmailFieldVisible(name, values)) && (name !== "reminders" || taskReminderVisible);
   const renderField = (name: string) => {
+    if (!editorFieldVisible(name)) return null;
     let def = fieldMap.get(name)!;
     const owners = authenticationProviderFieldOwners.get(name);
     if (entity === "AuthenticationProvider" && owners?.length && !owners.includes(String(values.method || ""))) return null;
@@ -3417,7 +3429,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && void cancel()}><form className="record-modal" onSubmit={submit}>
     <div className="modal-heading"><div><span className="eyebrow">{record ? "UPRAVIT" : "NOVÝ ZÁZNAM"} · {entityLabel(metadata, entity, true).toUpperCase()}</span><h2>{record ? "Upravit záznam" : `Vytvořit ${entityLabel(metadata, entity).toLowerCase()}`}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
     {entity === "EmailFilter" && <div className="email-filter-guidance"><strong>Jak pravidla vyhodnocovat</strong><span>Adresy a předmět podporují zástupný znak <code>*</code>. „Obsahuje některý“ projde při shodě alespoň jedné fráze; „Obsahuje všechny“ vyžaduje shodu všech zadaných frází.</span><small>Akce a cílová složka se řídí typem účtu, ke kterému je filtr přiřazen.</small></div>}
-    <div className="record-editor-groups">{groups.filter((group) => group.names.some((name) => entity !== "InboundEmail" || inboundEmailFieldVisible(name, values))).map((group) => <section className="record-editor-group" key={group.title}><h3>{group.title}</h3><div className="modal-fields">{group.names.map(renderField)}</div></section>)}</div>
+    <div className="record-editor-groups">{groups.filter((group) => group.names.some(editorFieldVisible)).map((group) => <section className="record-editor-group" key={group.title}><h3>{group.title}</h3><div className="modal-fields">{group.names.map(renderField)}</div></section>)}</div>
     {entity === "Template" && values.entityType && <TemplatePlaceholderPicker metadata={metadata} entityType={String(values.entityType)} onInsert={(target, code) => setValues((old) => ({ ...old, [target]: `${String(old[target] || "")}${old[target] ? " " : ""}${code}` }))}/>}
     {entity === "Meeting" && (metadata.clientDefs?.Meeting?.bottomPanels?.edit || []).some((panel: any) => panel.name === "scheduler") && <MeetingScheduler metadata={metadata} userIds={values.users || []} userNames={values.usersNames} assignedUserId={values.assignedUserId} assignedUserName={values.assignedUserName} dateStart={values.isAllDay ? values.dateStartDate : values.dateStart} dateEnd={values.isAllDay ? values.dateEndDate : values.dateEnd} allDay={Boolean(values.isAllDay)} entityId={record?.id}/>}
     {(entity === "Role" || entity === "PortalRole") && <RoleAclEditor metadata={metadata} type={entity === "PortalRole" ? "aclPortal" : "acl"} data={values.data || {}} fieldData={values.fieldData || {}} onChange={(data, fieldData) => setValues((old) => ({ ...old, data, fieldData }))}/>}
