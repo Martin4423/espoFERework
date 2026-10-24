@@ -1200,6 +1200,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .import-error-list article ul { display: grid; gap: 4px; margin: 0; padding-left: 16px; color: #8b7163; font-size: 8px; line-height: 1.45; }
 .import-error-list details { color: #8b7163; font-size: 8px; }
 .import-error-list details summary { cursor: pointer; }
+.import-error-explanation { margin: 5px 0 0 12px; color: #776457; }
+.import-error-explanation summary { width: fit-content; padding: 2px 0; color: #86634f; font-weight: 650; }
+.import-error-explanation .complex-text { margin: 4px 0 2px; padding: 7px 9px; border-left: 2px solid #e8c9b6; border-radius: 0 5px 5px 0; background: #faf5f1; color: #66554a; font-size: 10px; line-height: 1.55; }
+.import-error-explanation .complex-text > :first-child { margin-top: 0; }
+.import-error-explanation .complex-text > :last-child { margin-bottom: 0; }
 .import-error-list details pre { max-height: 150px; overflow: auto; padding: 8px; border-radius: 5px; background: #f8f4f0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .import-error-empty { padding: 12px; color: #98877e; font-size: 8px; }
 .import-error-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-top: 1px solid #f3e9e2; color: #98877e; font-size: 8px; }

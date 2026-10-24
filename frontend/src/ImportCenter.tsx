@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleAlert, Clock3, Copy, ExternalLink, FileInput, FileSpreadsheet, Pencil, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, X } from "./Icons";
 import { canChangeEntity, canCreateEntity, downloadAttachment, entityLabel, fieldLabel, fetchLayout, getListFields, getSession, request } from "./api";
 import type { LayoutItem, Metadata } from "./api";
@@ -18,8 +20,8 @@ function ImportErrorList({ items, total, offset, busy, metadata, onPage, onExpor
     const index = item.exportRowIndex ?? item.rowIndex;
     return Number.isFinite(Number(index)) ? Number(index) + 1 : "—";
   }
-  function failureLabel(failure: any, entity: string) {
-    if (typeof failure === "string") return failure;
+  function failurePresentation(failure: any, entity: string) {
+    if (typeof failure === "string") return { field: "", message: failure, explanation: "" };
     const failureEntity = String(failure.entityType || entity);
     const fieldName = String(failure.field || "");
     const rawFieldDef = fieldName ? metadata.entityDefs?.[failureEntity]?.fields?.[fieldName] : undefined;
@@ -39,7 +41,7 @@ function ImportErrorList({ items, total, offset, busy, metadata, onPage, onExpor
     const typeLabel = global.fieldValidations?.[validationType] || failure.label || fallbackLabels[validationType] || validationType || "Neplatná hodnota";
     const explanationKey = fieldDef?.type ? `${fieldDef.type}_${validationType}` : validationType;
     const explanation = global.fieldValidationExplanations?.[explanationKey] || global.fieldValidationExplanations?.[validationType];
-    return `${field}: ${failure.message || explanation || typeLabel}`;
+    return { field, message: String(failure.message || typeLabel), explanation: failure.message ? "" : String(explanation || "") };
   }
   function typeLabel(type: unknown) {
     const key = String(type || "");
@@ -47,7 +49,7 @@ function ImportErrorList({ items, total, offset, busy, metadata, onPage, onExpor
     if (translated) return translated;
     return ({ Validation: "Validace", "No-Access": "Bez přístupu", Access: "Přístup", "Not-Found": "Nenalezeno", "Integrity-Constraint-Violation": "Konflikt integrity" } as Record<string, string>)[key] || key || "Chyba";
   }
-  return <div className="import-error-report"><div className="import-error-heading"><strong><CircleAlert size={14}/> Chyby a přeskočené řádky ({total})</strong><button className="button subtle" onClick={onExport} disabled={exportBusy}><FileSpreadsheet size={13}/>Exportovat CSV</button></div>{busy ? <div className="table-loading"><span className="spinner"/>Načítám chyby…</div> : items.length ? <div className="import-error-list">{items.map((item) => <article key={item.id}><strong>Řádek {lineNumber(item)} · {typeLabel(item.type)}</strong>{Array.isArray(item.validationFailures) && item.validationFailures.length ? <ul>{item.validationFailures.map((failure: any, index: number) => <li key={index}>{failureLabel(failure, item.entityType || "")}</li>)}</ul> : <span>Záznam nebyl zpracován.</span>}{item.row != null && <details><summary>Zdrojová data řádku</summary><pre>{JSON.stringify(item.row, null, 2)}</pre></details>}</article>)}</div> : <div className="import-error-empty">Import neobsahuje žádné chybové řádky.</div>}{total > pageSize && <div className="import-error-pagination"><button className="button subtle" disabled={offset <= 0 || busy} onClick={() => onPage(Math.max(0, offset - pageSize))}><ArrowLeft size={13}/>Předchozí</button><span>{offset + 1}–{Math.min(offset + items.length, total)} z {total}</span><button className="button subtle" disabled={offset + pageSize >= total || busy} onClick={() => onPage(offset + pageSize)}>Další<ArrowRight size={13}/></button></div>}</div>;
+  return <div className="import-error-report"><div className="import-error-heading"><strong><CircleAlert size={14}/> Chyby a přeskočené řádky ({total})</strong><button type="button" className="button subtle" onClick={onExport} disabled={exportBusy}><FileSpreadsheet size={13}/>Exportovat CSV</button></div>{busy ? <div className="table-loading"><span className="spinner"/>Načítám chyby…</div> : items.length ? <div className="import-error-list">{items.map((item) => <article key={item.id}><strong>Řádek {lineNumber(item)} · {typeLabel(item.type)}</strong>{Array.isArray(item.validationFailures) && item.validationFailures.length ? <ul>{item.validationFailures.map((failure: any, index: number) => { const view = failurePresentation(failure, item.entityType || ""); const explanationHtml = view.explanation ? DOMPurify.sanitize(marked.parse(view.explanation) as string) : ""; return <li key={index}>{view.field && <b>{view.field}: </b>}{view.message}{explanationHtml && <details className="import-error-explanation"><summary>Jak chybu opravit</summary><div className="complex-text" dangerouslySetInnerHTML={{ __html: explanationHtml }}/></details>}</li>; })}</ul> : <span>Záznam nebyl zpracován.</span>}{item.row != null && <details><summary>Zdrojová data řádku</summary><pre>{JSON.stringify(item.row, null, 2)}</pre></details>}</article>)}</div> : <div className="import-error-empty">Import neobsahuje žádné chybové řádky.</div>}{total > pageSize && <div className="import-error-pagination"><button className="button subtle" disabled={offset <= 0 || busy} onClick={() => onPage(Math.max(0, offset - pageSize))}><ArrowLeft size={13}/>Předchozí</button><span>{offset + 1}–{Math.min(offset + items.length, total)} z {total}</span><button className="button subtle" disabled={offset + pageSize >= total || busy} onClick={() => onPage(offset + pageSize)}>Další<ArrowRight size={13}/></button></div>}</div>;
 }
 
 function ImportResultRecords({ importId, entity, relation, metadata, onOpenRecord, onChanged }: { importId: string; entity: string; relation: "imported" | "updated" | "duplicates"; metadata: Metadata; onOpenRecord?: (entity: string, row: Row) => void; onChanged: () => void }) {
