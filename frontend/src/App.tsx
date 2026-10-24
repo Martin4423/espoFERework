@@ -362,6 +362,16 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [fatal, setFatal] = useState("");
 
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setSession(null);
+      setMetadata(null);
+      setFatal("Vaše přihlášení vypršelo nebo bylo odvoláno. Přihlaste se znovu.");
+    };
+    window.addEventListener("via-session-expired", handleSessionExpired);
+    return () => window.removeEventListener("via-session-expired", handleSessionExpired);
+  }, []);
+
   const loadApp = useCallback(async () => {
     try {
       const [valid, branding] = await Promise.all([restoreSession(), fetchPublicBranding()]);
@@ -386,6 +396,7 @@ function App() {
       logout(); setSession(null); setMetadata(null);
       throw new Error("Tento účet není přiřazený k vybranému portálu.");
     }
+    setFatal("");
     setSession(user);
     setMetadata(await fetchMetadata());
     return user;

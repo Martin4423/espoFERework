@@ -120,7 +120,10 @@ export async function request<T = any>(path: string, init: RequestInit = {}): Pr
   const text = await response.text();
   const body = text ? JSON.parse(text) : null;
   if (!response.ok) {
-    if (response.status === 401) logout();
+    if (response.status === 401) {
+      logout();
+      window.dispatchEvent(new Event("via-session-expired"));
+    }
     const statusReasonHeader = response.headers.get("X-Status-Reason");
     let statusReason: ApiError["statusReason"];
     if (statusReasonHeader) {
