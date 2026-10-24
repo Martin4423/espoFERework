@@ -2954,18 +2954,20 @@ function emailAccountFieldVisible(name: string, values: Row): boolean {
 function MailFolderField({ label, value, multiple, values, recordId, entity = "InboundEmail", onChange }: { label: string; value: string | string[]; multiple?: boolean; values: Row; recordId?: string; entity?: "InboundEmail" | "EmailAccount"; onChange: (value: string | string[]) => void }) {
   const [options, setOptions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   async function loadFolders() {
     setBusy(true); setError("");
     try {
       const folders = await request<string[]>(`${entity}/action/getFolders`, { method: "POST", body: JSON.stringify({ host: values.host, port: values.port, security: values.security, username: values.username, password: values.password || null, ...(entity === "EmailAccount" ? { emailAddress: values.emailAddress, userId: values.assignedUser || values.assignedUserId || null } : {}), id: recordId || null }) });
       setOptions(Array.isArray(folders) ? folders.map(String) : []);
+      setLoaded(true);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Složky IMAP se nepodařilo načíst."); }
     finally { setBusy(false); }
   }
   const selected = multiple ? (Array.isArray(value) ? value : []) : String(value || "");
   const list = [...new Set([...options, ...(Array.isArray(selected) ? selected : selected ? [selected] : [])])];
-  return <label className="field-input inbound-folder-field"><span>{label}</span><div className="inbound-folder-controls"><button type="button" className="button subtle" onClick={() => void loadFolders()} disabled={busy || !values.host || !values.username}>{busy ? "Načítám složky…" : "Načíst složky ze serveru"}<RefreshCw size={13}/></button>{multiple ? <select multiple size={Math.min(Math.max(list.length, 3), 7)} value={selected as string[]} onChange={(event) => onChange(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}>{list.map((folder) => <option key={folder} value={folder}>{folder}</option>)}</select> : <select value={selected as string} onChange={(event) => onChange(event.target.value)}><option value="">— Bez složky —</option>{list.map((folder) => <option key={folder} value={folder}>{folder}</option>)}</select>}</div>{error && <small className="field-error">{error}</small>}<small className="field-hint">Seznam načtete po zadání přístupových údajů IMAP.</small></label>;
+  return <div className="field-input inbound-folder-field"><span>{label}</span><div className="inbound-folder-controls"><button type="button" className="button subtle" onClick={() => void loadFolders()} disabled={busy || !values.host || !values.username}>{busy ? "Načítám složky…" : loaded ? "Obnovit složky ze serveru" : "Načíst složky ze serveru"}<RefreshCw size={13}/></button>{multiple ? <div className="mail-folder-options" role="group" aria-label={label}>{list.map((folder) => { const checked = (selected as string[]).includes(folder); return <label className="mail-folder-option" key={folder}><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked ? [...(selected as string[]), folder] : (selected as string[]).filter((item) => item !== folder))}/><span>{folder}</span></label>; })}{loaded && !options.length && <small>Server nevrátil žádné složky. Uložte výběr až po ověření připojení.</small>}</div> : <select aria-label={label} value={selected as string} onChange={(event) => onChange(event.target.value)}><option value="">— Bez složky —</option>{list.map((folder) => <option key={folder} value={folder}>{folder}</option>)}</select>}</div>{error && <small className="field-error">{error}</small>}<small className="field-hint">Načtěte dostupné složky a vyberte ty, které má CRM sledovat.</small></div>;
 }
 
 function MassEmailSmtpAccountField({ metadata, def, values, onChange }: { metadata: Metadata; def: FieldDef; values: Row; onChange: (patch: Row) => void }) {
