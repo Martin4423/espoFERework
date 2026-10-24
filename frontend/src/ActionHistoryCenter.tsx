@@ -37,7 +37,7 @@ export default function ActionHistoryCenter({ metadata, onBack, onOpenRecord }: 
   }, [metadata]);
   const actionLabel = (value?: string) => value ? (metadata.labels as any)?.ActionHistoryRecord?.options?.action?.[value] || fallbackActionLabels[value] || value : "Akce";
   const scopes = useMemo(() => Object.keys(metadata.scopes || {}).filter((scope) => metadata.scopes[scope]?.entity && canAccessEntity(metadata, scope)).sort((a, b) => entityLabel(metadata, a, true).localeCompare(entityLabel(metadata, b, true), "cs")), [metadata]);
-  const hasNext = total === -1 || total > offset + rows.length;
+  const hasNext = total === -1 ? rows.length === pageSize : total > offset + rows.length;
 
   async function load() {
     setBusy(true); setError(""); setSelected([]);
@@ -51,7 +51,7 @@ export default function ActionHistoryCenter({ metadata, onBack, onOpenRecord }: 
       if (search.trim()) where.push({ type: "or", value: ["userName", "ipAddress", "targetName"].map((attribute) => ({ type: "contains", attribute, value: search.trim() })) });
       if (where.length) params.set("whereGroup", JSON.stringify(where));
       const result = await request<{ list?: HistoryRow[]; total?: number }>(`ActionHistoryRecord?${params.toString()}`);
-      setRows(result.list || []); setTotal(Number(result.total ?? -2));
+      setRows(result.list || []); setTotal(typeof result.total === "number" && Number.isFinite(result.total) && result.total >= 0 ? result.total : -1);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Auditní historii se nepodařilo načíst."); }
     finally { setBusy(false); }
   }
