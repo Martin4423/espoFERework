@@ -2636,3 +2636,50 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .account-login-event-list small { color: #8993a5; font-size: 9px; }
 .account-login-event-list code { color: #65738b; font-size: 10px; }
 @media (max-width: 560px) { .account-login-event-list article { grid-template-columns: 24px minmax(0,1fr); } .account-login-event-list code { grid-column: 2; } }
+
+/* Portal tenant branding and EspoCRM theme settings. */
+.app-shell { background: var(--canvas); color: var(--ink); }
+.portal-brand-logo { display: block; width: auto; max-width: 150px; height: 32px; object-fit: contain; }
+.portal-theme-light .sidebar { color: #566176; border-bottom: 1px solid var(--line); box-shadow: 0 3px 14px rgba(25,36,60,.06); }
+.portal-theme-light .sidebar-brand { color: var(--ink); }
+.portal-theme-light .workspace-pill { border-color: var(--line); color: #718098; }
+.portal-theme-light .nav-item { color: #5d687c; }
+.portal-theme-light .nav-item:hover { color: #25324a; background: #f1f4f8; }
+.portal-theme-light .nav-item.active { color: #263a57; background: #e9eef8; box-shadow: inset 3px 0 var(--primary); }
+.portal-theme-light .nav-item.active .nav-icon { color: var(--primary); }
+.portal-theme-light .nav-caption { color: #8993a5; }
+.portal-theme-light .sidebar-version { color: #8993a5; }
+.portal-theme-dark .main-shell, .portal-theme-glass .main-shell { background: var(--canvas); }
+.portal-theme-dark .topbar { background: rgba(35,38,42,.94); border-color: var(--line); }
+.portal-theme-dark .breadcrumbs strong, .portal-theme-dark .user-name { color: var(--ink); }
+.portal-theme-dark .surface { color: var(--ink); background: var(--surface); border-color: var(--line); }
+.portal-theme-dark .welcome-row { color: var(--ink); background: linear-gradient(105deg,#272b33,#20232a 55%,#272b33); border-color: var(--line); }
+.portal-theme-dark .welcome-row h1, .portal-theme-dark .section-head h2, .portal-theme-dark .card-heading h2 { color: var(--ink); }
+.portal-theme-dark .button:not(.primary):not(.danger), .portal-theme-dark .global-search-trigger, .portal-theme-dark .notification-trigger { color: var(--ink); background: #282c33; border-color: var(--line); }
+.portal-theme-dark input, .portal-theme-dark select, .portal-theme-dark textarea { color: var(--ink); background: #202329; border-color: var(--line); }
+.portal-theme-dark .entity-heading h1, .portal-theme-dark .entity-heading h2, .portal-theme-dark .settings-card-head h2 { color: var(--ink); }
+.portal-navbar-top { flex-direction: column; }
+.portal-navbar-top .sidebar { position: sticky; z-index: 50; inset: auto; width: 100%; height: auto; flex: none; flex-direction: row; align-items: center; gap: 15px; padding: 10px 20px; }
+.portal-navbar-top .sidebar-brand { flex: 0 0 auto; margin: 0; }
+.portal-navbar-top .sidebar-brand .sidebar-close, .portal-navbar-top .workspace-pill, .portal-navbar-top .nav-caption { display: none; }
+.portal-navbar-top .nav-list { display: flex; flex: 1; align-items: center; gap: 3px; overflow-x: auto; overflow-y: hidden; }
+.portal-navbar-top .nav-item { width: auto; min-width: max-content; min-height: 36px; }
+.portal-navbar-top .nav-item + .nav-item { margin: 0; }
+.portal-navbar-top .nav-item.active { box-shadow: inset 0 -3px var(--primary); }
+.portal-navbar-top .sidebar-bottom { flex: 0 0 auto; padding: 0; border: 0; }
+.portal-navbar-top .sidebar-version { display: none; }
+.portal-navbar-top .main-shell { width: 100%; margin: 0; }
+.portal-navbar-top .mobile-menu { display: none; }
+.portal-rtl:not(.portal-navbar-top) .sidebar { right: 0; left: auto; }
+.portal-rtl:not(.portal-navbar-top) .main-shell { margin-right: 248px; margin-left: 0; }
+.portal-rtl:not(.portal-navbar-top) .nav-item.active { box-shadow: inset -3px 0 var(--primary); }
+.portal-rtl.portal-navbar-top .nav-list { direction: rtl; }
+.portal-rtl.portal-navbar-top .sidebar-brand { direction: rtl; }
+@media (max-width: 760px) {
+  .portal-navbar-top .sidebar { position: sticky; inset: auto; transform: none; width: 100%; min-height: 56px; flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px; box-shadow: 0 4px 16px rgba(20,27,46,.12); }
+  .portal-navbar-top .sidebar-brand { margin: 0; }
+  .portal-navbar-top .nav-list { flex-basis: 100%; order: 3; }
+  .portal-navbar-top .nav-item { min-height: 34px; padding: 0 9px; }
+  .portal-navbar-top .sidebar-bottom { margin-left: auto; }
+  .portal-rtl:not(.portal-navbar-top) .sidebar { right: auto; left: 0; }
+}
