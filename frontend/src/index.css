@@ -1240,6 +1240,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .import-result-records .import-error-pagination { margin: 0; border-top: 1px solid #edf0f4; }
 .campaign-log-target { padding: 0; border: 0; background: none; color: #5877bd; font: inherit; text-align: left; cursor: pointer; }
 .campaign-log-target:hover { text-decoration: underline; }
+.campaign-log-target:focus-visible { outline: 2px solid var(--accent, #526db0); outline-offset: 2px; border-radius: 2px; }
 .campaign-log-opt-out { color: #bc5965 !important; }
 .campaign-log-bounce { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: #667188; font-size: 9px; }
 .campaign-log-bounce small { padding: 3px 6px; border-radius: 20px; background: #eef1f6; font-size: 8px; }
@@ -3385,3 +3386,9 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .category-subtree-toggle input { width: 13px; height: 13px; margin: 0; accent-color: var(--accent, #526db0); cursor: pointer; }
 .category-subtree-toggle:has(input:disabled) { opacity: .55; cursor: not-allowed; }
 .category-subtree-toggle:focus-within { outline: 2px solid var(--accent, #526db0); outline-offset: 3px; border-radius: 3px; }
+
+.campaign-log-avatar.sent { color: #4f67c5; background: #eceeff; }
+.campaign-log-avatar.opened { color: #167d78; background: #e5f6f2; }
+.campaign-log-avatar.clicked { color: #6d57b6; background: #f0eafe; }
+.campaign-log-avatar.opted-out, .campaign-log-avatar.bounced { color: #a84650; background: #fbebed; }
+.campaign-log-avatar.opted-in, .campaign-log-avatar.lead-created { color: #287851; background: #e7f5ed; }
