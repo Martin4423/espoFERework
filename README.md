@@ -13,6 +13,7 @@ Otevři [http://localhost:8091](http://localhost:8091) a přihlas se účtem Esp
 ## Aktuální rozsah klienta
 
 - Přihlášení přes EspoCRM token a serverovou API proxy.
+- Veřejná přihlašovací obrazovka přebírá název aplikace, logo a téma z nastavení EspoCRM; portálové přihlášení používá vlastní branding.
 - Navigace sestavená z metadat EspoCRM.
 - Globální vyhledávání přes EspoCRM API a oprávnění přihlášeného uživatele.
 - Dashboard se souhrnnými počty a nedávno změněnými záznamy.
@@ -23,10 +24,10 @@ Otevři [http://localhost:8091](http://localhost:8091) a přihlas se účtem Esp
 - CSV/TSV import s mapováním sloupců, historií a akcemi pro vrácení importu a odstranění duplicit.
 - Administrativní rozcestník s uživateli, týmy, rolemi, poštovními účty, importem a systémovými nastaveními (dostupnost položek závisí na API a oprávněních účtu).
 - Jednotná sada Font Awesome ikon v navigaci, administraci, seznamech, formulářích i dialozích; metadata EspoCRM se vykreslují jejich původními třídami.
-- Veřejný Lead Capture formulář, opt-in potvrzení, RSVP účasti a správa campaign unsubscribe; most obsluhuje i campaign open tracking pixel a je v balíčku `packages/ViaCRM-Frontend-Bridge-1.4.0.zip`.
+- Veřejný Lead Capture formulář, opt-in potvrzení, RSVP účasti a správa campaign unsubscribe; most obsluhuje i campaign open tracking pixel a je v balíčku `packages/ViaCRM-Frontend-Bridge-1.5.0.zip`.
 - Rozložení pro desktop i mobil.
 
-Jde stále o rozpracovanou náhradu klienta. Úplný seznam chybějících obrazovek a ověřitelných požadavků je v [COVERAGE.md](COVERAGE.md). Docker gateway nyní obsluhuje klienta na hlavním CRM originu a předává `/api` i potřebné nativní endpointy EspoCRM; samostatný PHP bridge ZIP zajišťuje serverovou logiku veřejných formulářů. Instalovatelný balíček reworku se sestaví příkazem `./scripts/package-frontend-extension.sh`; výsledný ZIP `packages/ViaCRM-Frontend-2.0.172.zip` obsahuje celý React build i API bridge a nainstaluje se přes Administrace → Rozšíření. V běžném EspoCRM běží na stejné doméně v `/client/custom/viacrm/`; nahrazení kořenové URL a nativních veřejných entrypointů vyžaduje směrování webserveru, popsané v balíčku.
+Jde stále o rozpracovanou náhradu klienta. Úplný seznam chybějících obrazovek a ověřitelných požadavků je v [COVERAGE.md](COVERAGE.md). Docker gateway nyní obsluhuje klienta na hlavním CRM originu a předává `/api` i potřebné nativní endpointy EspoCRM; samostatný PHP bridge ZIP zajišťuje serverovou logiku veřejných formulářů. Instalovatelný balíček reworku se sestaví příkazem `./scripts/package-frontend-extension.sh`; výsledný ZIP `packages/ViaCRM-Frontend-2.0.173.zip` obsahuje celý React build i API bridge a nainstaluje se přes Administrace → Rozšíření. V běžném EspoCRM běží na stejné doméně v `/client/custom/viacrm/`; nahrazení kořenové URL a nativních veřejných entrypointů vyžaduje směrování webserveru, popsané v balíčku.
 
 ## Vývoj
 

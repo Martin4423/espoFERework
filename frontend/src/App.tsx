@@ -83,7 +83,7 @@ type AddressParts = { street?: string; city?: string; state?: string; postalCode
 type PageResult = { list: Row[]; total: number };
 type FilterCondition = { field: string; operator: string; value: string | string[]; valueTo?: string; valueType?: string; valueNames?: Record<string, string> };
 type SaveConflictField = { name: string; label: string; current: unknown; actual: unknown; original: unknown };
-type PortalBranding = { name?: string; applicationName?: string; companyLogoId?: string; theme?: string; themeParams?: { navbar?: string } };
+type PublicBranding = { portal?: boolean; name?: string; applicationName?: string; companyLogoId?: string; logoSrc?: string; theme?: string; themeParams?: { navbar?: string } };
 
 const adminRouteTargets: Record<string, string> = {
   settings: "__settings__", extensions: "__extensions__", integrations: "__integrations__", upgrade: "__upgrade__",
@@ -212,13 +212,14 @@ const portalThemeColors: Record<string, Record<string, string>> = {
   Glass: { primary: "#788bb8", primaryDark: "#6578a4", nav: "#14141482", canvas: "#483f57", surface: "#2424246b", ink: "#dbdbdb", line: "#ffffff30" },
 };
 
-async function fetchPortalBranding(): Promise<PortalBranding | null> {
+async function fetchPublicBranding(): Promise<PublicBranding | null> {
   const params = new URLSearchParams({ path: window.location.pathname, host: window.location.hostname });
   try {
     const response = await fetch(`/api/v1/Portal/publicBranding?${params}`);
     if (!response.ok) return null;
-    const data = await response.json() as PortalBranding;
-    return data?.name || data?.applicationName ? data : null;
+    const data = await response.json() as PublicBranding;
+    if (data?.portal === false) return data;
+    return data?.portal || data?.name || data?.applicationName ? { ...data, portal: true } : null;
   } catch { return null; }
 }
 
@@ -357,13 +358,13 @@ function App() {
   const eventConfirmationRequest = currentPath === "/" && entryParams.get("entryPoint") === "eventConfirmation" ? { uid: entryParams.get("uid") || undefined, action: entryParams.get("action") || undefined } : undefined;
   const [session, setSession] = useState(getSession());
   const [metadata, setMetadata] = useState<Metadata | null>(null);
-  const [portalBranding, setPortalBranding] = useState<PortalBranding | null>(null);
+  const [portalBranding, setPortalBranding] = useState<PublicBranding | null>(null);
   const [loading, setLoading] = useState(true);
   const [fatal, setFatal] = useState("");
 
   const loadApp = useCallback(async () => {
     try {
-      const [valid, branding] = await Promise.all([restoreSession(), fetchPortalBranding()]);
+      const [valid, branding] = await Promise.all([restoreSession(), fetchPublicBranding()]);
       setPortalBranding(branding);
       const portalUser = valid && ["portal", "portal-user"].includes(String(valid.user.type));
       const accepted = branding && valid && !portalUser ? null : valid;
@@ -381,7 +382,7 @@ function App() {
   async function onLogin(username: string, password: string, pending?: PendingSecondStep, code?: string): Promise<Session | PendingSecondStep> {
     const user = pending ? await completeSecondStepLogin(pending, code || "") : await login(username, password);
     if ("secondStepRequired" in user) return user;
-    if (portalBranding && !["portal", "portal-user"].includes(String(user.user.type))) {
+    if (portalBranding?.portal && !["portal", "portal-user"].includes(String(user.user.type))) {
       logout(); setSession(null); setMetadata(null);
       throw new Error("Tento účet není přiřazený k vybranému portálu.");
     }
@@ -724,7 +725,7 @@ function PublicLeadCapturePage({ recordId }: { recordId: string }) {
 
 type PasswordRecoveryInfo = { passwordRecoveryEnabled?: boolean; requestFound?: boolean | null; strengthParams?: Record<string, number | boolean | null> };
 
-function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (username: string, password: string, pending?: PendingSecondStep, code?: string) => Promise<Session | PendingSecondStep>; error: string; portalBranding: PortalBranding | null }) {
+function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (username: string, password: string, pending?: PendingSecondStep, code?: string) => Promise<Session | PendingSecondStep>; error: string; portalBranding: PublicBranding | null }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -734,12 +735,13 @@ function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (use
   const [error, setError] = useState(initialError);
   const [recoveryEnabled, setRecoveryEnabled] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
-  const isPortalLogin = Boolean(portalBranding);
+  const isPortalLogin = Boolean(portalBranding?.portal);
   const portalTitle = String(portalBranding?.applicationName || portalBranding?.name || "Klientský portál");
   const portalTheme = portalBranding?.theme || "Espo";
   const portalColors = portalThemeColors[portalTheme] || portalThemeColors.Espo;
-  const loginStyle = (isPortalLogin ? { "--primary": portalColors.primary, "--primary-dark": portalColors.primaryDark, "--canvas": portalColors.canvas, "--ink": portalColors.ink, "--line": portalColors.line } : {}) as CSSProperties;
-  const portalLogo = portalBranding?.companyLogoId ? `/?entryPoint=LogoImage&id=${encodeURIComponent(portalBranding.companyLogoId)}` : "";
+  const loginStyle = { "--primary": portalColors.primary, "--primary-dark": portalColors.primaryDark, "--canvas": portalColors.canvas, "--ink": portalColors.ink, "--line": portalColors.line } as CSSProperties;
+  const loginLogo = portalBranding?.companyLogoId ? `/?entryPoint=LogoImage&id=${encodeURIComponent(portalBranding.companyLogoId)}` : portalBranding?.logoSrc ? new URL(portalBranding.logoSrc, window.location.origin).toString() : "";
+  const applicationTitle = portalBranding?.applicationName || portalBranding?.name || "ViaCRM";
   useEffect(() => { let live = true; fetch("/api/v1/User/passwordRecoveryInfo").then((response) => response.json()).then((data: PasswordRecoveryInfo) => live && setRecoveryEnabled(Boolean(data.passwordRecoveryEnabled))).catch(() => live && setRecoveryEnabled(false)); return () => { live = false; }; }, []);
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
@@ -754,9 +756,9 @@ function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (use
   }
   return <main dir={isPortalLogin && portalTheme === "EspoRtl" ? "rtl" : "ltr"} className={`login-page ${isPortalLogin ? `portal-login portal-theme-${portalTheme.toLowerCase()}` : ""}`} style={loginStyle}>
     <section className="login-story">
-      <div className="brand lockup">{portalLogo ? <img className="portal-brand-logo" src={portalLogo} alt=""/> : <span className="brand-mark">{isPortalLogin ? portalTitle.slice(0, 1).toUpperCase() : "v"}</span>}<span>{isPortalLogin ? portalTitle : <>via<span className="brand-light">crm</span></>}</span></div>
-      <div className="story-copy">{isPortalLogin ? <><span className="eyebrow">ZÁKAZNICKÝ PORTÁL</span><h1>Vítejte v portálu<br/>{portalTitle}.</h1><p>Po přihlášení najdete své požadavky, dokumenty a komunikaci s naším týmem.</p></> : <><span className="eyebrow">JEDNO MÍSTO PRO VÁŠ BYZNYS</span><h1>Dobré vztahy<br/>začínají přehledem.</h1><p>Klienti, obchod i každodenní práce. Všechno navazuje na sebe.</p></>}</div>
-      <div className="story-foot"><span>{isPortalLogin ? portalTitle : "Klientské CRM"}</span><span>{isPortalLogin ? "Zabezpečený přístup" : "EspoCRM · připojeno"}</span></div>
+      <div className="brand lockup">{loginLogo ? <img className="portal-brand-logo" src={loginLogo} alt=""/> : <span className="brand-mark">{isPortalLogin ? portalTitle.slice(0, 1).toUpperCase() : applicationTitle.slice(0, 1).toUpperCase()}</span>}<span>{isPortalLogin ? portalTitle : applicationTitle}</span></div>
+      <div className="story-copy">{isPortalLogin ? <><span className="eyebrow">ZÁKAZNICKÝ PORTÁL</span><h1>Vítejte v portálu<br/>{portalTitle}.</h1><p>Po přihlášení najdete své požadavky, dokumenty a komunikaci s naším týmem.</p></> : <><span className="eyebrow">{applicationTitle.toLocaleUpperCase("cs")}</span><h1>Dobré vztahy<br/>začínají přehledem.</h1><p>Klienti, obchod i každodenní práce. Všechno navazuje na sebe.</p></>}</div>
+      <div className="story-foot"><span>{isPortalLogin ? portalTitle : applicationTitle}</span><span>{isPortalLogin ? "Zabezpečený přístup" : "Zabezpečené přihlášení"}</span></div>
     </section>
     <section className="login-side"><form className="login-card" onSubmit={secondStep ? submitSecondStep : submit} onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.requestSubmit(); } }}>
       <span className="eyebrow">{isPortalLogin ? portalTitle : "VÍTEJTE ZPĚT"}</span><h2>{isPortalLogin ? "Přihlášení do portálu" : "Přihlášení do CRM"}</h2><p className="login-hint">{isPortalLogin ? "Použijte přihlašovací údaje svého portálového účtu." : "Použijte svůj účet EspoCRM."}</p>

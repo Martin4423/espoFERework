@@ -53,13 +53,20 @@ class GetPortalPublicBranding implements Action
         }
 
         if (!$portal) {
-            return ResponseComposer::json([]);
+            return ResponseComposer::json([
+                'portal' => false,
+                'applicationName' => $this->config->get('applicationName') ?: 'EspoCRM',
+                'companyLogoId' => $this->config->get('companyLogoId'),
+                'logoSrc' => $this->config->get('logoSrc') ?: 'client/img/logo.svg',
+                'theme' => $this->config->get('theme') ?: 'Espo',
+            ]);
         }
 
         $themeParams = $portal->get('themeParams');
         $navbar = is_object($themeParams) ? ($themeParams->navbar ?? 'side') : (is_array($themeParams) ? ($themeParams['navbar'] ?? 'side') : 'side');
 
         return ResponseComposer::json([
+            'portal' => true,
             'name' => $portal->get('name'),
             'applicationName' => $portal->get('applicationName') ?: $portal->get('name'),
             'companyLogoId' => $portal->get('companyLogoId'),
