@@ -10,7 +10,7 @@ type Row = Record<string, any>;
 type RelationshipLink = { entity?: string; type?: string; foreign?: string; readOnly?: boolean; columnAttributeMap?: Record<string, string> };
 type PanelDef = { disabled?: boolean; hidden?: boolean; label?: string; order?: number; create?: boolean; select?: boolean; removeDisabled?: boolean; createDisabled?: boolean; filterList?: string[]; selectPrimaryFilterName?: string; rowActionList?: string[]; [key: string]: any };
 
-export default function RecordRelationships({ entity, record, metadata, onOpenRecord, onOpenTaskList, onComposeEmail, renderActivityEditor }: { entity: string; record: Row; metadata: Metadata; onOpenRecord: (entity: string, row: Row) => void; onOpenTaskList?: (entity: string, where: Row[]) => void; onComposeEmail?: (draft: Row) => void; renderActivityEditor: (scope: string, initial: Row, onSaved: (row: Row) => void, onClose: () => void) => ReactNode }) {
+export default function RecordRelationships({ entity, record, metadata, onOpenRecord, onOpenTaskList, onComposeEmail, renderActivityEditor, onlyLink }: { entity: string; record: Row; metadata: Metadata; onOpenRecord: (entity: string, row: Row) => void; onOpenTaskList?: (entity: string, where: Row[]) => void; onComposeEmail?: (draft: Row) => void; renderActivityEditor: (scope: string, initial: Row, onSaved: (row: Row) => void, onClose: () => void) => ReactNode; onlyLink?: string }) {
   const scopeDefs = metadata.entityDefs?.[entity];
   const relationshipPanels = metadata.clientDefs?.[entity]?.relationshipPanels || {};
   const [layoutPanels, setLayoutPanels] = useState<Record<string, PanelDef>>({});
@@ -37,7 +37,9 @@ export default function RecordRelationships({ entity, record, metadata, onOpenRe
     links[taskLink] = { ...links.tasks, entity: "Task" };
     defs.set(taskLink, { label: "tasks", select: false, create: true, orderBy: "createdAt", orderDirection: "desc", filterList: ["all", "actual", "completed"], layout: "listSmall", taskSidePanel: true });
   }
+  if (onlyLink && links[onlyLink]?.entity && !defs.has(onlyLink)) defs.set(onlyLink, { label: onlyLink, layout: "listSmall" });
   const panels = [...defs.entries()].filter(([name, panel]) => {
+    if (onlyLink && name !== onlyLink) return false;
     const link = links[name] as RelationshipLink | undefined;
     const activityPanel = name === "activities" || name === "history" || panel.reference === "activities" || panel.reference === "history";
     return !panel.disabled && !panel.hidden && (activityPanel || Boolean(link?.entity && metadata.scopes?.[link.entity] && canAccessEntity(metadata, link.entity)));
@@ -51,6 +53,15 @@ export default function RecordRelationships({ entity, record, metadata, onOpenRe
       ? <RecordActivitiesPanel key={`${entity}-${record.id}-${name}`} entity={entity} record={record} panelName={activityName} metadata={metadata} onOpenRecord={onOpenRecord} onComposeEmail={onComposeEmail} renderEditor={renderActivityEditor}/>
       : <RelationshipPanel key={`${entity}-${record.id}-${name}`} entity={entity} record={record} name={name} panel={panel} link={links[name] as RelationshipLink} metadata={metadata} onOpenRecord={onOpenRecord} onOpenTaskList={onOpenTaskList} renderEditor={renderActivityEditor}/>;
   })}</div>;
+}
+
+export function RelatedRecordsPage({ entity, record, link, metadata, onBack, onOpenRecord, onComposeEmail, renderActivityEditor }: { entity: string; record: Row; link: string; metadata: Metadata; onBack: () => void; onOpenRecord: (entity: string, row: Row) => void; onComposeEmail?: (draft: Row) => void; renderActivityEditor: (scope: string, initial: Row, onSaved: (row: Row) => void, onClose: () => void) => ReactNode }) {
+  const label = (metadata.labels as any)?.[entity]?.links?.[link] || link;
+  const parentName = record.name || record.subject || [record.firstName, record.lastName].filter(Boolean).join(" ") || record.userName || record.id;
+  return <section className="related-records-page">
+    <header className="related-records-heading"><button type="button" className="button subtle" onClick={onBack}><ArrowLeft size={14}/> Zpět k záznamu</button><div><span className="eyebrow">{entityLabel(metadata, entity, true)} · {parentName}</span><h1>{label}</h1><p>Navázané záznamy a dostupné akce pro tento vztah.</p></div></header>
+    <RecordRelationships entity={entity} record={record} metadata={metadata} onlyLink={link} onOpenRecord={onOpenRecord} onComposeEmail={onComposeEmail} renderActivityEditor={renderActivityEditor}/>
+  </section>;
 }
 
 function TargetListOptedOutPanel({ record, metadata, onOpenRecord }: { record: Row; metadata: Metadata; onOpenRecord: (entity: string, row: Row) => void }) {

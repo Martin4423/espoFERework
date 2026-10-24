@@ -2446,6 +2446,16 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .time-ranges-field.invalid > span { color: var(--danger, #b33d4c); }
 @media (max-width: 480px) { .time-range-row { grid-template-columns: minmax(78px, 1fr) 12px minmax(78px, 1fr) 30px; gap: 5px; } }
 .relationship-panel { display: grid; gap: 10px; }
+.related-records-page { width: min(100%, 1440px); margin: 0 auto; padding: clamp(18px, 3vw, 34px); display: grid; align-content: start; gap: 22px; }
+.related-records-heading { display: grid; gap: 18px; }
+.related-records-heading > div { display: grid; gap: 7px; }
+.related-records-heading .eyebrow { color: var(--muted, #778198); }
+.related-records-heading h1 { margin: 0; color: var(--ink, #253047); font-size: clamp(24px, 3vw, 32px); letter-spacing: -.035em; line-height: 1.15; }
+.related-records-heading p { margin: 0; color: var(--muted, #778198); font-size: 13px; }
+.related-records-heading > .button { justify-self: start; }
+.related-records-page .record-relationships { display: grid; gap: 14px; }
+@media (min-width: 700px) { .related-records-heading { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 620px) { .related-records-page { padding: 16px 12px 24px; gap: 16px; } .related-records-heading { gap: 13px; } }
 .relationship-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .relationship-panel-head > div:first-child { display: grid; gap: 3px; }
 .relationship-panel-head > div:first-child > small { color: var(--muted, #778198); font-size: 11px; }
