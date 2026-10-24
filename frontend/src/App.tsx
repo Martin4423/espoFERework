@@ -12,7 +12,7 @@ import { conditionGroupMatches } from "./dynamicLogicRuntime";
 import { useDialogFocus } from "./useDialogFocus";
 import { portalEntities } from "./portalEntities";
 import { dateFilterBoundaryInTimeZone, espocrmDateTimeFromInput, formatEspoDateTime, formatEspoDateTimeInput, formatEspoDateTimeShort, useEspoTimeZone, zonedWallTimeToUtc } from "./timeZone";
-import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, completeSecondStepLogin, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, logout, request, restoreSession, uploadAttachment } from "./api";
+import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, completeSecondStepLogin, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, loginWithAuthorizationHeaders, logout, request, restoreSession, uploadAttachment } from "./api";
 import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, PendingSecondStep, Session, User } from "./api";
 import AboutDialog from "./AboutDialog";
 
@@ -389,8 +389,8 @@ function App() {
 
   useEffect(() => { if (!publicCaptureId && !optInConfirmationId && !passwordChangeRequest && !unsubscribeRequest && !eventConfirmationRequest) void loadApp(); }, [loadApp, publicCaptureId, optInConfirmationId, passwordChangeRequest?.id, Boolean(passwordChangeRequest), unsubscribeRequest?.id, unsubscribeRequest?.emailAddress, unsubscribeRequest?.hash, eventConfirmationRequest?.uid, eventConfirmationRequest?.action]);
 
-  async function onLogin(username: string, password: string, pending?: PendingSecondStep, code?: string): Promise<Session | PendingSecondStep> {
-    const user = pending ? await completeSecondStepLogin(pending, code || "") : await login(username, password);
+  async function onLogin(username: string, password: string, pending?: PendingSecondStep, code?: string, authorizationHeaders?: Record<string, string>): Promise<Session | PendingSecondStep> {
+    const user = pending ? await completeSecondStepLogin(pending, code || "") : authorizationHeaders ? await loginWithAuthorizationHeaders(authorizationHeaders, username) : await login(username, password);
     if ("secondStepRequired" in user) return user;
     if (portalBranding?.portal && !["portal", "portal-user"].includes(String(user.user.type))) {
       logout(); setSession(null); setMetadata(null);
@@ -735,8 +735,9 @@ function PublicLeadCapturePage({ recordId }: { recordId: string }) {
 }
 
 type PasswordRecoveryInfo = { passwordRecoveryEnabled?: boolean; requestFound?: boolean | null; strengthParams?: Record<string, number | boolean | null> };
+type PublicLoginOptions = { oidc?: boolean; fallback?: boolean };
 
-function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (username: string, password: string, pending?: PendingSecondStep, code?: string) => Promise<Session | PendingSecondStep>; error: string; portalBranding: PublicBranding | null }) {
+function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (username: string, password: string, pending?: PendingSecondStep, code?: string, authorizationHeaders?: Record<string, string>) => Promise<Session | PendingSecondStep>; error: string; portalBranding: PublicBranding | null }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -746,6 +747,9 @@ function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (use
   const [error, setError] = useState(initialError);
   const [recoveryEnabled, setRecoveryEnabled] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [loginOptions, setLoginOptions] = useState<PublicLoginOptions>({});
+  const [showPasswordFallback, setShowPasswordFallback] = useState(false);
+  const [oidcBusy, setOidcBusy] = useState(false);
   const isPortalLogin = Boolean(portalBranding?.portal);
   const portalTitle = String(portalBranding?.applicationName || portalBranding?.name || "Klientský portál");
   const portalTheme = portalBranding?.theme || "Espo";
@@ -754,6 +758,45 @@ function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (use
   const loginLogo = portalBranding?.companyLogoId ? `/?entryPoint=LogoImage&id=${encodeURIComponent(portalBranding.companyLogoId)}` : portalBranding?.logoSrc ? new URL(portalBranding.logoSrc, window.location.origin).toString() : "";
   const applicationTitle = portalBranding?.applicationName || portalBranding?.name || "ViaCRM";
   useEffect(() => { let live = true; fetch("/api/v1/User/passwordRecoveryInfo").then((response) => response.json()).then((data: PasswordRecoveryInfo) => live && setRecoveryEnabled(Boolean(data.passwordRecoveryEnabled))).catch(() => live && setRecoveryEnabled(false)); return () => { live = false; }; }, []);
+  useEffect(() => { let live = true; if (isPortalLogin) return () => { live = false; }; fetch("/api/v1/App/publicLoginOptions").then((response) => response.ok ? response.json() : {}).then((data: PublicLoginOptions) => live && setLoginOptions(data || {})).catch(() => live && setLoginOptions({})); return () => { live = false; }; }, [isPortalLogin]);
+  async function signInWithOidc() {
+    const popup = window.open("about:blank", "ViaCRMOpenID", "popup,width=800,height=800");
+    if (!popup) { setError("Přihlášení zablokovalo vyskakovací okno. Povolte ho pro tuto adresu a zkuste to znovu."); return; }
+    setOidcBusy(true); setError("");
+    try {
+      const response = await fetch("/api/v1/Oidc/authorizationData");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || "Nastavení jednotného přihlášení není dostupné.");
+      const randomKey = () => Array.from(crypto.getRandomValues(new Uint8Array(18)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+      const state = randomKey();
+      const nonce = randomKey();
+      const params = new URLSearchParams({ client_id: data.clientId, redirect_uri: data.redirectUri, response_type: "code", scope: (data.scopes || []).join(" "), state, nonce, prompt: data.prompt || "" });
+      if (data.maxAge != null) params.set("max_age", String(data.maxAge));
+      if (data.claims) params.set("claims", String(data.claims));
+      popup.location.href = `${data.endpoint}?${params.toString()}`;
+      const code = await new Promise<string>((resolve, reject) => {
+        const started = Date.now();
+        const timer = window.setInterval(() => {
+          if (popup.closed) { window.clearInterval(timer); reject(new Error("Přihlášení bylo zavřeno.")); return; }
+          if (Date.now() - started > 5 * 60 * 1000) { window.clearInterval(timer); popup.close(); reject(new Error("Přihlášení vypršelo. Zkuste to znovu.")); return; }
+          let callbackUrl: URL;
+          try { callbackUrl = new URL(popup.location.href); } catch { return; }
+          const result = callbackUrl.searchParams;
+          const authorizationCode = result.get("code");
+          const providerError = result.get("error");
+          if (!authorizationCode && !providerError) return;
+          window.clearInterval(timer);
+          if (result.get("state") !== state) { popup.close(); reject(new Error("Ověření jednotného přihlášení se neshoduje. Zkuste to znovu.")); return; }
+          if (providerError) { popup.close(); reject(new Error(result.get("errorDescription") || providerError)); return; }
+          popup.close(); resolve(authorizationCode!);
+        }, 300);
+      });
+      const auth = btoa(`**oidc:${code}`);
+      const result = await onLogin("", "", undefined, undefined, { Authorization: `Basic ${auth}`, "Espo-Authorization": auth, "X-Oidc-Authorization-Nonce": nonce });
+      if ("secondStepRequired" in result) { setSecondStep(result); setCode(""); }
+    } catch (cause) { if (!popup.closed) popup.close(); setError(cause instanceof Error ? cause.message : "Jednotné přihlášení se nezdařilo."); }
+    finally { setOidcBusy(false); }
+  }
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
     try { const result = await onLogin(username, password); if ("secondStepRequired" in result) { setSecondStep(result); setCode(""); setPasswordVisible(false); } } catch (e) { setError(e instanceof Error ? e.message : "Přihlášení se nezdařilo."); }
@@ -773,10 +816,10 @@ function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (use
     </section>
     <section className="login-side"><form className="login-card" onSubmit={secondStep ? submitSecondStep : submit} onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.requestSubmit(); } }}>
       <span className="eyebrow">{isPortalLogin ? portalTitle : "VÍTEJTE ZPĚT"}</span><h2>{isPortalLogin ? "Přihlášení do portálu" : "Přihlášení do CRM"}</h2><p className="login-hint">{isPortalLogin ? "Použijte přihlašovací údaje svého portálového účtu." : "Použijte svůj účet EspoCRM."}</p>
-      {!secondStep ? <><label>Uživatelské jméno<input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required /></label>
+      {!secondStep && loginOptions.oidc && !showPasswordFallback ? <><button type="button" className="button primary login-submit" onClick={() => void signInWithOidc()} disabled={oidcBusy}>{oidcBusy ? "Připojuji poskytovatele…" : "Přihlásit se firemním účtem"}<span>→</span></button>{loginOptions.fallback && <button type="button" className="login-recovery-link" onClick={() => { setShowPasswordFallback(true); setError(""); }}>Použít uživatelské jméno a heslo</button>}</> : !secondStep ? <><label>Uživatelské jméno<input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required /></label>
       <label>Heslo<div className="login-password-control"><input id="login-password" type={passwordVisible ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" className="login-password-toggle" aria-label={passwordVisible ? "Skrýt heslo" : "Zobrazit heslo"} aria-pressed={passwordVisible} aria-controls="login-password" onClick={() => setPasswordVisible((visible) => !visible)}>{passwordVisible ? <EyeSlash size={16}/> : <Eye size={16}/>}</button></div></label></> : <><p className="login-hint">{secondStep.message || "Zadejte ověřovací kód z druhého kroku přihlášení."}</p><label>Ověřovací kód<input autoFocus inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} required /></label></>}
       {error && <div className="inline-error">{error}</div>}
-      <button className="button primary login-submit" disabled={busy}>{busy ? "Ověřuji…" : secondStep ? "Ověřit a přihlásit se" : "Přihlásit se"}<span>→</span></button>
+      {(!loginOptions.oidc || showPasswordFallback || secondStep) && <button className="button primary login-submit" disabled={busy}>{busy ? "Ověřuji…" : secondStep ? "Ověřit a přihlásit se" : "Přihlásit se"}<span>→</span></button>}
       {secondStep ? <button type="button" className="login-recovery-link" onClick={() => { setSecondStep(null); setCode(""); setError(""); }}>Zpět na přihlášení</button> : recoveryEnabled && <button type="button" className="login-recovery-link" onClick={() => setRecoveryOpen(true)}>Zapomněli jste heslo?</button>}
       <div className="login-secure"><span className="secure-dot"/>Přihlášení ověřuje přímo EspoCRM</div>
     </form><div className="login-bottom">{isPortalLogin ? portalTitle : "ViaCRM"} <span>·</span> {isPortalLogin ? "Zákaznický portál" : "Klientský portál"}</div>{recoveryOpen && <PasswordRecoveryRequest onClose={() => setRecoveryOpen(false)}/>}</section>

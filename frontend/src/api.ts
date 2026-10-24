@@ -1,6 +1,6 @@
 export type User = { id: string; name: string; userName: string; type?: string; portalId?: string };
 export type Session = { username: string; token: string; user: User };
-export type PendingSecondStep = { secondStepRequired: true; username: string; token: string; message?: string };
+export type PendingSecondStep = { secondStepRequired: true; username: string; token: string; message?: string; authorizationHeaders?: Record<string, string> };
 export type UserAcl = { table?: Record<string, boolean | Record<string, string>>; fieldTable?: Record<string, Record<string, Record<string, string>>>; exportPermission?: string; massUpdatePermission?: string; [key: string]: any };
 export type FieldDef = {
   type?: string;
@@ -63,16 +63,16 @@ function storeLogin(username: string, body: any): Session {
 
 export async function login(username: string, password: string): Promise<Session | PendingSecondStep> {
   const auth = btoa(`${username}:${password}`);
-  const response = await fetch("/api/v1/App/user", { headers: {
-    Authorization: `Basic ${auth}`,
-    "Espo-Authorization": auth,
-    "Espo-Authorization-By-Token": "false",
-    "Espo-Authorization-Create-Token-Secret": "true",
-  } });
+  return loginWithAuthorizationHeaders({ Authorization: `Basic ${auth}`, "Espo-Authorization": auth }, username);
+}
+
+export async function loginWithAuthorizationHeaders(authorizationHeaders: Record<string, string>, username = ""): Promise<Session | PendingSecondStep> {
+  const headers = { ...authorizationHeaders, "Espo-Authorization-By-Token": "false", "Espo-Authorization-Create-Token-Secret": "true" };
+  const response = await fetch("/api/v1/App/user", { headers });
   const body = await response.json().catch(() => ({}));
   if (!response.ok && response.headers.get("X-Status-Reason") === "second-step-required") {
     if (!body.token) throw new Error(body.message || "EspoCRM vyžaduje druhý ověřovací krok, ale neposlalo jeho přihlašovací údaj.");
-    return { secondStepRequired: true, username, token: body.token, message: body.message };
+    return { secondStepRequired: true, username, token: body.token, message: body.message, authorizationHeaders: username ? undefined : authorizationHeaders };
   }
   if (!response.ok) throw new Error(body.message || "Přihlašovací údaje nejsou správné.");
   return storeLogin(username, body);
@@ -82,12 +82,10 @@ export async function completeSecondStepLogin(pending: PendingSecondStep, code: 
   const cleanCode = code.replace(/\s/g, "");
   if (!cleanCode) throw new Error("Zadejte ověřovací kód.");
   const auth = btoa(`${pending.username}:${pending.token}`);
-  const response = await fetch("/api/v1/App/user", { headers: {
-    Authorization: `Basic ${auth}`,
-    "Espo-Authorization": auth,
-    "Espo-Authorization-Code": cleanCode,
-    "Espo-Authorization-Create-Token-Secret": "true",
-  } });
+  const responseHeaders: Record<string, string> = pending.authorizationHeaders
+    ? { ...pending.authorizationHeaders, "Espo-Authorization-Code": cleanCode, "Espo-Authorization-Create-Token-Secret": "true" }
+    : { Authorization: `Basic ${auth}`, "Espo-Authorization": auth, "Espo-Authorization-Code": cleanCode, "Espo-Authorization-Create-Token-Secret": "true" };
+  const response = await fetch("/api/v1/App/user", { headers: responseHeaders });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.message || (response.status === 401 ? "Ověřovací kód není správný nebo už vypršel." : "Druhý ověřovací krok se nezdařil."));
   return storeLogin(pending.username, body);

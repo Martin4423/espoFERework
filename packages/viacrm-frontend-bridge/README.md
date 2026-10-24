@@ -1,6 +1,6 @@
 # ViaCRM Frontend Bridge
 
-Install `ViaCRM-Frontend-Bridge-1.5.0.zip` through EspoCRM Administration → Extensions. The extension adds public workflow endpoints and authenticated account-session endpoints used by the React client:
+Install `ViaCRM-Frontend-Bridge-1.6.0.zip` through EspoCRM Administration → Extensions. The extension adds public workflow endpoints and authenticated account-session endpoints used by the React client:
 
 - `GET /api/v1/LeadCapture/formData/{formId}` returns the same public-safe form data that EspoCRM's native `LeadCaptureForm` entry point prepares.
 - `GET /api/v1/LeadCapture/confirmOptIn/{uniqueId}` completes the native one-click opt-in confirmation and returns its status/message.
@@ -14,6 +14,7 @@ Install `ViaCRM-Frontend-Bridge-1.5.0.zip` through EspoCRM Administration → Ex
 - `POST /api/v1/UserSecurity/otherSessions` ends every other active session owned by the authenticated user while preserving the current session.
 - `GET /api/v1/UserSecurity/currentLoginHistory` returns up to 25 login events associated with the authenticated user, including denied attempts, when EspoCRM records the user ID.
 - `GET /api/v1/Portal/publicBranding?path=...&host=...` returns public system branding for the CRM login or, when the request matches a native `/portal/{id}` or configured custom URL, public display settings for that portal.
+- `GET /api/v1/App/publicLoginOptions` reports whether EspoCRM uses its native OIDC login handler and whether password fallback is enabled; it exposes no provider secrets.
 
 The password bridge returns no user identity or password-request data; password request and password change still use EspoCRM's own no-auth actions. Session and history endpoints require authentication and constrain their data to the current user. Session revocation checks ownership before mutation, and bulk revocation verifies the current credential belongs to the authenticated user before ending any other session. The unauthenticated branding endpoint returns only the CRM application name, company-logo attachment ID, logo path, and theme when no portal matches; portal matches return the portal name, application name, company-logo attachment ID, theme, and navbar setting; the native LogoImage entry point serves only company logos associated with Settings or Portal. The form submit itself remains EspoCRM's built-in `POST /api/v1/LeadCapture/form/{formId}` action.
 

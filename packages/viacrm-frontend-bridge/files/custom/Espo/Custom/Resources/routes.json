@@ -72,5 +72,11 @@
     "method": "get",
     "actionClassName": "Espo\\Custom\\Api\\GetPortalPublicBranding",
     "noAuth": true
+  },
+  {
+    "route": "/App/publicLoginOptions",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetPublicLoginOptions",
+    "noAuth": true
   }
 ]
