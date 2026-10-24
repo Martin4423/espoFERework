@@ -1327,6 +1327,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .personal-chart-list b { color: #35415a; font-size: 10px; }
 .personal-chart-list i { height: 7px; overflow: hidden; border-radius: 6px; background: #f0f1f7; }
 .personal-chart-list em { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#7971e2,#aaa5f0); }
+.dashlet-pie-chart { display: grid; grid-template-columns: minmax(100px, .8fr) minmax(0, 1.2fr); align-items: center; gap: 12px; padding: 16px; }
+.dashlet-pie { width: min(100%, 170px); aspect-ratio: 1; justify-self: center; border-radius: 50%; box-shadow: inset 0 0 0 1px #fff; }
+.dashlet-chart-legend { display: grid; min-width: 0; gap: 8px; }
+.dashlet-chart-legend > div { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 6px; color: #66738a; font-size: 9px; }
+.dashlet-chart-legend i { width: 8px; height: 8px; border-radius: 2px; }
+.dashlet-chart-legend span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dashlet-chart-legend strong { color: #35415a; font-size: 9px; }
+.dashlet-month-chart { display: grid; grid-template-columns: repeat(auto-fit, minmax(30px, 1fr)); align-items: end; min-height: 190px; gap: 5px; padding: 18px 12px 10px; }
+.dashlet-month-column { display: flex; min-width: 0; height: 170px; align-items: center; flex-direction: column; justify-content: flex-end; gap: 5px; }
+.dashlet-month-column > strong { max-width: 100%; overflow: hidden; color: #66738a; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.dashlet-month-column > i { display: flex; width: min(100%, 24px); height: 122px; align-items: flex-end; overflow: hidden; border-radius: 5px 5px 2px 2px; background: #f1f2f8; }
+.dashlet-month-column > i > b { display: block; width: 100%; min-height: 2px; border-radius: 5px 5px 0 0; }
+.dashlet-month-column > small { color: #8994a5; font-size: 8px; }
+.dashlet-funnel-chart { display: grid; justify-items: center; gap: 5px; padding: 17px 12px; }
+.dashlet-funnel-row { display: flex; width: 100%; justify-content: center; }
+.dashlet-funnel-segment { display: flex; min-width: 34%; min-height: 31px; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 12px; clip-path: polygon(0 0, 100% 0, 94% 100%, 6% 100%); color: #fff; }
+.dashlet-funnel-segment span { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.dashlet-funnel-segment strong { flex: 0 0 auto; font-size: 9px; }
 .personal-dashlet-iframe { display: block; width: 100%; height: 330px; border: 0; background: #f8f9fb; }
 .dashlet-post-form { display: grid; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #eff1f5; }
 .dashlet-post-form textarea { width: 100%; resize: vertical; border: 1px solid #e4e7ef; border-radius: 7px; padding: 9px; color: #35415a; font: inherit; font-size: 10px; }
