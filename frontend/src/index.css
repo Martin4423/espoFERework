@@ -783,6 +783,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .user-api-credentials > div > span { display: grid; gap: 4px; min-width: 0; }
 .user-api-credentials small { color: #7f899a; font-size: 9px; text-transform: uppercase; }
 .user-api-credentials code { overflow-wrap: anywhere; color: #39455e; font-size: 10px; }
+.user-api-credentials-hint { margin: 9px 1px 0; color: #858fa2; font-size: 10px; line-height: 1.5; }
 .user-login-history .drawer-section-title { display: flex; align-items: center; justify-content: space-between; }
 .user-login-events { display: grid; gap: 7px; }
 .user-login-events article { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid #e6e9f0; border-radius: 8px; background: #fbfcfe; }
