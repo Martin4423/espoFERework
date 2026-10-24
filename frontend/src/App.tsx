@@ -937,7 +937,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
       {emailFilterDraft && entity === "EmailFilter" && <RecordEditor entity="EmailFilter" fields={getEditorFields(metadata, "EmailFilter")} metadata={metadata} initialValues={emailFilterDraft} onClose={() => setEmailFilterDraft(null)} onSaved={() => { setEmailFilterDraft(null); setEmailRefresh((n) => n + 1); }} />}
       {quickCreateScope && <RecordEditor entity={quickCreateScope} fields={getEditorFields(metadata, quickCreateScope).filter(([name, def]) => (quickCreateLayout?.scope !== quickCreateScope || quickCreateLayout.names.includes(name)) && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.read !== "no" && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.edit !== "no" && !def.hidden && !def.utility && !def.disabled)} metadata={metadata} initialValues={quickCreateInitialValues} onClose={() => { setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); }} onSaved={(created) => { const scope = quickCreateScope; const fromDashboard = quickCreateFromDashboard; setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); if (fromDashboard) setDashboardRefreshKey((value) => value + 1); else { openEntity(scope); setRecord(created); } }}/>}
       {emailDraft && <EmailComposer metadata={metadata} initial={emailDraft} onClose={() => setEmailDraft(null)} onSaved={() => { setEmailDraft(null); setEmailRefresh((n) => n + 1); }} />}
-      {globalSearchOpen && <GlobalSearchOverlay metadata={metadata} onClose={() => setGlobalSearchOpen(false)} onSelect={(name, row) => { setGlobalSearchOpen(false); openEntity(name); setRecord(row); }} />}
+      {globalSearchOpen && <GlobalSearchOverlay metadata={metadata} tabs={nativeNavItems} isAdmin={user.type === "admin" || user.type === "super-admin"} onClose={() => setGlobalSearchOpen(false)} onNavigate={(target) => { setGlobalSearchOpen(false); if (target === "__dashboard__") { setEntity(null); setCalendarOpen(false); setAdminOpen(false); setActivityOpen(false); setGlobalStreamOpen(false); setNotificationsOpen(false); setLastViewedOpen(false); setAccountPage(null); setRecord(null); } else if (target === "__calendar__") openCalendar(); else openEntity(target); }} onSelect={(name, row) => { setGlobalSearchOpen(false); openEntity(name); setRecord(row); }} />}
       <footer className="app-footer"><span>ViaCRM</span><span>Vaše vztahy. Váš přehled.</span></footer>
     </section>
   </div>;
@@ -1193,12 +1193,39 @@ function AdminNotifications({ metadata, onBack }: { metadata: Metadata; onBack: 
   </div>;
 }
 
-function GlobalSearchOverlay({ metadata, onClose, onSelect }: { metadata: Metadata; onClose: () => void; onSelect: (entity: string, record: Row) => void }) {
+type QuickSearchTab = { label: string; target: string; admin?: boolean };
+const quickAdminTargets: Record<string, string> = { users: "User", teams: "Team", roles: "Role", entityManager: "__entity-manager__", groupEmailAccounts: "EmailAccount", personalEmailAccounts: "EmailAccount", portalUsers: "__portal-users__", workingTimeCalendar: "WorkingTimeCalendar" };
+function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNavigate }: { metadata: Metadata; tabs: any[]; isAdmin: boolean; onClose: () => void; onSelect: (entity: string, record: Row) => void; onNavigate: (target: string) => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Row[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const quickTabs = useMemo<QuickSearchTab[]>(() => {
+    const items: QuickSearchTab[] = [];
+    const add = (label: string, target: string, admin = false) => { if (label && !items.some((item) => item.target === target)) items.push({ label, target, admin }); };
+    const walk = (list: any[]) => list.forEach((item) => {
+      if (typeof item === "string") {
+        if (item === "Home") add("Přehled", "__dashboard__");
+        else if (item === "Calendar") add("Kalendář", "__calendar__");
+        else if (item.startsWith("_") || !metadata.scopes?.[item]?.entity) return;
+        else add(entityLabel(metadata, item, true), item);
+      } else if (item?.type === "url") add(String(item.text || item.url || "Odkaz").replace(/^\$/, ""), `url:${item.url}`);
+      else if (Array.isArray(item?.itemList)) walk(item.itemList);
+    });
+    walk(tabs);
+    if (isAdmin) {
+      const labels: Record<string, string> = { users: "Users", teams: "Teams", roles: "Roles", entityManager: "Entity Manager", groupEmailAccounts: "Group Email Accounts", personalEmailAccounts: "Personal Email Accounts", portalUsers: "Portal Users", workingTimeCalendar: "Working Time Calendars" };
+      Object.entries(quickAdminTargets).forEach(([key, target]) => add((metadata.labels as any)?.Admin?.labels?.[labels[key]] || labels[key], `admin:${target}`, true));
+    }
+    return items;
+  }, [metadata, tabs, isAdmin]);
+  const matchingTabs = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase();
+    if (!normalized) return [];
+    return quickTabs.filter((item) => item.label.toLocaleLowerCase().includes(normalized)).sort((a, b) => Number(!a.label.toLocaleLowerCase().startsWith(normalized)) - Number(!b.label.toLocaleLowerCase().startsWith(normalized)) || a.label.length - b.label.length || a.label.localeCompare(b.label)).slice(0, 8);
+  }, [query, quickTabs]);
+  const selectableCount = matchingTabs.length + results.length;
   useEffect(() => {
     const normalized = query.trim();
     setResults([]); setSelectedIndex(0);
@@ -1221,13 +1248,23 @@ function GlobalSearchOverlay({ metadata, onClose, onSelect }: { metadata: Metada
     if (scope) onSelect(scope, record);
     else setError("Výsledku chybí typ záznamu.");
   }
-  function handleSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
-    if (event.key === "ArrowDown" && results.length) { event.preventDefault(); setSelectedIndex((index) => (index + 1) % results.length); }
-    else if (event.key === "ArrowUp" && results.length) { event.preventDefault(); setSelectedIndex((index) => (index - 1 + results.length) % results.length); }
-    else if (event.key === "Enter" && results.length) { event.preventDefault(); selectResult(selectedIndex); }
+  function selectItem(index: number) {
+    if (index < matchingTabs.length) {
+      const target = matchingTabs[index].target;
+      if (target.startsWith("url:")) window.location.assign(target.slice(4));
+      else if (target.startsWith("admin:")) onNavigate(target.slice(6));
+      else onNavigate(target);
+      return;
+    }
+    selectResult(index - matchingTabs.length);
   }
-  return <div className="global-search-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Vyhledávání v CRM"><div className="global-search-input"><Search size={19}/><input autoFocus role="combobox" aria-autocomplete="list" aria-expanded={query.trim().length >= 2} aria-controls="global-search-results" aria-activedescendant={results.length ? `global-search-result-${selectedIndex}` : undefined} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={handleSearchKeyDown} placeholder="Hledat firmy, kontakty, příležitosti…"/><kbd>ESC</kbd><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
-    {query.trim().length < 2 ? <div className="global-search-hint">Zadejte alespoň 2 znaky. Výsledky vyhledává EspoCRM podle přístupných záznamů.</div> : <div className="global-search-results" id="global-search-results" role="listbox">{busy ? <div className="global-search-state"><span className="spinner"/>Hledám v CRM…</div> : error ? <div className="global-search-state error">{error}</div> : results.length ? results.map((record, index) => { const scope = record.entityType || record.scope || record._scope || ""; return <button id={`global-search-result-${index}`} role="option" aria-selected={selectedIndex === index} className={`global-search-result ${selectedIndex === index ? "active" : ""}`} key={`${scope}-${record.id}-${index}`} onMouseEnter={() => setSelectedIndex(index)} onClick={() => selectResult(index)}><span className="global-result-icon"><EntityIcon name={scope} size={15}/></span><span><strong>{recordFieldDisplayValue(scope, "name", record) || record.subject || "Záznam"}</strong><small>{entityLabel(metadata, scope)}{record.accountName ? ` · ${record.accountName}` : ""}</small></span><ArrowRight size={14}/></button>; }) : <div className="global-search-state">Nenašli jsme žádné odpovídající záznamy.</div>}</div>}
+  function handleSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown" && selectableCount) { event.preventDefault(); setSelectedIndex((index) => (index + 1) % selectableCount); }
+    else if (event.key === "ArrowUp" && selectableCount) { event.preventDefault(); setSelectedIndex((index) => (index - 1 + selectableCount) % selectableCount); }
+    else if (event.key === "Enter" && selectableCount) { event.preventDefault(); selectItem(Math.min(selectedIndex, selectableCount - 1)); }
+  }
+  return <div className="global-search-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Vyhledávání v CRM"><div className="global-search-input"><Search size={19}/><input autoFocus role="combobox" aria-autocomplete="list" aria-expanded={selectableCount > 0} aria-controls="global-search-results" aria-activedescendant={selectableCount ? `global-search-result-${selectedIndex}` : undefined} value={query} onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }} onKeyDown={handleSearchKeyDown} placeholder="Hledat moduly, administraci a záznamy…"/><kbd>ESC</kbd><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
+    {query.trim().length < 1 ? <div className="global-search-hint">Začněte psát název modulu, administrace nebo záznamu.</div> : <div className="global-search-results" id="global-search-results" role="listbox">{matchingTabs.length > 0 && <><div className="global-search-section-label">Rychlé přechody</div>{matchingTabs.map((item, index) => <button id={`global-search-result-${index}`} role="option" aria-selected={selectedIndex === index} className={`global-search-result ${selectedIndex === index ? "active" : ""}`} key={item.target} onMouseEnter={() => setSelectedIndex(index)} onClick={() => selectItem(index)}><span className="global-result-icon"><ArrowRight size={15}/></span><span><strong>{item.label}</strong><small>{item.admin ? "Administrace" : item.target.startsWith("url:") ? "Odkaz" : "Modul"}</small></span><ArrowRight size={14}/></button>)}</>}{query.trim().length >= 2 && <><div className="global-search-section-label">Záznamy</div>{busy ? <div className="global-search-state"><span className="spinner"/>Hledám v CRM…</div> : error ? <div className="global-search-state error">{error}</div> : results.length ? results.map((record, index) => { const scope = record.entityType || record.scope || record._scope || ""; const itemIndex = matchingTabs.length + index; return <button id={`global-search-result-${itemIndex}`} role="option" aria-selected={selectedIndex === itemIndex} className={`global-search-result ${selectedIndex === itemIndex ? "active" : ""}`} key={`${scope}-${record.id}-${index}`} onMouseEnter={() => setSelectedIndex(itemIndex)} onClick={() => selectItem(itemIndex)}><span className="global-result-icon"><EntityIcon name={scope} size={15}/></span><span><strong>{recordFieldDisplayValue(scope, "name", record) || record.subject || "Záznam"}</strong><small>{entityLabel(metadata, scope)}{record.accountName ? ` · ${record.accountName}` : ""}</small></span><ArrowRight size={14}/></button>; }) : <div className="global-search-state">Nenašli jsme žádné odpovídající záznamy.</div>}</>}</div>}
     <footer className="global-search-footer"><span><kbd>↵</kbd> otevřít záznam</span><span>Vyhledávání respektuje oprávnění účtu</span></footer>
   </section></div>;
 }

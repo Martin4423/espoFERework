@@ -1141,6 +1141,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .global-search-input .icon-button { flex: 0 0 34px; }
 .global-search-hint { padding: 24px 20px; color: #929daf; font-size: 10px; }
 .global-search-results { overflow: auto; padding: 6px; }
+.global-search-section-label { padding: 11px 10px 5px; color: #98a1b0; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .global-search-result { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 53px; padding: 7px 10px; border: 0; border-radius: 8px; background: white; text-align: left; cursor: pointer; }
 .global-search-result:hover, .global-search-result.active { background: #f1efff; }
 .global-result-icon { display: grid; place-items: center; width: 31px; height: 31px; flex: 0 0 31px; border-radius: 9px; background: #f0efff; color: #716bcf; }
