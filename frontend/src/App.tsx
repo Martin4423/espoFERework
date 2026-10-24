@@ -1115,6 +1115,7 @@ function AdminSettings({ metadata, onBack, focus = "all" }: { metadata: Metadata
     if (smtpGroup.length) settingsGroups.unshift({ title: "SMTP server", group: smtpGroup });
   }
   async function save() {
+    if (settings.thousandSeparator && settings.decimalMark && settings.thousandSeparator === settings.decimalMark) { setError((metadata.labels as any)?.Admin?.messages?.thousandSeparatorEqualsDecimalMark || "Oddělovač tisíců nesmí být stejný jako oddělovač desetinných míst."); return; }
     if (focus === "outboundEmails" && settings.smtpServer && (!Number.isInteger(Number(settings.smtpPort)) || Number(settings.smtpPort) < 1 || Number(settings.smtpPort) > 65535)) { setError("Zadejte platný SMTP port od 1 do 65535."); return; }
     if (focus === "outboundEmails" && settings.smtpServer && settings.smtpAuth && !String(settings.smtpUsername || "").trim()) { setError("Při zapnutém SMTP ověřování je uživatelské jméno povinné."); return; }
     const emailAddressPattern = /^[-!#$%&'*+/=?^_`{|}~A-Za-z0-9]+(?:\.[-!#$%&'*+/=?^_`{|}~A-Za-z0-9]+)*@([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]$/;
@@ -4437,7 +4438,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const label = fieldLabel(name, def, entity, metadata);
   const resolvedOptions = nativeFieldOptions(metadata, entity, name, def);
   if (entity === "Portal" && ["tabList", "quickCreateList"].includes(name)) return <PortalScopeListEditor name={name} label={label} value={value} metadata={metadata} disabled={fieldDisabled} onChange={onChange}/>;
-  const optionLabel = (option: string | number) => ((["language", "formLanguage"].includes(name) ? (metadata.labels as any)?.Global?.options?.language?.[String(option)] : undefined) || (name === "theme" ? (metadata.labels as any)?.Global?.themes?.[String(option)] : undefined) || resolvedOptions.labels[String(option)] || String(option));
+  const optionLabel = (option: string | number) => ((["language", "formLanguage"].includes(name) ? (metadata.labels as any)?.Global?.options?.language?.[String(option)] : undefined) || (name === "theme" ? (metadata.labels as any)?.Global?.themes?.[String(option)] : undefined) || (entity === "Settings" && name === "fiscalYearShift" ? (metadata.labels as any)?.Global?.lists?.monthNames?.[Number(option)] : undefined) || resolvedOptions.labels[String(option)] || String(option));
   const currencySettings = metadata.appSettings || {};
   const currencyList = (currencySettings.currencyList || (metadata.app as any)?.currency?.list || []) as string[];
   const defaultCurrency = String(currencySettings.defaultCurrency || currencyList[0] || "USD");
@@ -4461,6 +4462,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     if (type === "arrayInt") return resolvedOptions.options;
     if (type !== "multiEnum" || resolvedOptions.options.length) return resolvedOptions.options;
     if (entity === "Settings" && name === "currencyList") return ((metadata.app as any)?.currency?.list || []) as string[];
+    if (entity === "Settings" && name === "auth2FAMethodList") return Object.entries((metadata.app as any)?.authentication2FAMethods || {}).filter(([, method]: [string, any]) => method?.settings?.isAvailable).map(([method]) => method);
     const scopes = metadata.scopes as Record<string, any>;
     const view = String(def.view || "");
     return Object.keys(scopes).filter((scope) => {
@@ -4480,10 +4482,13 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   }, [resolvedOptions.options, metadata, name, type]);
   const fieldOptions = useMemo(() => {
     if (resolvedOptions.options.length) return resolvedOptions.options;
+    if (entity === "Settings" && name === "dateFormat") return ((metadata.app as any)?.dateTime?.dateFormatList || []) as string[];
+    if (entity === "Settings" && name === "timeFormat") return ((metadata.app as any)?.dateTime?.timeFormatList || []) as string[];
+    if (entity === "Settings" && name === "fiscalYearShift") return ((metadata.labels as any)?.Global?.lists?.monthNames || []).map((_: string, index: number) => index) as number[];
     if (name === "language" || name === "formLanguage") return ((metadata.app as any)?.language?.list || []) as string[];
     if (entity === "Settings" && name === "pdfEngine") return Object.keys((metadata.app as any)?.pdfEngines || {});
     if (entity === "Settings" && name === "smsProvider") return Object.keys((metadata.app as any)?.smsProviders || {});
-    if (entity === "Settings" && name === "authenticationMethod") return Object.keys((metadata as any).authenticationMethods || {});
+    if (entity === "Settings" && name === "authenticationMethod") return Object.entries((metadata as any).authenticationMethods || {}).filter(([, method]: [string, any]) => method?.settings?.isAvailable).map(([method]) => method);
     if (entity === "Settings" && ["defaultCurrency", "baseCurrency"].includes(name)) return currencyList;
     return [];
   }, [currencyList, resolvedOptions.options, entity, metadata, name]);
