@@ -4087,8 +4087,15 @@ function LayoutSetLayoutsField({ metadata, selected, onChange }: { metadata: Met
 }
 
 function RoleAclEditor({ metadata, type, data, fieldData, onChange }: { metadata: Metadata; type: "acl" | "aclPortal"; data: Row; fieldData: Row; onChange: (data: Row, fieldData: Row) => void }) {
+  const [query, setQuery] = useState("");
+  const [accessFilter, setAccessFilter] = useState("all");
   const aclProperty = type === "aclPortal" ? "aclPortal" : "acl";
   const scopes = Object.entries(metadata.scopes as Record<string, any>).filter(([, def]) => Boolean(def[aclProperty]) && !def.disabled && (type !== "aclPortal" || !def.disabledPortal)).sort(([a], [b]) => entityLabel(metadata, a, true).localeCompare(entityLabel(metadata, b, true), "cs"));
+  const visibleScopes = scopes.filter(([scope]) => {
+    const current = data[scope];
+    const access = current === false ? "disabled" : current === undefined ? "not-set" : "enabled";
+    return (accessFilter === "all" || accessFilter === access) && (!query.trim() || `${scope} ${entityLabel(metadata, scope, true)} ${entityLabel(metadata, scope)}`.toLocaleLowerCase("cs-CZ").includes(query.trim().toLocaleLowerCase("cs-CZ")));
+  });
   const actions = ["create", "read", "edit", "delete", "stream"];
   const recordLevels = type === "aclPortal" ? ["all", "account", "contact", "own", "no"] : ["all", "team", "own", "no"];
   const levelOrder = type === "aclPortal" ? ["yes", "all", "account", "contact", "own", "no"] : ["yes", "all", "team", "own", "no", "account", "contact"];
@@ -4158,8 +4165,9 @@ function RoleAclEditor({ metadata, type, data, fieldData, onChange }: { metadata
     onChange(next, fieldData);
   };
   return <section className="record-editor-group role-acl-editor"><h3>{type === "aclPortal" ? "Oprávnění portálu" : "Přístupová práva"}</h3><p className="role-acl-intro">Nastavte přístup k modulům a případná omezení jednotlivých polí. „Není nastaveno“ ponechá rozhodnutí na ostatních rolích uživatele.</p>
+    <div className="role-acl-tools"><label className="role-acl-search"><Search size={14}/><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Hledat modul nebo název…" aria-label="Hledat modul v oprávněních"/>{query && <button type="button" aria-label="Vymazat hledání" onClick={() => setQuery("")}>×</button>}</label><label className="role-acl-filter"><span>Stav přístupu</span><select value={accessFilter} onChange={(event) => setAccessFilter(event.target.value)}><option value="all">Všechny moduly</option><option value="enabled">Povoleno</option><option value="disabled">Zakázáno</option><option value="not-set">Není nastaveno</option></select></label><span className="role-acl-result-count" aria-live="polite">{visibleScopes.length} z {scopes.length} modulů</span></div>
     <div className="role-acl-table"><div className="role-acl-row header"><strong>Modul</strong><span>Přístup</span>{actions.map((action) => <span key={action}>{({ create: "Vytvářet", read: "Číst", edit: "Upravovat", delete: "Mazat", stream: "Stream" } as Row)[action]}</span>)}</div>
-      {scopes.map(([scope, def]) => {
+      {visibleScopes.map(([scope, def]) => {
         const current = data[scope]; const access = current === false ? "disabled" : current === undefined ? "not-set" : "enabled";
         const allowed: string[] = def[`${type}ActionList`] || def.aclActionList || actions;
         return <div className="role-acl-row" key={scope}><strong>{entityLabel(metadata, scope, true)}</strong><select aria-label={`${entityLabel(metadata, scope)} přístup`} value={access} onChange={(event) => updateAccess(scope, event.target.value)}><option value="not-set">Není nastaveno</option><option value="enabled">Povoleno</option><option value="disabled">Zakázáno</option></select>{actions.map((action) => {
@@ -4177,6 +4185,7 @@ function RoleAclEditor({ metadata, type, data, fieldData, onChange }: { metadata
           {def.entity && !def[`${type}FieldLevelDisabled`] && <details className="role-acl-fields"><summary>Omezení polí {Object.keys(fieldData[scope] || {}).length ? `(${Object.keys(fieldData[scope]).length})` : ""}</summary><RoleFieldAcl metadata={metadata} scope={scope} type={type} data={fieldData[scope] || {}} onChange={(nextScopeData) => onChange(data, { ...fieldData, [scope]: nextScopeData })}/></details>}
         </div>;
       })}
+      {!visibleScopes.length && <div className="role-acl-empty">{scopes.length ? "Žádný modul neodpovídá hledání nebo vybranému filtru." : "Pro tuto roli nejsou dostupné žádné moduly s ACL."}</div>}
     </div>
   </section>;
 }
