@@ -1,0 +1,335 @@
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { Activity, ArrowDown, ArrowUp, BarChart3, CalendarDays, Check, ChevronDown, Mail, Plus, RefreshCw, RotateCcw, Send, Settings2, Star, Trash2, Users, X } from "./Icons";
+import { aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, entityLabel, entityList, request } from "./api";
+import type { Metadata, User } from "./api";
+import SelectRecordsDialog from "./SelectRecordsDialog";
+
+type Data = Record<string, any>;
+type Dashlet = { id: string; name: string; x?: number; y?: number; width?: number; height?: number };
+type DashTab = { name: string; layout: Dashlet[] };
+type DashTabDraft = { sourceIndex: number | null; name: string };
+const defaultLayout: DashTab[] = [{ name: "My Espo", layout: [{ id: "default-activities", name: "Activities", x: 2, y: 2, width: 2, height: 4 }, { id: "default-stream", name: "Stream", x: 0, y: 0, width: 2, height: 4 }] }];
+const entityByDashlet: Record<string, string> = { Leads: "Lead", Opportunities: "Opportunity", Cases: "Case", Calls: "Call", Meetings: "Meeting", Tasks: "Task", Emails: "Email" };
+
+function DashletCard({ item, user, metadata, options, appSettings, onOpenRecord, onComposeEmail }: { item: Dashlet; user: User; metadata: Metadata; options: Data; appSettings: Data; onOpenRecord: (scope: string, record: Data) => void; onComposeEmail: () => void }) {
+  const [rows, setRows] = useState<Data[]>([]);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [refreshIndex, setRefreshIndex] = useState(0);
+  const [postOpen, setPostOpen] = useState(false);
+  const [postText, setPostText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [emailActionBusy, setEmailActionBusy] = useState("");
+  const definition = (metadata as any).dashlets?.[item.name] || {};
+  const entity = definition.entityType || entityByDashlet[item.name] || options.entityType;
+  useEffect(() => {
+    let live = true;
+    async function load() {
+      setBusy(true); setError("");
+      try {
+        if (item.name === "Stream") {
+          if (aclLevel(metadata, "Stream", "read") === "no") { if (live) setRows([]); return; }
+          const params = new URLSearchParams({ maxSize: String(Number(options.displayRecords || 8)), offset: "0" });
+          if (options.skipOwn) params.set("skipOwn", "true");
+          const data = await request<Data>(`Stream?${params}`);
+          const list = Array.isArray(data) ? data : data.list || [];
+          if (live) setRows(list);
+        } else if (item.name === "Activities" || item.name === "Calendar") {
+          const start = new Date(); start.setDate(start.getDate() - 7);
+          const end = new Date(); end.setDate(end.getDate() + Math.max(7, Number(options.futureDays || 30)));
+          const allowedActivities = (options.enabledScopeList || ["Meeting", "Call", "Task"]).filter((scope: string) => canAccessEntity(metadata, scope));
+          if (!allowedActivities.length) { if (live) setRows([]); return; }
+          const params = new URLSearchParams({ from: start.toISOString().slice(0, 19).replace("T", " "), to: end.toISOString().slice(0, 19).replace("T", " "), scopeList: allowedActivities.join(","), agenda: "true" });
+          params.set("futureDays", String(Number(options.futureDays ?? 30)));
+          if (options.includeShared) params.set("includeShared", "true");
+          if (item.name === "Calendar") {
+            if (options.mode === "timeline" && Array.isArray(options.usersIds) && options.usersIds.length) params.set("userIdList", options.usersIds.join(","));
+            if (["basicWeek", "month", "basicDay"].includes(options.mode) && Array.isArray(options.teamsIds) && options.teamsIds.length) params.set("teamIdList", options.teamsIds.join(","));
+          }
+          const data = await request<Data[]>(`Activities?${params}`);
+          if (live) setRows((data || []).slice(0, Number(options.displayRecords || 8)));
+        } else if (item.name === "Memo") {
+          if (live) setRows([]);
+        } else if (item.name === "Emails" && canAccessEntity(metadata, "Email")) {
+          const params = new URLSearchParams({ maxSize: String(Number(options.displayRecords || 5)), offset: "0", orderBy: "dateSent", order: "desc", where: JSON.stringify([{ type: "inFolder", attribute: "folderId", value: options.folder || "inbox" }]) });
+          const data = await request<{ list?: Data[] }>(`Email?${params}`);
+          if (live) setRows(data.list || []);
+        } else if (entity && metadata.entityDefs?.[entity]?.fields && canAccessEntity(metadata, entity)) {
+          const data = await request<{ list: Data[] }>(`${encodeURIComponent(entity)}?maxSize=${Number(options.displayRecords || 8)}&offset=0&orderBy=${encodeURIComponent(options.orderBy || "modifiedAt")}&order=${encodeURIComponent(options.order || "desc")}`);
+          if (live) setRows(data.list || []);
+        } else if (["OpportunitiesByStage", "OpportunitiesByLeadSource", "SalesByMonth", "SalesPipeline"].includes(item.name) && canAccessEntity(metadata, "Opportunity")) {
+          const action = { OpportunitiesByStage: "reportByStage", OpportunitiesByLeadSource: "reportByLeadSource", SalesByMonth: "reportSalesByMonth", SalesPipeline: "reportSalesPipeline" }[item.name];
+          const params = new URLSearchParams({ dateFilter: options.dateFilter || "currentYear" });
+          if (options.dateFilter === "between") { params.set("dateFrom", options.dateFrom || ""); params.set("dateTo", options.dateTo || ""); }
+          if (item.name === "SalesPipeline" && options.useLastStage) params.set("useLastStage", "true");
+          if (item.name === "SalesPipeline" && options.teamId) params.set("teamId", options.teamId);
+          const data = await request<Data>(`Opportunity/action/${action}?${params}`);
+          if (live) setRows(Object.entries(data || {}).map(([name, value]) => ({ name, value })));
+        } else if (live) setRows([]);
+      } catch (cause) { if (live) setError(cause instanceof Error ? cause.message : "Obsah panelu nelze načíst."); }
+      finally { if (live) setBusy(false); }
+    }
+    void load();
+    return () => { live = false; };
+  }, [item.name, item.id, user.id, entity, options.folder, options.displayRecords, options.enabledScopeList, options.futureDays, options.includeShared, options.orderBy, options.order, options.dateFilter, options.dateFrom, options.dateTo, options.useLastStage, options.teamId, options.teamsIds, options.usersIds, metadata, refreshIndex]);
+  const title = options.title || (metadata as any).labels?.dashlets?.[item.name] || item.name;
+  async function createPost() {
+    if (!postText.trim()) return;
+    setPosting(true); setError("");
+    try { await request("Note", { method: "POST", body: JSON.stringify({ type: "Post", targetType: "self", post: postText.trim() }) }); setPostText(""); setPostOpen(false); setRefreshIndex((value) => value + 1); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Příspěvek se nepodařilo odeslat."); }
+    finally { setPosting(false); }
+  }
+  async function runEmailAction(row: Data, action: "important" | "trash" | "retrieve" | "remove") {
+    if (!row.id || emailActionBusy) return;
+    if (action === "remove" && !window.confirm("Opravdu chcete tento e-mail odstranit?")) return;
+    setEmailActionBusy(`${row.id}:${action}`); setError("");
+    try {
+      if (action === "important") await request("Email/inbox/important", { method: row.isImportant ? "DELETE" : "POST", body: JSON.stringify({ id: row.id }) });
+      else if (action === "trash") await request("Email/inbox/inTrash", { method: "POST", body: JSON.stringify({ id: row.id }) });
+      else if (action === "retrieve") await request("Email/inbox/inTrash", { method: "DELETE", body: JSON.stringify({ id: row.id }) });
+      else await request(`Email/${encodeURIComponent(row.id)}`, { method: "DELETE" });
+      if (action === "important") setRows((current) => current.map((entry) => entry.id === row.id ? { ...entry, isImportant: !row.isImportant } : entry));
+      else setRows((current) => current.filter((entry) => entry.id !== row.id));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Akci s e-mailem se nepodařilo provést."); }
+    finally { setEmailActionBusy(""); }
+  }
+  const icon = item.name === "Activities" || item.name === "Stream" ? Activity : item.name === "Calendar" ? CalendarDays : item.name === "Emails" ? Mail : item.name.includes("Opportunities") || item.name.includes("Sales") ? BarChart3 : Users;
+  const Icon = icon;
+  const isChart = ["OpportunitiesByStage", "OpportunitiesByLeadSource", "SalesByMonth", "SalesPipeline"].includes(item.name);
+  const maxValue = Math.max(1, ...rows.map((row) => Number(row.value) || 0));
+  let safeIframeUrl = "";
+  if (item.name === "Iframe" && options.url) {
+    try { const url = new URL(options.url); if (["http:", "https:"].includes(url.protocol)) safeIframeUrl = url.toString(); } catch { /* Invalid URLs are not loaded. */ }
+  }
+  let iframeSandbox: string | undefined = "allow-scripts";
+  if (safeIframeUrl) { try { if ((appSettings.iframeSandboxExcludeDomainList || []).includes(new URL(safeIframeUrl).hostname)) iframeSandbox = undefined; } catch { /* Keep the restrictive default. */ } }
+  return <section className="surface personal-dashlet"><header><span className="personal-dashlet-icon"><Icon size={16}/></span><h2>{title}</h2>{item.name === "Stream" && <button className="icon-button" aria-label="Napsat příspěvek" title="Napsat příspěvek" onClick={() => setPostOpen(true)}><Plus size={14}/></button>}{item.name === "Emails" && canCreateEntity(metadata, "Email") && <button className="icon-button" aria-label="Napsat e-mail" title="Napsat e-mail" onClick={onComposeEmail}><Plus size={14}/></button>}<button className="icon-button" aria-label="Obnovit panel" onClick={() => setRefreshIndex((value) => value + 1)}><RefreshCw size={13}/></button></header>
+    {item.name === "Memo" ? <div className="personal-memo">{options.text || "Poznámka je prázdná. Upravte nastavení panelu."}</div> : item.name === "Iframe" ? safeIframeUrl ? <iframe className="personal-dashlet-iframe" title={title} src={safeIframeUrl} sandbox={iframeSandbox}/> : <div className="personal-dashlet-empty">Nastavte platnou adresu http nebo https.</div> : busy ? <div className="table-loading"><span className="spinner"/>Načítám…</div> : error && item.name !== "Stream" ? <div className="dashlet-error">{error}</div> : rows.length ? isChart ? <div className="personal-chart-list">{rows.map((row, index) => <div key={`${row.name}-${index}`}><span><strong>{row.name}</strong><b>{row.value}</b></span><i><em style={{ width: `${Math.max(2, (Number(row.value) / maxValue) * 100)}%` }}/></i></div>)}</div> : <div className="personal-dashlet-list">{rows.map((row, index) => { const scope = row.scope || row.entityType || entity || ""; const id = row.recordId || row.id; const text = item.name === "Emails" ? row.subject || "(bez předmětu)" : row.name || row.title || row.subject || row.message || row.nameValue || "Aktivita"; const subtitle = item.name === "Emails" ? [row.personStringData || row.fromString || row.fromName || row.fromAddress, row.dateSent].filter(Boolean).join(" · ") : `${scope ? entityLabel(metadata, scope) : row.createdByName || row.createdAt || ""}${row.dateStart ? ` · ${row.dateStart}` : ""}`; const isEmail = item.name === "Emails"; const rowBusy = emailActionBusy.startsWith(`${row.id}:`); const trash = Boolean(row.inTrash); return <div key={`${id}-${index}`} className={`personal-dashlet-row${isEmail ? " personal-dashlet-email-row" : ""}`}><button className={`personal-dashlet-open${isEmail && !row.isRead ? " dashlet-email-unread" : ""}`} onClick={() => scope && metadata.entityDefs?.[scope]?.fields && onOpenRecord(scope, { ...row, id })}><span><strong>{text}</strong><small>{subtitle}</small></span><ChevronDown size={13}/></button>{isEmail && <div className="personal-dashlet-row-actions">{row.isUsers && <button className={`icon-button${row.isImportant ? " is-active" : ""}`} aria-label={row.isImportant ? "Odebrat důležitost" : "Označit jako důležitý"} title={row.isImportant ? "Odebrat důležitost" : "Označit jako důležitý"} disabled={rowBusy} onClick={() => void runEmailAction(row, "important")}><Star size={13} fill={row.isImportant ? "currentColor" : "none"}/></button>}{row.isUsers && row.status !== "Draft" && <button className="icon-button" aria-label={trash ? "Obnovit z koše" : "Přesunout do koše"} title={trash ? "Obnovit z koše" : "Přesunout do koše"} disabled={rowBusy} onClick={() => void runEmailAction(row, trash ? "retrieve" : "trash")}>{trash ? <RotateCcw size={13}/> : <Trash2 size={13}/>}</button>}{canChangeEntity(metadata, "Email", "delete") && <button className="icon-button" aria-label="Odstranit e-mail" title="Odstranit e-mail" disabled={rowBusy} onClick={() => void runEmailAction(row, "remove")}><X size={13}/></button>}</div>}</div>; })}</div> : <div className="personal-dashlet-empty">V tomto panelu zatím nejsou žádné záznamy.</div>}
+    {error && item.name === "Stream" && <div className="dashlet-error">{error}</div>}{postOpen && <div className="dashlet-post-form"><textarea rows={3} placeholder="Co chcete sdílet?" value={postText} onChange={(event) => setPostText(event.target.value)}/><div><button className="button subtle" onClick={() => setPostOpen(false)}>Zrušit</button><button className="button primary" onClick={() => void createPost()} disabled={posting || !postText.trim()}><Send size={13}/>{posting ? "Odesílám…" : "Publikovat"}</button></div></div>}
+  </section>;
+}
+
+export default function PersonalDashboard({ user, metadata, onOpenRecord, onComposeEmail, fallback }: { user: User; metadata: Metadata; onOpenRecord: (scope: string, record: Data) => void; onComposeEmail: () => void; fallback: ReactNode }) {
+  const [layout, setLayout] = useState<DashTab[]>(defaultLayout);
+  const [dashletsOptions, setDashletsOptions] = useState<Data>({});
+  const [preferences, setPreferences] = useState<Data>({});
+  const [appSettings, setAppSettings] = useState<Data>({});
+  const [activeTab, setActiveTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [selectedDashlet, setSelectedDashlet] = useState("");
+  const [addSearch, setAddSearch] = useState("");
+  const [editing, setEditing] = useState<Dashlet | null>(null);
+  const [editOptions, setEditOptions] = useState<Data>({});
+  const [optionPicker, setOptionPicker] = useState<{ field: string; entity: string; multiple: boolean } | null>(null);
+  const [emailFolderOptions, setEmailFolderOptions] = useState<Array<[string, string]>>([["inbox", "Doručená pošta"]]);
+  const [tabsOpen, setTabsOpen] = useState(false);
+  const [tabDraft, setTabDraft] = useState<DashTabDraft[]>([]);
+  const definitions = (metadata as any).dashlets || {};
+  const currentTab = layout[activeTab] || layout[0];
+  const canEditLayout = !user.portalId && metadata.userAcl?.fieldTable?.Preferences?.dashboardLayout?.edit !== "no";
+  const canEditDashlets = !user.portalId && metadata.userAcl?.fieldTable?.Preferences?.dashletsOptions?.edit !== "no";
+  const canAddDashlet = canEditLayout && !preferences.dashboardLocked;
+  useEffect(() => {
+    let live = true;
+    Promise.all([request<Data>(`Preferences/${encodeURIComponent(user.id)}`), request<Data>("Settings")]).then(([data, config]) => {
+      if (!live) return;
+      setPreferences(data);
+      setAppSettings(config);
+      setLayout(Array.isArray(data.dashboardLayout) && data.dashboardLayout.length ? data.dashboardLayout : defaultLayout);
+      setDashletsOptions(data.dashletsOptions || {});
+      setActiveTab(Math.min(Number(localStorage.getItem(`via-dashboard-tab-${user.id}`) || 0), Math.max((data.dashboardLayout || defaultLayout).length - 1, 0)));
+    }).catch((cause) => live && setError(cause instanceof Error ? cause.message : "Dashboard nejde načíst." )).finally(() => live && setLoading(false));
+    return () => { live = false; };
+  }, [user.id]);
+  async function save(nextLayout = layout, nextOptions = dashletsOptions) {
+    setSaving(true); setError("");
+    try { const data = await request<Data>(`Preferences/${encodeURIComponent(user.id)}`, { method: "PUT", body: JSON.stringify({ dashboardLayout: nextLayout, dashletsOptions: nextOptions }) }); setPreferences((old) => ({ ...old, ...data })); setLayout(data.dashboardLayout || nextLayout); setDashletsOptions(data.dashletsOptions || nextOptions); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Dashboard se nepodařilo uložit."); }
+    finally { setSaving(false); }
+  }
+  function openTabsEditor() {
+    setTabDraft(layout.map((tab, sourceIndex) => ({ sourceIndex, name: tab.name || `Záložka ${sourceIndex + 1}` })));
+    setTabsOpen(true);
+  }
+  function moveTab(index: number, direction: -1 | 1) {
+    setTabDraft((old) => { const target = index + direction; if (target < 0 || target >= old.length) return old; const next = [...old]; [next[index], next[target]] = [next[target], next[index]]; return next; });
+  }
+  async function saveTabs() {
+    const names = tabDraft.map((tab) => tab.name.trim());
+    if (!names.length || names.some((name) => !name) || new Set(names.map((name) => name.toLocaleLowerCase("cs"))).size !== names.length) { setError("Zadejte neprázdné a jedinečné názvy záložek."); return; }
+    const nextLayout = tabDraft.map((tab, index) => ({ name: names[index], layout: tab.sourceIndex == null ? [] : layout[tab.sourceIndex]?.layout || [] }));
+    const retained = new Set(nextLayout.flatMap((tab) => tab.layout.map((item) => item.id)));
+    const nextOptions = Object.fromEntries(Object.entries(dashletsOptions).filter(([id]) => retained.has(id)));
+    setLayout(nextLayout); setDashletsOptions(nextOptions); setActiveTab(0); localStorage.setItem(`via-dashboard-tab-${user.id}`, "0"); setTabsOpen(false);
+    await save(nextLayout, nextOptions);
+  }
+  function addDashlet() {
+    if (!selectedDashlet || !currentTab) return;
+    const id = `via-${Math.random().toString(36).slice(2, 10)}`;
+    const defaults = definitions[selectedDashlet]?.options?.defaults || {};
+    const next = layout.map((tab, index) => index === activeTab ? { ...tab, layout: [...tab.layout, { id, name: selectedDashlet, x: 0, y: tab.layout.length, width: 2, height: 3 }] } : tab);
+    const opts = { ...dashletsOptions, [id]: { ...defaults, title: defaults.title || (metadata as any).labels?.dashlets?.[selectedDashlet] || selectedDashlet } };
+    setLayout(next); setDashletsOptions(opts); setAddOpen(false); setSelectedDashlet(""); void save(next, opts);
+  }
+  function removeDashlet(id: string) {
+    const next = layout.map((tab, index) => index === activeTab ? { ...tab, layout: tab.layout.filter((item) => item.id !== id) } : tab);
+    const opts = { ...dashletsOptions }; delete opts[id]; setLayout(next); setDashletsOptions(opts); void save(next, opts);
+  }
+  function moveDashlet(id: string, direction: -1 | 1) {
+    const next = layout.map((tab, index) => {
+      if (index !== activeTab) return tab;
+      const items = [...tab.layout]; const from = items.findIndex((item) => item.id === id); const to = from + direction;
+      if (from < 0 || to < 0 || to >= items.length) return tab;
+      [items[from], items[to]] = [items[to], items[from]];
+      return { ...tab, layout: items.map((item, pos) => ({ ...item, x: pos % 2, y: Math.floor(pos / 2) })) };
+    });
+    setLayout(next); void save(next);
+  }
+  async function beginEdit(item: Dashlet) {
+    setEditing(item); setEditOptions({ ...(dashletsOptions[item.id] || {}) });
+    if (item.name === "Emails") {
+      try {
+        const result = await request<{ list?: Array<{ id: string; name: string }> }>(`EmailFolder/action/listAll?userId=${encodeURIComponent(user.id)}`);
+        const folders = (result.list || []).filter((folder) => !["inbox", "trash"].includes(folder.id)).map((folder) => [folder.id, folder.name] as [string, string]);
+        setEmailFolderOptions([["", "Doručená pošta"], ...folders]);
+      } catch { setEmailFolderOptions([["", "Doručená pošta"]]); }
+    }
+  }
+  async function commitEdit() {
+    if (!editing) return;
+    const nextOptions = { ...editOptions };
+    const optionDefs = definitions[editing.name]?.options?.fields || {};
+    try { for (const [name, def] of Object.entries(optionDefs) as Array<[string, Data]>) if (def.type === "base" && typeof nextOptions[name] === "string") nextOptions[name] = JSON.parse(nextOptions[name]); }
+    catch { setError("Rozložení panelu obsahuje neplatný JSON."); return; }
+    const next = { ...dashletsOptions, [editing.id]: nextOptions }; setDashletsOptions(next); setEditing(null); await save(layout, next);
+  }
+  function updateExpandedRows(rows: Data[][]) {
+    setEditOptions((old) => ({ ...old, expandedLayout: { ...(old.expandedLayout || {}), rows } }));
+  }
+  function expandedLayoutRows(): Data[][] {
+    const rows = editOptions.expandedLayout?.rows;
+    return Array.isArray(rows) ? rows.map((row: any[]) => Array.isArray(row) ? row.filter(Boolean).map((item: any) => typeof item === "string" ? { name: item } : { ...item }) : []) : [];
+  }
+  function expandedLayoutFields(): Array<[string, string]> {
+    const scope = editOptions.entityType || definitions[editing?.name || ""]?.entityType || entityByDashlet[editing?.name || ""] || "";
+    const fields = metadata.entityDefs?.[scope]?.fields || {};
+    const allowed = Object.entries(fields).filter(([name, def]) => {
+      if (def.disabled || def.listLayoutDisabled || def.utility || metadata.userAcl?.fieldTable?.[scope]?.[name]?.read === "no") return false;
+      if (Array.isArray(def.layoutAvailabilityList) && !def.layoutAvailabilityList.includes("list")) return false;
+      if ((def.layoutIgnoreList || []).includes("list")) return false;
+      return true;
+    }).sort(([a], [b]) => String((metadata.labels as any)?.[scope]?.fields?.[a] || a).localeCompare(String((metadata.labels as any)?.[scope]?.fields?.[b] || b), "cs"));
+    return allowed.map(([name]) => [name, (metadata.labels as any)?.[scope]?.fields?.[name] || name]);
+  }
+  function renderExpandedLayout(name: string) {
+    const rows = expandedLayoutRows();
+    const fieldList = expandedLayoutFields();
+    const fieldLabels = new Map(fieldList);
+    const setItem = (rowIndex: number, itemIndex: number, patch: Data) => {
+      const next = rows.map((row) => [...row]);
+      next[rowIndex][itemIndex] = { ...next[rowIndex][itemIndex], ...patch };
+      updateExpandedRows(next);
+    };
+    const selectField = (rowIndex: number, itemIndex: number, field: string) => {
+      const next = rows.map((row) => [...row]);
+      const current = next[rowIndex][itemIndex];
+      if (!field) { next[rowIndex].splice(itemIndex, 1); if (!next[rowIndex].length) next.splice(rowIndex, 1); updateExpandedRows(next); return; }
+      const { link: _oldLink, ...rest } = current || {};
+      next[rowIndex][itemIndex] = { ...rest, name: field, ...(field === "name" ? { link: true } : {}) };
+      updateExpandedRows(next);
+    };
+    const moveExpandedItem = (rowIndex: number, itemIndex: number, direction: -1 | 1) => {
+      const next = rows.map((row) => [...row]);
+      const target = itemIndex + direction;
+      if (target < 0 || target >= next[rowIndex].length) return;
+      [next[rowIndex][itemIndex], next[rowIndex][target]] = [next[rowIndex][target], next[rowIndex][itemIndex]];
+      updateExpandedRows(next);
+    };
+    const availableFieldsFor = (rowIndex: number, itemIndex: number) => {
+      const usedElsewhere = new Set(rows.flatMap((row, ri) => row.filter((_, ii) => ri !== rowIndex || ii !== itemIndex).map((item) => item.name)));
+      const currentName = rows[rowIndex]?.[itemIndex]?.name;
+      return fieldList.filter(([field]) => field === currentName || !usedElsewhere.has(field));
+    };
+    return <section className="expanded-layout-editor" key={name}>
+      <div className="expanded-layout-heading"><div><strong>{dashletOptionLabel(name)}</strong><small>Vyberte pole a jejich pořadí v rozbaleném řádku záznamu.</small></div><button type="button" className="button subtle" onClick={() => updateExpandedRows([...rows, []])} disabled={!fieldList.length}><Plus size={13}/>Přidat řádek</button></div>
+      {!editOptions.entityType && !definitions[editing?.name || ""]?.entityType && !entityByDashlet[editing?.name || ""] ? <p className="field-hint">Nejdříve vyberte entitu.</p> : rows.map((row, rowIndex) => <div className="expanded-layout-row" key={`row-${rowIndex}`}><div className="expanded-layout-row-head"><strong>Řádek {rowIndex + 1}</strong><span><button type="button" className="icon-button" title="Posunout řádek nahoru" disabled={!rowIndex} onClick={() => { const next = [...rows]; [next[rowIndex - 1], next[rowIndex]] = [next[rowIndex], next[rowIndex - 1]]; updateExpandedRows(next); }}><ArrowUp size={13}/></button><button type="button" className="icon-button" title="Posunout řádek dolů" disabled={rowIndex === rows.length - 1} onClick={() => { const next = [...rows]; [next[rowIndex + 1], next[rowIndex]] = [next[rowIndex], next[rowIndex + 1]]; updateExpandedRows(next); }}><ArrowDown size={13}/></button><button type="button" className="icon-button danger-ghost" title="Odebrat řádek" onClick={() => updateExpandedRows(rows.filter((_, index) => index !== rowIndex))}><Trash2 size={13}/></button></span></div>
+        {row.map((item, itemIndex) => <div className="expanded-layout-item" key={`${item.name}-${itemIndex}`}><label><span>Pole</span><select value={item.name || ""} onChange={(event) => selectField(rowIndex, itemIndex, event.target.value)}><option value="">Odebrat pole…</option>{availableFieldsFor(rowIndex, itemIndex).map(([field, label]) => <option key={field} value={field}>{label}</option>)}</select></label><span className="expanded-layout-item-move"><button type="button" className="icon-button" title="Posunout pole doleva" aria-label="Posunout pole doleva" disabled={!itemIndex} onClick={() => moveExpandedItem(rowIndex, itemIndex, -1)}><ArrowUp size={12}/></button><button type="button" className="icon-button" title="Posunout pole doprava" aria-label="Posunout pole doprava" disabled={itemIndex === row.length - 1} onClick={() => moveExpandedItem(rowIndex, itemIndex, 1)}><ArrowDown size={12}/></button></span><label className="expanded-layout-flag"><input type="checkbox" checked={Boolean(item.soft)} onChange={(event) => setItem(rowIndex, itemIndex, { soft: event.target.checked || undefined })}/> Jemný text</label><label className="expanded-layout-flag"><input type="checkbox" checked={Boolean(item.small)} onChange={(event) => setItem(rowIndex, itemIndex, { small: event.target.checked || undefined })}/> Menší text</label><button type="button" className="icon-button danger-ghost" aria-label={`Odebrat pole ${fieldLabels.get(item.name) || item.name}`} title="Odebrat pole" onClick={() => selectField(rowIndex, itemIndex, "")}><X size={14}/></button></div>)}
+        <label className="expanded-layout-add-field"><span>Přidat pole do řádku</span><select value="" disabled={!availableFieldsFor(rowIndex, -1).length} onChange={(event) => { const field = event.target.value; if (!field) return; const next = rows.map((row) => [...row]); next[rowIndex].push({ name: field, ...(field === "name" ? { link: true } : {}) }); updateExpandedRows(next); }}><option value="">Vybrat pole…</option>{availableFieldsFor(rowIndex, -1).map(([field, label]) => <option key={field} value={field}>{label}</option>)}</select></label>
+      </div>)}
+      {!rows.length && <div className="expanded-layout-empty">Rozšířené rozložení je prázdné. Přidejte řádek a vyberte pole.</div>}
+    </section>;
+  }
+  function updateDashletOption(name: string, value: any, type?: string) {
+    if (name === "entityType" && editing?.name === "Records") {
+      const entity = String(value || "");
+      const collection = metadata.entityDefs?.[entity]?.collection as Data | undefined;
+      const title = entity ? (metadata.labels as any)?.Global?.scopeNamesPlural?.[entity] || entityLabel(metadata, entity, true) : (metadata as any).labels?.dashlets?.Records || "Records";
+      setEditOptions((old) => ({ ...old, entityType: entity, title, primaryFilter: null, boolFilterList: [], sortBy: collection?.orderBy || null, sortDirection: collection?.order || "asc", expandedLayout: { rows: entity ? [[{ name: "name", link: true, scope: entity }]] : [] } }));
+      return;
+    }
+    setEditOptions((old) => ({ ...old, [name]: type === "enumFloat" || type === "enumInt" ? Number(value) : value }));
+  }
+  function dashletOptionLabel(name: string) { return (metadata.labels as any)?.DashletOptions?.fields?.[name] || name.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (char: string) => char.toLocaleUpperCase("cs")); }
+  function dashletOptionItems(name: string, def: Data): Array<[string, string]> {
+    if (editing?.name === "Emails" && name === "folder") return emailFolderOptions;
+    if (name === "entityType") return entityList(metadata).filter((scope) => metadata.scopes[scope]?.object && !metadata.scopes[scope]?.disabled && canAccessEntity(metadata, scope)).map((scope) => [scope, (metadata.labels as any)?.Global?.scopeNames?.[scope] || entityLabel(metadata, scope, false)]);
+    if (name === "enabledScopeList") return entityList(metadata).filter((scope) => metadata.scopes[scope]?.calendar && canAccessEntity(metadata, scope)).map((scope) => [scope, (metadata.labels as any)?.Global?.scopeNamesPlural?.[scope] || entityLabel(metadata, scope, true)]);
+    if (name === "boolFilterList") { const scope = editOptions.entityType || entityByDashlet[editing?.name || ""] || ""; const list = metadata.clientDefs?.[scope]?.boolFilterList || []; const keys = Array.isArray(list) ? list.map((item: any) => typeof item === "string" ? item : item.name).filter(Boolean) : Object.keys(list); return keys.map((key: string) => [key, (metadata.labels as any)?.[scope]?.boolFilters?.[key] || key]); }
+    if (name === "primaryFilter") { const scope = editOptions.entityType || entityByDashlet[editing?.name || ""] || ""; return (metadata.clientDefs?.[scope]?.filterList || []).flatMap((item: any) => { const key = typeof item === "string" ? item : item.name || item.primary; return key ? [[key, (metadata.labels as any)?.[scope]?.filters?.[key] || key] as [string, string]] : []; }); }
+    if (name === "sortBy" || name === "sortField") { const scope = editOptions.entityType || entityByDashlet[editing?.name || ""] || ""; return Object.entries(metadata.entityDefs?.[scope]?.fields || {}).filter(([key, def]) => !def.hidden && !def.utility && metadata.userAcl?.fieldTable?.[scope]?.[key]?.read !== "no").map(([key]) => [key, (metadata.labels as any)?.[scope]?.fields?.[key] || key]); }
+    const options = Array.isArray(def.options) ? def.options : [];
+    return options.map((value: any) => { const key = String(value); const label = (metadata.labels as any)?.DashletOptions?.options?.[name]?.[key] || (metadata.labels as any)?.Global?.options?.dateSearchRanges?.[key] || key; return [key, label]; });
+  }
+  function renderDashletOption(name: string, rawDef: any) {
+    const def = rawDef || {};
+    const optionName = dashletOptionLabel(name);
+    if ((name === "dateFrom" || name === "dateTo") && editOptions.dateFilter !== "between") return null;
+    if (name === "teams" && (!(["basicWeek", "month", "basicDay"].includes(editOptions.mode)) || metadata.userAcl?.userCalendarPermission === "no")) return null;
+    if (name === "users" && editOptions.mode !== "timeline") return null;
+    if (["primaryFilter", "sortBy", "sortField", "sortDirection", "boolFilterList"].includes(name) && !editOptions.entityType && !entityByDashlet[editing?.name || ""]) return null;
+    if (name === "expandedLayout") return renderExpandedLayout(name);
+    if (def.type === "bool") return <label className="preference-toggle dashlet-option-toggle" key={name}><span><strong>{optionName}</strong></span><input type="checkbox" checked={Boolean(editOptions[name])} onChange={(event) => setEditOptions((old) => ({ ...old, [name]: event.target.checked }))}/><i/></label>;
+    if (def.type === "link" || def.type === "linkMultiple") {
+      const multiple = def.type === "linkMultiple";
+      const idsKey = name === "users" || name === "teams" ? `${name}Ids` : multiple ? `${name}Ids` : `${name}Id`;
+      const namesKey = name === "users" || name === "teams" ? `${name}Names` : multiple ? `${name}Names` : `${name}Name`;
+      const ids = multiple ? (Array.isArray(editOptions[idsKey]) ? editOptions[idsKey].map(String) : []) : editOptions[idsKey] ? [String(editOptions[idsKey])] : [];
+      const nameValue = editOptions[namesKey] || {};
+      const selectedRows = ids.map((id) => ({ id, name: typeof nameValue === "object" ? nameValue[id] || id : nameValue || id }));
+      return <div className="field-input dashlet-option-link" key={name}><span>{optionName}</span><button type="button" className="button subtle" onClick={() => setOptionPicker({ field: name, entity: def.entity || "User", multiple })}>{selectedRows.length ? selectedRows.map((row) => row.name).join(", ") : `Vybrat: ${entityLabel(metadata, def.entity || "User", true)}`}</button></div>;
+    }
+    if (def.type === "base") return <label className="field-input preference-long-field" key={name}><span>{optionName} · JSON</span><textarea rows={5} value={typeof editOptions[name] === "string" ? editOptions[name] : JSON.stringify(editOptions[name] || {}, null, 2)} onChange={(event) => setEditOptions((old) => ({ ...old, [name]: event.target.value }))}/></label>;
+    const optionItems = dashletOptionItems(name, def);
+    if (def.type === "multiEnum") {
+      const selected: string[] = Array.isArray(editOptions[name]) ? editOptions[name].map(String) : [];
+      return <fieldset className="preference-checklist dashlet-option-checklist" key={name}><legend>{optionName}</legend><div>{optionItems.map(([key, label]) => <label key={key}><input type="checkbox" checked={selected.includes(key)} onChange={(event) => setEditOptions((old) => ({ ...old, [name]: event.target.checked ? [...selected, key] : selected.filter((value) => value !== key) }))}/>{label}</label>)}</div></fieldset>;
+    }
+    const type = String(def.type || "varchar");
+    if (["enum", "enumFloat", "enumInt"].includes(type) && optionItems.length) return <label className="field-input" key={name}><span>{optionName}{def.required && <i> *</i>}</span><select required={Boolean(def.required)} value={editOptions[name] ?? def.default ?? ""} onChange={(event) => updateDashletOption(name, event.target.value, type)}><option value="">—</option>{optionItems.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>;
+    if (["int", "float"].includes(type)) return <label className="field-input" key={name}><span>{optionName}{def.required && <i> *</i>}</span><input type="number" min={def.min} max={def.max} step={type === "int" ? 1 : "any"} required={Boolean(def.required)} value={editOptions[name] ?? def.default ?? ""} onChange={(event) => setEditOptions((old) => ({ ...old, [name]: event.target.value === "" ? "" : Number(event.target.value) }))}/></label>;
+    if (["text", "wysiwyg"].includes(type)) return <label className="field-input preference-long-field" key={name}><span>{optionName}{def.required && <i> *</i>}</span><textarea rows={5} required={Boolean(def.required)} value={editOptions[name] ?? def.default ?? ""} onChange={(event) => setEditOptions((old) => ({ ...old, [name]: event.target.value }))}/></label>;
+    const inputType = type === "date" ? "date" : type === "url" ? "url" : type === "email" ? "email" : "text";
+    return <label className="field-input" key={name}><span>{optionName}{def.required && <i> *</i>}</span><input type={inputType} maxLength={def.maxLength} required={Boolean(def.required)} value={editOptions[name] ?? def.default ?? ""} onChange={(event) => setEditOptions((old) => ({ ...old, [name]: event.target.value }))}/></label>;
+  }
+  const availableDashlets = useMemo(() => Object.keys(definitions).filter((name) => {
+    const aclScope = definitions[name]?.aclScope || definitions[name]?.entityType || entityByDashlet[name];
+    if (aclScope && (!metadata.entityDefs?.[aclScope]?.fields || !canAccessEntity(metadata, aclScope))) return false;
+    if (name === "Stream" && aclLevel(metadata, "Stream", "read") === "no") return false;
+    return `${name} ${(metadata as any).labels?.dashlets?.[name] || ""}`.toLocaleLowerCase("cs").includes(addSearch.toLocaleLowerCase("cs"));
+  }).sort((a, b) => a.localeCompare(b)), [definitions, metadata, addSearch]);
+  if (loading) return <div className="dashboard-view"><div className="surface table-loading"><span className="spinner"/>Načítám osobní dashboard…</div></div>;
+  if (error && !preferences.id) return <>{fallback}<div className="dashlet-error">{error}</div></>;
+  return <div className="personal-dashboard"><div className="personal-dashboard-heading"><div><span className="eyebrow">OSOBNÍ DASHBOARD</span><h1>{currentTab?.name || "Přehled"}</h1><p>Vaše panely a záznamy z EspoCRM.</p></div><div className="personal-dashboard-actions">{canEditLayout && <button className="button subtle" onClick={openTabsEditor}><Settings2 size={14}/>Upravit záložky</button>}{canAddDashlet && <button className="button primary" onClick={() => setAddOpen(true)}><Plus size={14}/>Přidat panel</button>}</div></div>
+    {error && <div className="table-error">{error}</div>}{layout.length > 0 && <nav className="personal-dashboard-tabs">{layout.map((tab, index) => <button className={activeTab === index ? "active" : ""} key={`${tab.name}-${index}`} onClick={() => { setActiveTab(index); localStorage.setItem(`via-dashboard-tab-${user.id}`, String(index)); }}>{tab.name}</button>)}</nav>}
+    <div className="personal-dashboard-grid">{currentTab?.layout.map((item, index) => <div className="personal-dashlet-wrap" key={item.id}><div className="personal-dashlet-manage">{canEditLayout && <><button title="Posunout nahoru" onClick={() => moveDashlet(item.id, -1)} disabled={!index}><ArrowUp size={13}/></button><button title="Posunout dolů" onClick={() => moveDashlet(item.id, 1)} disabled={index === (currentTab.layout.length - 1)}><ArrowDown size={13}/></button></>}{canEditDashlets && <><button title="Nastavit panel" onClick={() => beginEdit(item)}><Settings2 size={13}/></button><button title="Odebrat panel" onClick={() => removeDashlet(item.id)}><Trash2 size={13}/></button></>}</div><DashletCard item={item} user={user} metadata={metadata} options={dashletsOptions[item.id] || definitions[item.name]?.options?.defaults || {}} appSettings={appSettings} onOpenRecord={onOpenRecord} onComposeEmail={onComposeEmail}/></div>)}{!currentTab?.layout.length && <section className="surface dashboard-empty"><Activity size={22}/><h2>Dashboard je prázdný</h2><p>Přidejte si seznam záznamů, aktivity nebo stream.</p>{canAddDashlet && <button className="button primary" onClick={() => setAddOpen(true)}><Plus size={14}/>Přidat panel</button>}</section>}</div>
+    {tabsOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setTabsOpen(false)}><section className="record-modal dashlet-picker"><div className="modal-heading"><div><span className="eyebrow">OSOBNÍ DASHBOARD</span><h2>Správa záložek</h2><p>Přejmenujte, seřaďte nebo odstraňte záložky dashboardu.</p></div><button className="icon-button" onClick={() => setTabsOpen(false)} aria-label="Zavřít"><X size={16}/></button></div><div className="dashboard-tab-editor-list">{tabDraft.map((tab, index) => <div className="dashboard-tab-editor-row" key={`${tab.sourceIndex ?? "new"}-${index}`}><span className="dashboard-tab-editor-move"><button type="button" className="icon-button" title="Posunout nahoru" onClick={() => moveTab(index, -1)} disabled={!index}><ArrowUp size={13}/></button><button type="button" className="icon-button" title="Posunout dolů" onClick={() => moveTab(index, 1)} disabled={index === tabDraft.length - 1}><ArrowDown size={13}/></button></span><input aria-label={`Název záložky ${index + 1}`} maxLength={36} value={tab.name} onChange={(event) => setTabDraft((old) => old.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))}/><button type="button" className="icon-button danger-ghost" title="Odebrat záložku" disabled={tabDraft.length <= 1} onClick={() => setTabDraft((old) => old.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14}/></button></div>)}</div><button type="button" className="button subtle dashboard-add-tab" onClick={() => setTabDraft((old) => [...old, { sourceIndex: null, name: `Nová záložka ${old.length + 1}` }])}><Plus size={14}/>Přidat záložku</button><div className="modal-footer"><button className="button subtle" onClick={() => setTabsOpen(false)}>Zrušit</button><button className="button primary" onClick={() => void saveTabs()} disabled={saving || !tabDraft.length}><Check size={14}/>Uložit záložky</button></div></section></div>}
+    {addOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setAddOpen(false)}><section className="record-modal dashlet-picker"><div className="modal-heading"><div><span className="eyebrow">OSOBNÍ DASHBOARD</span><h2>Přidat panel</h2></div><button className="icon-button" onClick={() => setAddOpen(false)} aria-label="Zavřít"><X size={16}/></button></div><input className="dashlet-search" placeholder="Filtrovat panely…" value={addSearch} onChange={(event) => setAddSearch(event.target.value)}/><div className="dashlet-picker-list">{availableDashlets.map((name) => <button key={name} className={selectedDashlet === name ? "selected" : ""} onClick={() => setSelectedDashlet(name)}><span><strong>{(metadata as any).labels?.dashlets?.[name] || name}</strong><small>{definitions[name]?.entityType ? entityLabel(metadata, definitions[name].entityType) : definitions[name]?.aclScope ? entityLabel(metadata, definitions[name].aclScope) : "Osobní panel EspoCRM"}</small></span><Plus size={15}/></button>)}</div><div className="modal-footer"><button className="button subtle" onClick={() => setAddOpen(false)}>Zrušit</button><button className="button primary" onClick={addDashlet} disabled={!selectedDashlet}>Přidat panel</button></div></section></div>}
+    {editing && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setEditing(null)}><form className="record-modal dashlet-option-editor" onSubmit={(event) => { event.preventDefault(); void commitEdit(); }}><div className="modal-heading"><div><span className="eyebrow">NASTAVENÍ PANELU</span><h2>{editOptions.title || editing.name}</h2></div><button type="button" className="icon-button" onClick={() => setEditing(null)} aria-label="Zavřít"><X size={16}/></button></div><div className="dashlet-option-fields">{Object.entries(definitions[editing.name]?.options?.fields || {}).map(([name, def]) => renderDashletOption(name, def))}{!definitions[editing.name]?.options?.fields && <p className="field-manager-empty">Tento panel nemá uživatelsky nastavitelné volby.</p>}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setEditing(null)}>Zrušit</button><button className="button primary">Uložit nastavení</button></div></form></div>}
+    {optionPicker && editing && (() => { const multiple = optionPicker.multiple; const idsKey = optionPicker.field === "users" || optionPicker.field === "teams" ? `${optionPicker.field}Ids` : multiple ? `${optionPicker.field}Ids` : `${optionPicker.field}Id`; const namesKey = optionPicker.field === "users" || optionPicker.field === "teams" ? `${optionPicker.field}Names` : multiple ? `${optionPicker.field}Names` : `${optionPicker.field}Name`; const selectedIds = multiple ? (Array.isArray(editOptions[idsKey]) ? editOptions[idsKey].map(String) : []) : editOptions[idsKey] ? [String(editOptions[idsKey])] : []; const nameData = editOptions[namesKey] || {}; const selectedRows = selectedIds.map((id) => ({ id, name: typeof nameData === "object" ? nameData[id] || id : nameData || id })); const restricted = metadata.userAcl?.userCalendarPermission === "team"; const fixedWhere = restricted ? [{ type: "bool", value: [optionPicker.field === "teams" ? "onlyMy" : "onlyMyTeam"] }] : []; return <SelectRecordsDialog entity={optionPicker.entity} metadata={metadata} multiple={multiple} selectedIds={selectedIds} selectedRows={selectedRows} primaryFilter={optionPicker.field === "users" ? "active" : undefined} fixedWhere={fixedWhere} onClose={() => setOptionPicker(null)} onSelect={(rows) => { if (multiple) { const names = Object.fromEntries(rows.map((row) => [row.id, row.name || row.userName || row.id])); setEditOptions((old) => ({ ...old, [idsKey]: rows.map((row) => row.id), [namesKey]: names })); } else { const row = rows[0]; setEditOptions((old) => ({ ...old, [idsKey]: row?.id || null, [namesKey]: row ? row.name || row.userName || row.id : null })); } setOptionPicker(null); }}/>; })()}
+  </div>;
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "route": "/LeadCapture/formData/:id",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetLeadCaptureFormData",
+    "noAuth": true
+  },
+  {
+    "route": "/LeadCapture/confirmOptIn/:id",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetLeadCaptureOptInConfirmation",
+    "noAuth": true
+  },
+  {
+    "route": "/Campaign/unsubscribeInfo/:id",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetCampaignUnsubscribeInfo",
+    "noAuth": true
+  },
+  {
+    "route": "/Campaign/unsubscribeInfo/:emailAddress/:hash",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetCampaignUnsubscribeInfo",
+    "noAuth": true
+  },
+  {
+    "route": "/Campaign/trackOpened/:id",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetCampaignTrackOpened",
+    "noAuth": true
+  },
+  {
+    "route": "/EventConfirmation/:uid/:action",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetEventConfirmation",
+    "noAuth": true
+  },
+  {
+    "route": "/User/passwordRecoveryInfo",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetPasswordRecoveryInfo",
+    "noAuth": true
+  },
+  {
+    "route": "/User/passwordChangeInfo/:id",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetPasswordRecoveryInfo",
+    "noAuth": true
+  }
+]

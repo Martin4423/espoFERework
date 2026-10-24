@@ -1,0 +1,9 @@
+{
+  "name": "ViaCRM React Frontend Bridge",
+  "version": "1.0.0",
+  "acceptableVersions": [">=9.1.7 <10.0.0"],
+  "php": [">=8.1"],
+  "releaseDate": "2026-10-24",
+  "author": "ViaCRM",
+  "description": "Public workflow bridge for Lead Capture, campaigns, event confirmations and password recovery in the ViaCRM React frontend."
+}

@@ -1,0 +1,62 @@
+services:
+  espocrm-files-init:
+    image: espocrm/espocrm:9.1.7
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "if [ ! -f /target/index.php ]; then cp -a /usr/src/espocrm/. /target/; fi"]
+    volumes:
+      - espocrm-files:/target
+
+  espocrm:
+    image: espocrm/espocrm:9.1.7
+    ports:
+      - "8092:80"
+    environment:
+      ESPOCRM_DATABASE_HOST: espocrm-db
+      ESPOCRM_DATABASE_NAME: espocrm
+      ESPOCRM_DATABASE_USER: espocrm
+      ESPOCRM_DATABASE_PASSWORD: local_espo_password
+      ESPOCRM_ADMIN_USERNAME: admin
+      ESPOCRM_ADMIN_PASSWORD: admin
+      ESPOCRM_SITE_URL: http://localhost:8091
+    volumes:
+      - espocrm-files:/var/www/html
+      - espocrm-data:/var/www/html/data
+      - espocrm-custom:/var/www/html/custom
+    depends_on:
+      espocrm-files-init:
+        condition: service_completed_successfully
+      espocrm-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+      - "8091:80"
+    depends_on:
+      - espocrm
+    restart: unless-stopped
+
+  espocrm-db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: espocrm
+      MARIADB_USER: espocrm
+      MARIADB_PASSWORD: local_espo_password
+      MARIADB_ROOT_PASSWORD: local_root_password
+    volumes:
+      - espocrm-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  espocrm-files:
+  espocrm-data:
+  espocrm-custom:
+  espocrm-db:
