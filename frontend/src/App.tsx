@@ -3656,6 +3656,7 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
   const controlProps = { id: `field-${name}`, value: value ?? "", onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => onChange(e.target.value), required: def.required, maxLength: def.maxLength, min: def.min, disabled: Boolean(def.readOnly || def.disabled) };
   const inputLabel = <span>{label}{def.required && <i> *</i>}</span>;
   if (["array", "urlMultiple"].includes(type)) return <ArrayFieldInput label={inputLabel} value={Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split("\n").filter(Boolean) : []} disabled={Boolean(def.readOnly || def.disabled)} maxCount={def.maxCount} maxLength={def.maxItemLength || (type === "urlMultiple" ? 255 : 100)} options={(def.options || []).map(String)} urlMode={type === "urlMultiple"} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
+  if (type === "url") return <UrlFieldInput label={inputLabel} value={String(value || "")} disabled={Boolean(def.readOnly || def.disabled)} required={Boolean(def.required)} maxLength={Number(def.maxLength || 255)} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
   if (type === "wysiwyg") return <div className={`field-input html-field ${def.required ? "required" : ""}`}><span>{inputLabel}</span><HtmlFieldEditor entity={entity} metadata={metadata} value={value} onChange={onChange} htmlMode={entity !== "EmailTemplate" || relatedContext?.isHtml !== false} fieldName={name} disabled={Boolean(def.readOnly || def.disabled)}/></div>;
   if (type === "address") {
     const current = value || {};
@@ -3863,6 +3864,24 @@ function UrlFieldDisplay({ value, multiple = false, copyToClipboard = false }: {
   if (!values.length) return <strong>—</strong>;
   async function copy(item: string) { try { await navigator.clipboard.writeText(item); setCopied(item); window.setTimeout(() => setCopied(""), 1800); } catch { setCopied(""); } }
   return <span className="url-field-display">{values.map((item, index) => { let label = item; try { label = decodeURI(item); } catch { /* Keep malformed legacy values readable. */ } const href = urlFor(item); return <span key={`${item}-${index}`}>{href ? <a href={href} target="_blank" rel="noreferrer">{label}</a> : label}{copyToClipboard && <button type="button" className="url-copy-button" title="Kopírovat odkaz" aria-label="Kopírovat odkaz" onClick={() => void copy(item)}>{copied === item ? <Check size={12}/> : <Copy size={12}/>}</button>}</span>; })}</span>;
+}
+
+function UrlFieldInput({ label, value, disabled, required, maxLength, stripProtocol, onChange }: { label: React.ReactNode; value: string; disabled: boolean; required: boolean; maxLength: number; stripProtocol: boolean; onChange: (value: string) => void }) {
+  const [error, setError] = useState("");
+  function normalize(raw: string) {
+    let next = raw.trim();
+    if (stripProtocol) next = next.replace(/^[a-z][a-z\d+.-]*:\/\//i, "").replace(/\/+$/, "");
+    try { if (next === decodeURI(next)) next = encodeURI(next); } catch { /* Preserve malformed legacy text for correction. */ }
+    return next;
+  }
+  function validate(raw: string) {
+    const next = raw.trim();
+    if (!next) return required ? "Toto pole je povinné." : "";
+    if (next.length > maxLength) return `Adresa může mít nejvýše ${maxLength} znaků.`;
+    try { const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(next) ? next : `https://${next}`); if (!/^https?:$/.test(url.protocol) || (!url.hostname.includes(".") && url.hostname !== "localhost")) throw new Error(); return ""; }
+    catch { return "Zadejte platnou webovou adresu."; }
+  }
+  return <label className={`field-input ${required ? "required" : ""}`}><span>{label}</span><input type="text" inputMode="url" spellCheck={false} autoCapitalize="none" autoCorrect="off" value={value} disabled={disabled} required={required} maxLength={maxLength} placeholder="https://example.com" onChange={(event) => { onChange(event.target.value); setError(""); event.currentTarget.setCustomValidity(""); }} onBlur={(event) => { const normalized = normalize(event.target.value); const validationMessage = validate(normalized); onChange(normalized); setError(validationMessage); event.currentTarget.setCustomValidity(validationMessage); }}/>{error && <small className="field-error">{error}</small>}</label>;
 }
 
 function renderCell(value: any, def?: FieldDef, currency?: unknown, metadata?: Metadata) {
