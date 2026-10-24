@@ -4552,6 +4552,7 @@ function TemplatePlaceholderPicker({ metadata, entityType, onInsert }: { metadat
       for (const field of [...new Set(attributes)]) {
         if (field.endsWith("ImageName") || def.type === "image" && field === `${name}Name` || def.type === "image" && field === `${name}Id`) continue;
         const fieldDef = fields[field] || def;
+        if (!fieldAllowed(scope, field, fieldDef, Boolean(linkPrefix))) continue;
         const suffix = field === name || field === "name" ? "" : ` · ${fieldLabel(field, fieldDef, scope, metadata)}`;
         options.push({ value: prefix(field), label: `${display(label)}${suffix}`, text: ["text", "wysiwyg"].includes(fieldDef.type || "") });
       }
