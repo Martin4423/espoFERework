@@ -23,7 +23,7 @@ export type FieldDef = {
 };
 export type Metadata = {
   scopes: Record<string, { entity?: boolean; object?: boolean; tab?: boolean; aclPortal?: boolean; layouts?: boolean; calendar?: boolean; importable?: boolean; customizable?: boolean; isCustom?: boolean; isNotRemovable?: boolean; disabled?: boolean; stream?: boolean; stars?: boolean; type?: string; statusField?: string; statusFieldLocked?: boolean; kanbanStatusIgnoreList?: string[]; kanbanOrderDisabled?: boolean; entityManager?: { relationships?: boolean; edit?: boolean; fields?: boolean; addField?: boolean }; module?: string; tabLabel?: string; order?: number }>;
-  entityDefs: Record<string, { object?: boolean; fields?: Record<string, FieldDef>; links?: Record<string, { entity?: string; type?: string }>; collection?: Record<string, unknown> }>;
+  entityDefs: Record<string, { object?: boolean; fields?: Record<string, FieldDef>; links?: Record<string, { entity?: string; type?: string }>; collection?: Record<string, unknown>; sourceList?: string[] }>;
   clientDefs?: Record<string, Record<string, any>>;
   fields?: Record<string, { notCreatable?: boolean; readOnly?: boolean; filter?: boolean; textFilter?: boolean; orderDisabled?: boolean; notSortable?: boolean; dynamicLogicOptions?: unknown; params?: Array<{ name: string; type?: string; default?: unknown }> }>;
   logicDefs?: Record<string, any>;

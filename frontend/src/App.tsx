@@ -3999,6 +3999,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const [relationSearch, setRelationSearch] = useState("");
   const [relationPick, setRelationPick] = useState("");
   const [selectRecordsOpen, setSelectRecordsOpen] = useState(false);
+  const [attachmentSource, setAttachmentSource] = useState("");
   const [relatedCreateEntity, setRelatedCreateEntity] = useState("");
   const [textPreviewOpen, setTextPreviewOpen] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
@@ -4066,6 +4067,9 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     if (entity === "Settings" && ["defaultCurrency", "baseCurrency"].includes(name)) return currencyList;
     return [];
   }, [currencyList, resolvedOptions.options, entity, metadata, name]);
+  const attachmentSourceList = type === "attachmentMultiple"
+    ? [...new Set([...(Array.isArray(def.sourceList) ? def.sourceList : []), ...(((metadata.clientDefs?.Attachment as any)?.generalSourceList || []) as string[])])].filter((scope: string) => metadata.scopes?.[scope]?.entity && canAccessEntity(metadata, scope))
+    : [];
   const dynamicOptionLabels = Object.fromEntries(dynamicEnumOptions.map((option) => [String(option), type === "multiEnum" && metadata.scopes?.[String(option)] ? entityLabel(metadata, String(option), def.translation?.includes("Plural") ?? true) : optionLabel(option)]));
   const relationEntity = metadata.entityDefs?.[entity]?.links?.[name]?.entity;
   const parentCandidates: string[] = entity === "Note" && name === "parent" ? Object.keys(metadata.scopes || {}) : def.entityList || (metadata.entityDefs?.[entity]?.links?.[name] as any)?.entityList || Object.keys(metadata.scopes || {}).filter((scope) => metadata.scopes[scope].entity);
@@ -4129,6 +4133,31 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
       onChange(type === "attachmentMultiple" ? [...(Array.isArray(value) ? value : []), ...uploaded] : uploaded[0]);
     } catch (e) { const message = e instanceof Error ? e.message : "Soubor se nepodařilo nahrát."; setFileError(message); onError?.(message); }
     finally { setFileBusy(false); onUploading?.(false); }
+  }
+
+  async function addAttachmentSourceRecords(source: string, rows: Row[]) {
+    setFileBusy(true); setFileError(""); onError?.(""); onUploading?.(true);
+    try {
+      const maxCount = Number(def.maxCount || 0);
+      const next = [...(Array.isArray(value) ? value : [])] as Array<{ id: string; name: string; type?: string }>;
+      for (const row of rows) {
+        const items: Row[] = source === "Attachment"
+          ? [row]
+          : await request<Row[]>(`${encodeURIComponent(source)}/action/getAttachmentList`, { method: "POST", body: JSON.stringify({ id: row.id, field: name, parentType: entity }) });
+        for (const item of items) {
+          const attachment = { id: String(item.id), name: String(item.name || item.fileName || "Soubor"), type: String(item.type || item.mimeType || "") };
+          if (!attachment.id || next.some((current) => current.id === attachment.id)) continue;
+          if (maxCount && next.length >= maxCount) break;
+          next.push(attachment);
+        }
+        if (maxCount && next.length >= maxCount) break;
+      }
+      onChange(next);
+      if (maxCount && next.length >= maxCount) setFileError(`Pole může obsahovat nejvýše ${maxCount} souborů.`);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Soubory ze zvoleného záznamu se nepodařilo přidat.";
+      setFileError(message); onError?.(message);
+    } finally { setFileBusy(false); onUploading?.(false); }
   }
   const controlProps = { id: `field-${name}`, value: value ?? "", onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => onChange(e.target.value), required: def.required, maxLength: def.maxLength, min: def.min, disabled: Boolean(def.readOnly || def.disabled) };
   const handleControlChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -4249,7 +4278,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   if (["file", "image", "attachmentMultiple"].includes(type)) {
     const files: Array<{ id: string; name: string; type?: string }> = type === "attachmentMultiple" ? (Array.isArray(value) ? value : []) : value ? [value] : [];
     const images = files.filter((file) => type === "image" || file.type?.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(file.name || ""));
-    return <><div className="field-input file-field"><span>{inputLabel}</span><div className="file-field-list">{files.map((file, index) => <div key={`${file.id}-${index}`}>{images.some((image) => image.id === file.id) ? <button type="button" className="file-download" onClick={() => setImagePreview({ images, index: images.findIndex((image) => image.id === file.id) })}>{file.name || "Obrázek"} · Zobrazit náhled</button> : <button type="button" className="file-download" onClick={() => void downloadAttachment(file.id, file.name)}>{file.name || "Soubor"}</button>}<button type="button" className="file-remove" disabled={Boolean(def.readOnly || def.disabled)} onClick={() => onChange(type === "attachmentMultiple" ? files.filter((_, i) => i !== index) : null)} aria-label="Odebrat soubor">×</button></div>)}</div><label className="file-picker"><input type="file" disabled={Boolean(def.readOnly || def.disabled) || fileBusy} accept={(def.accept || (type === "image" ? ["image/*"] : [])).join(",")} multiple={type === "attachmentMultiple"} onChange={(event) => { void handleFiles(event.target.files); event.currentTarget.value = ""; }}/><span>{fileBusy ? "Nahrávám…" : type === "attachmentMultiple" ? "Přidat soubory" : "Vybrat soubor"}</span></label>{fileError && <small className="field-error">{fileError}</small>}</div>{imagePreview && <ImagePreviewDialog images={imagePreview.images} index={imagePreview.index} onIndexChange={(index) => setImagePreview((current) => current ? { ...current, index } : null)} onClose={() => setImagePreview(null)}/ >}{imageCropFile && <ImageCropDialog file={imageCropFile} onCancel={() => setImageCropFile(null)} onCrop={async (cropped) => { setFileBusy(true); onUploading?.(true); setFileError(""); onError?.(""); try { const attachment = await uploadAttachment(cropped, entity, name); onChange(attachment); onUploaded?.(attachment.id); setImageCropFile(null); } catch (cause) { const message = cause instanceof Error ? cause.message : "Oříznutý obrázek se nepodařilo nahrát."; setFileError(message); onError?.(message); } finally { setFileBusy(false); onUploading?.(false); } }}/>}</>;
+    return <><div className="field-input file-field"><span>{inputLabel}</span><div className="file-field-list">{files.map((file, index) => <div key={`${file.id}-${index}`}>{images.some((image) => image.id === file.id) ? <button type="button" className="file-download" onClick={() => setImagePreview({ images, index: images.findIndex((image) => image.id === file.id) })}>{file.name || "Obrázek"} · Zobrazit náhled</button> : <button type="button" className="file-download" onClick={() => void downloadAttachment(file.id, file.name)}>{file.name || "Soubor"}</button>}<button type="button" className="file-remove" disabled={Boolean(def.readOnly || def.disabled)} onClick={() => onChange(type === "attachmentMultiple" ? files.filter((_, i) => i !== index) : null)} aria-label="Odebrat soubor">×</button></div>)}</div><div className="file-picker-actions"><label className="file-picker"><input type="file" disabled={Boolean(def.readOnly || def.disabled) || fileBusy} accept={(def.accept || (type === "image" ? ["image/*"] : [])).join(",")} multiple={type === "attachmentMultiple"} onChange={(event) => { void handleFiles(event.target.files); event.currentTarget.value = ""; }}/><span>{fileBusy ? "Nahrávám…" : type === "attachmentMultiple" ? "Přidat soubory" : "Vybrat soubor"}</span></label>{attachmentSourceList.map((source: string) => <button type="button" key={source} className="button subtle" disabled={Boolean(def.readOnly || def.disabled) || fileBusy || Boolean(def.maxCount && files.length >= Number(def.maxCount))} onClick={() => setAttachmentSource(source)}>Přidat z {entityLabel(metadata, source, true)}</button>)}</div>{fileError && <small className="field-error">{fileError}</small>}</div>{attachmentSource && <SelectRecordsDialog entity={attachmentSource} metadata={metadata} multiple selectedIds={[]} selectedRows={[]} onClose={() => setAttachmentSource("")} onSelect={(rows) => { const source = attachmentSource; setAttachmentSource(""); void addAttachmentSourceRecords(source, rows); }}/ >}{imagePreview && <ImagePreviewDialog images={imagePreview.images} index={imagePreview.index} onIndexChange={(index) => setImagePreview((current) => current ? { ...current, index } : null)} onClose={() => setImagePreview(null)}/ >}{imageCropFile && <ImageCropDialog file={imageCropFile} onCancel={() => setImageCropFile(null)} onCrop={async (cropped) => { setFileBusy(true); onUploading?.(true); setFileError(""); onError?.(""); try { const attachment = await uploadAttachment(cropped, entity, name); onChange(attachment); onUploaded?.(attachment.id); setImageCropFile(null); } catch (cause) { const message = cause instanceof Error ? cause.message : "Oříznutý obrázek se nepodařilo nahrát."; setFileError(message); onError?.(message); } finally { setFileBusy(false); onUploading?.(false); } }}/>}</>;
   }
 
   if (entity === "OAuthProvider" && name === "authorizationParams") return <OAuthAuthorizationParams value={value} label={label} onChange={onChange}/>;
