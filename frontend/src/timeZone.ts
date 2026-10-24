@@ -9,9 +9,14 @@ export function parseEspoDateTime(value?: string) {
 }
 
 export function formatEspoDateTime(value: string | undefined, timeZone: string) {
+  if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, day)));
+  }
   const date = parseEspoDateTime(value);
   if (!date) return value || "—";
-  return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short", timeZone }).format(date);
+  try { return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short", timeZone }).format(date); }
+  catch { return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(date); }
 }
 
 function zonedWallTimeToUtc(year: number, month: number, day: number, hour: number, minute: number, second: number, timeZone: string) {

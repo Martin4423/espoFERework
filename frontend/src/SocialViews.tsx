@@ -5,6 +5,7 @@ import { canAccessEntity, entityLabel, humanize, request, uploadAttachment } fro
 import type { Metadata, User } from "./api";
 import { StreamItem, type Note } from "./RecordStream";
 import SelectRecordsDialog from "./SelectRecordsDialog";
+import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
 
 type Page<T> = { list?: T[]; total?: number };
 type NotificationItem = Record<string, any>;
@@ -93,6 +94,7 @@ function openNotification(item: NotificationItem, onOpenRecord: (scope: string, 
 }
 
 export function NotificationPanel({ metadata, onClose, onOpenList, onOpenRecord, onUnreadChange }: { metadata: Metadata; onClose: () => void; onOpenList: () => void; onOpenRecord: (scope: string, id: string) => void; onUnreadChange: () => void }) {
+  const timeZone = useEspoTimeZone();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [busy, setBusy] = useState(true);
   const [working, setWorking] = useState(false);
@@ -119,7 +121,7 @@ export function NotificationPanel({ metadata, onClose, onOpenList, onOpenRecord,
   return <div className="notification-popover-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="notification-popover surface" role="dialog" aria-modal="true" aria-label="Oznámení" onMouseDown={(event) => event.stopPropagation()}>
     <header><div><strong>Oznámení</strong><small>Poslední upozornění na vašem účtu</small></div><button type="button" className="button subtle" onClick={() => void markAllRead()} disabled={working}><Check size={13}/>Označit vše</button></header>
     {error && <div className="table-error">{error}<button type="button" onClick={() => void load()}>Zkusit znovu</button></div>}
-    <div className="notification-popover-list">{busy ? <div className="table-loading"><span className="spinner"/>Načítám oznámení…</div> : items.length ? items.map((item) => <article className={`notification-row ${item.read ? "is-read" : "is-unread"}`} key={item.id}><button className="notification-main" onClick={() => { openNotification(item, onOpenRecord); onClose(); }}><span className="notification-icon"><NotificationTypeIcon type={item.type}/></span><span className="notification-copy"><strong>{notificationTitle(item, metadata)}</strong><span>{notificationDetail(item, metadata)}</span><time>{item.createdAt ? new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(item.createdAt).replace(" ", "T"))) : ""}</time></span>{!item.read && <i className="notification-unread-dot"/>}</button><button type="button" className="notification-remove" aria-label="Odstranit oznámení" disabled={working} onClick={() => void remove(item)}><Trash2 size={13}/></button></article>) : <div className="stream-empty"><Bell size={20}/><span>Nemáte žádná oznámení.</span></div>}</div>
+    <div className="notification-popover-list">{busy ? <div className="table-loading"><span className="spinner"/>Načítám oznámení…</div> : items.length ? items.map((item) => <article className={`notification-row ${item.read ? "is-read" : "is-unread"}`} key={item.id}><button className="notification-main" onClick={() => { openNotification(item, onOpenRecord); onClose(); }}><span className="notification-icon"><NotificationTypeIcon type={item.type}/></span><span className="notification-copy"><strong>{notificationTitle(item, metadata)}</strong><span>{notificationDetail(item, metadata)}</span><time>{item.createdAt ? formatEspoDateTime(item.createdAt, timeZone) : ""}</time></span>{!item.read && <i className="notification-unread-dot"/>}</button><button type="button" className="notification-remove" aria-label="Odstranit oznámení" disabled={working} onClick={() => void remove(item)}><Trash2 size={13}/></button></article>) : <div className="stream-empty"><Bell size={20}/><span>Nemáte žádná oznámení.</span></div>}</div>
     <footer><button type="button" onClick={() => { onClose(); onOpenList(); }}>Zobrazit všechna oznámení<ChevronRight size={14}/></button></footer>
   </section></div>;
 }
@@ -320,6 +322,7 @@ export function GlobalStreamView({ user, metadata, onBack, onOpenRecord }: { use
 }
 
 export function NotificationCenter({ metadata, onBack, onOpenRecord, onUnreadChange }: { metadata: Metadata; onBack: () => void; onOpenRecord: (scope: string, id: string) => void; onUnreadChange: () => void }) {
+  const timeZone = useEspoTimeZone();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [busy, setBusy] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -359,6 +362,6 @@ export function NotificationCenter({ metadata, onBack, onOpenRecord, onUnreadCha
   }
   return <div className="social-view notification-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Přehled</button><div className="eyebrow">CENTRUM UPOZORNĚNÍ</div><h1>Oznámení</h1><p>Upozornění přiřazená vašemu účtu.</p></div><div className="notification-actions"><button className="button subtle" onClick={() => setRefreshKey((value) => value + 1)} disabled={busy}><RefreshCw size={14}/> Obnovit</button><button className="button primary" onClick={() => void markAllRead()} disabled={marking}>{marking ? "Označuji…" : "Označit vše jako přečtené"}<Check size={14}/></button></div></div>
     {error && <div className="table-error">{error}<button onClick={() => setRefreshKey((value) => value + 1)}>Zkusit znovu</button></div>}
-    <section className="surface notification-list">{busy ? <div className="table-loading"><span className="spinner"/> Načítám oznámení…</div> : items.length ? items.map((item) => <article className={`notification-row ${item.read ? "is-read" : "is-unread"}`} key={item.id}><button className="notification-main" onClick={() => open(item)}><span className="notification-icon"><NotificationTypeIcon type={item.type}/></span><span className="notification-copy"><strong>{notificationTitle(item, metadata)}</strong><span>{notificationDetail(item, metadata)}</span><time>{item.createdAt ? new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(item.createdAt).replace(" ", "T"))) : ""}</time></span>{!item.read && <i className="notification-unread-dot"/>}<ChevronRight size={15}/></button><button className="notification-remove" onClick={() => void remove(item)} disabled={removing === item.id} aria-label="Odstranit oznámení" title="Odstranit oznámení"><Trash2 size={14}/></button></article>) : <div className="stream-empty"><Bell size={22}/><span>Nemáte žádná nová oznámení.</span></div>}{hasMore && !busy && <button className="stream-load-more" onClick={() => void load(items.length)} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Načíst starší oznámení</button>}</section>
+    <section className="surface notification-list">{busy ? <div className="table-loading"><span className="spinner"/> Načítám oznámení…</div> : items.length ? items.map((item) => <article className={`notification-row ${item.read ? "is-read" : "is-unread"}`} key={item.id}><button className="notification-main" onClick={() => open(item)}><span className="notification-icon"><NotificationTypeIcon type={item.type}/></span><span className="notification-copy"><strong>{notificationTitle(item, metadata)}</strong><span>{notificationDetail(item, metadata)}</span><time>{item.createdAt ? formatEspoDateTime(item.createdAt, timeZone) : ""}</time></span>{!item.read && <i className="notification-unread-dot"/>}<ChevronRight size={15}/></button><button className="notification-remove" onClick={() => void remove(item)} disabled={removing === item.id} aria-label="Odstranit oznámení" title="Odstranit oznámení"><Trash2 size={14}/></button></article>) : <div className="stream-empty"><Bell size={22}/><span>Nemáte žádná nová oznámení.</span></div>}{hasMore && !busy && <button className="stream-load-more" onClick={() => void load(items.length)} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Načíst starší oznámení</button>}</section>
   </div>;
 }
