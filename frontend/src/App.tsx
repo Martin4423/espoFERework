@@ -5473,6 +5473,11 @@ function ScheduledJobJobField({ metadata, value, disabled, onChange }: { metadat
 }
 
 function ScheduledJobCronField({ value, required, disabled, onChange }: { value: string; required: boolean; disabled: boolean; onChange: (value: string) => void }) {
+  const presets = [
+    ["Každou minutu", "* * * * *"], ["Každých 5 minut", "*/5 * * * *"], ["Každých 15 minut", "*/15 * * * *"],
+    ["Každou hodinu", "0 * * * *"], ["Každý den o půlnoci", "0 0 * * *"], ["Každou neděli o půlnoci", "0 0 * * 0"], ["První den v měsíci", "0 0 1 * *"],
+  ];
+  const selectedPreset = presets.find(([, expression]) => expression === value.trim())?.[1] || "custom";
   let description = "";
   if (value.trim()) {
     if (value.trim() === "* * * * *") description = "Co nejčastěji (každou minutu)";
@@ -5481,7 +5486,7 @@ function ScheduledJobCronField({ value, required, disabled, onChange }: { value:
       catch { description = "Neplatný cron výraz — zkontrolujte pořadí minut, hodin, dne, měsíce a dne v týdnu."; }
     }
   }
-  return <label className="field-input scheduled-job-cron"><span>{fieldLabel("scheduling", { type: "varchar" }, "ScheduledJob")} {required && <i>*</i>}</span><input value={value} required={required} disabled={disabled} onChange={(event) => onChange(event.target.value)} placeholder="*/10 * * * *" spellCheck={false}/>{description && <small className={description.startsWith("Neplatný") ? "field-error" : "field-hint cron-description"}>{description}</small>}<small className="field-hint">Formát: minuta, hodina, den v měsíci, měsíc, den v týdnu.</small></label>;
+  return <div className="field-input scheduled-job-cron"><span id="scheduled-job-cron-label">{fieldLabel("scheduling", { type: "varchar" }, "ScheduledJob")} {required && <i>*</i>}</span><select aria-label="Rychlé nastavení plánu" value={selectedPreset} disabled={disabled} onChange={(event) => { if (event.target.value !== "custom") onChange(event.target.value); }}><option value="custom">Vlastní výraz</option>{presets.map(([label, expression]) => <option key={expression} value={expression}>{label}</option>)}</select><input aria-labelledby="scheduled-job-cron-label" value={value} required={required} disabled={disabled} onChange={(event) => onChange(event.target.value)} placeholder="*/10 * * * *" spellCheck={false}/>{description && <small role="status" className={description.startsWith("Neplatný") ? "field-error" : "field-hint cron-description"}>{description}</small>}<small className="field-hint">Pět polí: minuta, hodina, den v měsíci, měsíc a den v týdnu. Vlastní výraz můžete zadat nebo upravit ručně.</small></div>;
 }
 
 function ScheduledJobCronNotice({ onOpenJobs }: { onOpenJobs: () => void }) {
