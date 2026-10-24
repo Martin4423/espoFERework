@@ -138,6 +138,8 @@ export function UserPreferencesView({ metadata, user, onBack }: { metadata: Meta
       if (!group) { group = { title: currentTitle, fields: [] }; result.push(group); }
       for (const name of fieldNames) {
         const def = fields[name];
+        const fieldAcl = (metadata.userAcl?.fieldTable as any)?.Preferences?.[name];
+        if (["no", "hidden"].includes(fieldAcl?.read) || ["no", "hidden"].includes(fieldAcl?.edit)) continue;
         if (!def || def.notStorable || def.readOnly || def.disabled || def.hidden || def.utility || !isVisible(name) || group.fields.some((field) => field.name === name)) continue;
         if (["dashboard"].includes(name)) continue;
         group.fields.push({ name, def, section: currentTitle });
