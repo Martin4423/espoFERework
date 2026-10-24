@@ -1458,7 +1458,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .personal-dashlet-resize { position: absolute; z-index: 3; right: 3px; bottom: 3px; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: nwse-resize; touch-action: none; }
 .personal-dashlet-resize::after { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-right: 9px solid #7c879a; border-top: 9px solid transparent; content: ""; }
 .personal-dashlet-resize:hover::after { border-right-color: #5148c8; }
-.personal-dashlet { min-height: 0; height: 100%; flex: 1 1 auto; overflow: auto; }
+.personal-dashlet { min-height: 0; height: 100%; display: flex; flex: 1 1 auto; flex-direction: column; overflow: auto; }
 .personal-dashlet > header { display: flex; align-items: center; gap: 9px; min-height: 47px; padding: 0 14px; border-bottom: 1px solid #eef0f4; }
 .personal-dashlet-icon { display: grid; width: 27px; height: 27px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: #f0efff; color: #5a51cb; }
 .personal-dashlet > header h2 { flex: 1; overflow: hidden; margin: 0; color: #36435a; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
@@ -1486,6 +1486,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .personal-dashlet-list small { overflow: hidden; color: #929baa; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .personal-dashlet .table-loading { min-height: 90px; border: 0; }
 .personal-dashlet-empty, .personal-memo { padding: 20px 16px; color: #8893a4; font-size: 10px; line-height: 1.6; }
+.personal-dashlet > .personal-dashlet-empty { flex: 1; min-height: 160px; display: grid; align-content: center; justify-items: center; gap: 7px; padding: 24px 18px; text-align: center; }
+.personal-dashlet-empty-icon { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #eeedfa; border-radius: 12px; background: #f8f7ff; color: #8982dd; }
+.personal-dashlet-empty > strong { color: #58647a; font-size: 11px; font-weight: 650; }
+.personal-dashlet-empty > p, .personal-dashlet-empty > small { max-width: 250px; margin: 0; color: #929cad; font-size: 10px; line-height: 1.5; }
+.personal-dashlet-empty > small { color: #6f78a0; }
 .personal-memo { white-space: pre-wrap; color: #4e5b71; }
 .dashlet-error { margin: 12px; padding: 10px; border-radius: 7px; background: #fff3f1; color: #a84d4d; font-size: 10px; line-height: 1.5; }
 .dashboard-empty { grid-column: 1/-1; display: grid; justify-items: center; padding: 38px 20px; color: #8b95a5; text-align: center; }
