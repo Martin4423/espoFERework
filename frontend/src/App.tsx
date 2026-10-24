@@ -2013,6 +2013,11 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   }, [entity, preferencesUserId]);
   const presetWhere = (name: string, definition: any): Row | null => {
     if (!definition || typeof definition !== "object") return null;
+    const fieldName = String(definition.field || definition.attribute || name);
+    const fieldDef = fieldDefs[fieldName] || {};
+    if (definition.type === "isUserFromTeams" && ["views/fields/user", "views/fields/user-with-avatar", "views/fields/assigned-user", "views/fields/assigned-users"].includes(String(fieldDef.view || ""))) {
+      return canReadField(fieldName) ? { ...definition, field: fieldName } : null;
+    }
     if (definition.where && typeof definition.where === "object") {
       const allowed = (where: any): boolean => {
         if (!where || typeof where !== "object") return true;
@@ -2050,7 +2055,11 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       const all = { ...(preferences.presetFilters || {}) };
       const list: Row[] = Array.isArray(all[entity]) ? [...all[entity]] : [];
       const id = `f${Math.floor(Math.random() * 1000001)}`;
-      const data = Object.fromEntries(appliedFilters.map((item) => { const where = conditionToWhere(item)[0]; return [item.field, { type: item.operator, attribute: item.field, value: item.value, ...(item.valueTo != null ? { valueTo: item.valueTo } : {}), ...(Array.isArray(item.value) ? { data: { type: item.operator, valueList: item.value } } : {}), where }]; }));
+      const data = Object.fromEntries(appliedFilters.map((item) => {
+        if (item.operator === "isFromTeams") return [item.field, { type: "isUserFromTeams", field: item.field, value: item.value, data: { type: "isFromTeams", teamIdList: item.value, teamNameHash: item.valueNames || {} } }];
+        const where = conditionToWhere(item)[0];
+        return [item.field, { type: item.operator, attribute: item.field, value: item.value, ...(item.valueTo != null ? { valueTo: item.valueTo } : {}), ...(Array.isArray(item.value) ? { data: { type: item.operator, valueList: item.value } } : {}), where }];
+      }));
       const preset = { id, name: id, label: name, data, primary: primaryFilter || null };
       all[entity] = [...list, preset];
       await request(`Preferences/${encodeURIComponent(preferencesUserId)}`, { method: "PATCH", body: JSON.stringify({ presetFilters: all }) });
@@ -2072,6 +2081,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     const def = fieldDefs[field] || {};
     const type = def.type;
     if (/category[-]?tree/i.test(String(def.view || ""))) return [["inCategory", "V této kategorii"]];
+    if (type === "link" && ["views/fields/user", "views/fields/user-with-avatar", "views/fields/assigned-user", "views/fields/assigned-users"].includes(String(def.view || ""))) return [["is", "Je záznam"], ["isNot", "Není záznam"], ["isOneOf", "Je některý záznam"], ["isNotOneOf", "Není žádný záznam"], ["isFromTeams", "Uživatel je z vybraných týmů"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
     if (type === "linkOne") return [["is", "Je záznam"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"], ["isOneOf", "Je některý záznam"]];
     if (type === "linkMultiple") return [["anyOf", "Obsahuje některý záznam"], ["allOf", "Obsahuje všechny záznamy"], ["noneOf", "Neobsahuje žádný záznam"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
     if (type === "link") return [["is", "Je záznam"], ["isNot", "Není záznam"], ["isOneOf", "Je některý záznam"], ["isNotOneOf", "Není žádný záznam"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
@@ -2094,6 +2104,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     const value = Array.isArray(condition.value) ? condition.value : condition.value;
     const typed = (input: string | undefined) => numeric && input !== "" && input != null ? Number(input) : input;
     const ids = Array.isArray(value) ? value : value ? [value] : [];
+    if (condition.operator === "isFromTeams" && ["views/fields/user", "views/fields/user-with-avatar", "views/fields/assigned-user", "views/fields/assigned-users"].includes(String(def.view || ""))) return [{ type: "isUserFromTeams", field: attribute, value: ids, data: { type: "isFromTeams", teamIdList: ids, teamNameHash: condition.valueNames || {} } }];
     if (/category[-]?tree/i.test(String(def.view || "")) && condition.operator === "inCategory") return [{ type: "inCategory", field: attribute, value }];
     if (type === "linkOne") {
       if (condition.operator === "isEmpty") return [{ type: "isNotLinked", attribute }];
@@ -2134,7 +2145,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     const usable = draftFilters.filter((item) => {
       if (!item.field) return false;
       if (filterNoValueOperators.has(item.operator) || ["isTrue", "isFalse", "any"].includes(item.operator)) return true;
-      if (["anyOf", "allOf", "noneOf", "isOneOf", "isNotOneOf"].includes(item.operator)) return Array.isArray(item.value) && item.value.length > 0;
+      if (["anyOf", "allOf", "noneOf", "isOneOf", "isNotOneOf", "isFromTeams"].includes(item.operator)) return Array.isArray(item.value) && item.value.length > 0;
       if (filterNeedsRange(item.operator)) return item.value !== "" && Boolean(item.valueTo);
       return item.value !== "";
     });
@@ -2274,7 +2285,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
         const operators = filterOperators(condition.field);
         const def = fieldDefs[condition.field] || {};
         const type = def.type || "varchar";
-        const multi = ["anyOf", "allOf", "noneOf", "isOneOf", "isNotOneOf"].includes(condition.operator);
+        const multi = ["anyOf", "allOf", "noneOf", "isOneOf", "isNotOneOf", "isFromTeams"].includes(condition.operator);
         const categoryField = /category[-]?tree/i.test(String(def.view || ""));
         const relationField = ["link", "linkOne", "linkMultiple"].includes(type);
         const enumField = ["enum", "enumInt", "enumFloat"].includes(type);
@@ -2287,7 +2298,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
         const setValue = (value: string | string[]) => updateDraftFilter(index, { value });
         return <div className={`advanced-filter-row ${range ? "has-range" : ""}`} key={index}>
           <select aria-label="Pole filtru" value={condition.field} onChange={(event) => { const field = event.target.value; updateDraftFilter(index, { field, operator: filterOperators(field)[0]?.[0] || "equals", value: "", valueTo: "" }); }}><option value="">Vyberte pole…</option>{filterableFields.map(([name, fieldDef]) => <option key={name} value={name}>{fieldLabel(name, fieldDef, entity, metadata)}</option>)}</select>
-          <select aria-label="Operátor filtru" value={condition.operator} onChange={(event) => updateDraftFilter(index, { operator: event.target.value, value: ["anyOf", "allOf", "noneOf", "isOneOf", "isNotOneOf"].includes(event.target.value) ? [] : "", valueTo: "", valueNames: {} })}>{operators.map(([operator, label]) => <option key={operator} value={operator}>{label}</option>)}</select>
+          <select aria-label="Operátor filtru" value={condition.operator} onChange={(event) => updateDraftFilter(index, { operator: event.target.value, value: ["anyOf", "allOf", "noneOf", "isOneOf", "isNotOneOf", "isFromTeams"].includes(event.target.value) ? [] : "", valueTo: "", valueNames: {} })}>{operators.map(([operator, label]) => <option key={operator} value={operator}>{label}</option>)}</select>
           {!noValue && (categoryField ? <button type="button" className="button subtle filter-record-picker" onClick={() => setFilterPicker({ index, category: true })}>{Array.isArray(condition.value) ? `Vybráno ${condition.value.length} kategorií…` : condition.value ? condition.valueNames?.[String(condition.value)] || "Změnit kategorii…" : "Vybrat kategorii…"}</button>
             : relationField ? <button type="button" className="button subtle filter-record-picker" onClick={() => setFilterPicker({ index, category: false })}>{Array.isArray(condition.value) ? `Vybráno ${condition.value.length} záznamů…` : condition.value ? condition.valueNames?.[String(condition.value)] || "Změnit záznam…" : "Vybrat záznam…"}</button>
             : multi && enumField ? <select aria-label="Hodnoty filtru" multiple value={Array.isArray(condition.value) ? condition.value : []} onChange={(event) => setValue(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}>{(def.options || []).filter((value: any) => value !== "").map((value: any) => <option key={String(value)} value={String(value)}>{(metadata.labels as any)?.[entity]?.options?.[condition.field]?.[String(value)] || String(value)}</option>)}</select>
@@ -2322,8 +2333,8 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     {filterPicker && draftFilters[filterPicker.index] && (() => {
       const condition = draftFilters[filterPicker.index];
       const def = fieldDefs[condition.field] || {};
-      const relationEntity = filterRelationEntity(condition.field, def);
-      const multiple = def.type === "linkMultiple" || ["anyOf", "allOf", "noneOf", "isOneOf", "isNotOneOf"].includes(condition.operator);
+      const relationEntity = condition.operator === "isFromTeams" ? "Team" : filterRelationEntity(condition.field, def);
+      const multiple = def.type === "linkMultiple" || ["anyOf", "allOf", "noneOf", "isOneOf", "isNotOneOf", "isFromTeams"].includes(condition.operator);
       const selectedIds = Array.isArray(condition.value) ? condition.value : condition.value ? [condition.value] : [];
       const selectedRows = selectedIds.map((id: string) => ({ id, name: condition.valueNames?.[id] || id }));
       const onSelect = (rows: Row[]) => {
