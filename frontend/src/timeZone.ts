@@ -39,16 +39,38 @@ export function formatEspoDateTimeShort(value: string | undefined, timeZone: str
   }
 }
 
-function zonedWallTimeToUtc(year: number, month: number, day: number, hour: number, minute: number, second: number, timeZone: string) {
-  const targetWallTime = Date.UTC(year, month - 1, day, hour, minute, second);
-  let timestamp = targetWallTime;
+export function zonedWallTimeToUtc(year: number, month: number, day: number, hour: number, minute: number, second: number, timeZone: string) {
+  const targetDate = new Date(0);
+  targetDate.setUTCFullYear(year, month - 1, day);
+  targetDate.setUTCHours(hour, minute, second, 0);
+  const targetWallTime = targetDate.getTime();
   const formatter = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
-  for (let index = 0; index < 3; index++) {
+  const representedWallTime = (timestamp: number) => {
     const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]));
-    const representedWallTime = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
-    timestamp += targetWallTime - representedWallTime;
+    const date = new Date(0);
+    date.setUTCFullYear(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+    date.setUTCHours(Number(parts.hour), Number(parts.minute), Number(parts.second), 0);
+    return date.getTime();
+  };
+  const offsets = new Set<number>();
+  for (const hours of [-36, -12, 0, 12, 36]) {
+    const sample = targetWallTime + hours * 60 * 60 * 1000;
+    offsets.add(representedWallTime(sample) - sample);
   }
-  return new Date(timestamp);
+  const candidates = [...offsets].map((offset) => {
+    const timestamp = targetWallTime - offset;
+    return { timestamp, represented: representedWallTime(timestamp) };
+  });
+  const exact = candidates.filter((item) => item.represented === targetWallTime).sort((a, b) => a.timestamp - b.timestamp);
+  if (exact.length) return new Date(exact[0].timestamp);
+
+  // A wall time inside a spring-forward gap has no exact instant. Compatible
+  // disambiguation moves it forward by the gap while retaining its minutes.
+  const afterGap = candidates.filter((item) => item.represented > targetWallTime)
+    .sort((a, b) => a.represented - b.represented || a.timestamp - b.timestamp);
+  if (afterGap.length) return new Date(afterGap[0].timestamp);
+
+  return new Date(candidates.sort((a, b) => b.represented - a.represented || a.timestamp - b.timestamp)[0]?.timestamp ?? targetWallTime);
 }
 
 function toEspoUtcString(date: Date) {

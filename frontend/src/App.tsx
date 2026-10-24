@@ -11,7 +11,7 @@ import type { KanbanGroup, KanbanLayoutItem } from "./KanbanBoard";
 import { conditionGroupMatches } from "./dynamicLogicRuntime";
 import { useDialogFocus } from "./useDialogFocus";
 import { portalEntities } from "./portalEntities";
-import { dateFilterBoundaryInTimeZone, espocrmDateTimeFromInput, formatEspoDateTime, formatEspoDateTimeInput, formatEspoDateTimeShort, useEspoTimeZone } from "./timeZone";
+import { dateFilterBoundaryInTimeZone, espocrmDateTimeFromInput, formatEspoDateTime, formatEspoDateTimeInput, formatEspoDateTimeShort, useEspoTimeZone, zonedWallTimeToUtc } from "./timeZone";
 import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, completeSecondStepLogin, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, logout, request, restoreSession, uploadAttachment } from "./api";
 import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, PendingSecondStep, Session, User } from "./api";
 import AboutDialog from "./AboutDialog";
@@ -1947,15 +1947,7 @@ type ActivityEvent = { id: string; recordId: string; scope: string; title?: stri
 
 function calendarZonedDateTime(date: Date, timeZone: string) {
   const target = { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate(), hour: date.getHours(), minute: date.getMinutes(), second: date.getSeconds() };
-  const targetWallTime = Date.UTC(target.year, target.month - 1, target.day, target.hour, target.minute, target.second);
-  let timestamp = targetWallTime;
-  const formatter = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
-  for (let index = 0; index < 3; index++) {
-    const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]));
-    const representedWallTime = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
-    timestamp += targetWallTime - representedWallTime;
-  }
-  return new Date(timestamp);
+  return zonedWallTimeToUtc(target.year, target.month, target.day, target.hour, target.minute, target.second, timeZone);
 }
 
 function espocrmDateTime(value: Date) {
