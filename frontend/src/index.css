@@ -1725,6 +1725,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .meeting-scheduler-name-cell { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 10px; border-right: 1px solid var(--line); }
 .meeting-scheduler-axis .meeting-scheduler-name-cell { color: var(--muted); font-size: 9px; font-weight: 650; }
 .meeting-scheduler-track { position: relative; min-width: 0; min-height: 50px; overflow: hidden; background-image: linear-gradient(to right, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px); background-size: 100% 100%; }
+.meeting-scheduler-track { cursor: grab; touch-action: pan-y; user-select: none; }
+.meeting-scheduler-track.dragging { cursor: grabbing; }
+.meeting-scheduler-track > span, .meeting-scheduler-gridline, .meeting-scheduler-now, .meeting-scheduler-range-block { pointer-events: none; }
 .meeting-scheduler-axis .axis-track { min-height: 35px; overflow: visible; }
 .axis-track > span { position: absolute; top: 50%; max-width: 76px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; transform: translate(5px, -50%); }
 .meeting-scheduler-person { min-height: 54px; border-bottom: 1px solid var(--line); }

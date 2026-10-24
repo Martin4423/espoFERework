@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { ArrowLeft, ArrowRight, CalendarDays, Clock3, Minus, Plus, RefreshCw } from "./Icons";
 import { getSession, request } from "./api";
 import type { Metadata } from "./api";
@@ -70,8 +70,11 @@ export default function MeetingScheduler({ metadata, userIds = [], userNames: su
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pageOffset, setPageOffset] = useState(0);
+  const [manualShift, setManualShift] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef<{ pointerId: number; startX: number; startWindow: number; width: number } | null>(null);
   const sessionUserId = getSession()?.user?.id;
 
   const people = useMemo(() => {
@@ -99,10 +102,10 @@ export default function MeetingScheduler({ metadata, userIds = [], userNames: su
   const baseStart = Number.isFinite(meetingStart) ? Math.floor((meetingStart - duration * 3) / HOUR) * HOUR : NaN;
   const baseEnd = Number.isFinite(meetingEnd) ? Math.ceil((meetingEnd + duration * 3) / HOUR) * HOUR : NaN;
   const initialWindowStart = Number.isFinite(baseStart) ? baseStart + Math.round((baseEnd - baseStart - windowSize) / 2) : NaN;
-  const viewStart = initialWindowStart + pageOffset * windowSize;
+  const viewStart = initialWindowStart + pageOffset * windowSize + manualShift;
   const viewEnd = viewStart + windowSize;
 
-  useEffect(() => { setPageOffset(0); setZoom(1); }, [dateStart, dateEnd, allDay, personKey]);
+  useEffect(() => { setPageOffset(0); setManualShift(0); setZoom(1); }, [dateStart, dateEnd, allDay, personKey]);
 
   useEffect(() => {
     let live = true;
@@ -159,25 +162,50 @@ export default function MeetingScheduler({ metadata, userIds = [], userNames: su
 
   function changeZoom(direction: number) {
     const next = Math.max(0.5, Math.min(MAX_WINDOW / Math.max(baseWindow, 1), zoom * (direction > 0 ? 0.7 : 1.4)));
-    setZoom(next); setPageOffset(0);
+    setZoom(next); setPageOffset(0); setManualShift(0);
+  }
+
+  function beginDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || !hasDates) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startWindow: viewStart, width: Math.max(1, event.currentTarget.getBoundingClientRect().width) };
+    setDragging(true);
+  }
+
+  function moveDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const shift = drag.startWindow - (event.clientX - drag.startX) / drag.width * windowSize;
+    setManualShift(shift - initialWindowStart - pageOffset * windowSize);
+  }
+
+  function finishDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  function panTrackProps() {
+    return { onPointerDown: beginDrag, onPointerMove: moveDrag, onPointerUp: finishDrag, onPointerCancel: finishDrag, onLostPointerCapture: finishDrag };
   }
 
   return <section className="meeting-scheduler" aria-label="Dostupnost účastníků schůzky">
-    <header className="meeting-scheduler-header"><div><span className="eyebrow">PLÁNOVAČ SCHŮZKY</span><h3>Dostupnost účastníků</h3><p>Rozvrhy, pracovní dobu a kolize uvidíte pro každého účastníka zvlášť.</p></div><div className="meeting-scheduler-tools"><button type="button" className="icon-button" title="Oddálit" aria-label="Oddálit časovou osu" disabled={windowSize >= MAX_WINDOW} onClick={() => changeZoom(-1)}><Minus size={14}/></button><button type="button" className="icon-button" title="Přiblížit" aria-label="Přiblížit časovou osu" disabled={zoom <= 0.5} onClick={() => changeZoom(1)}><Plus size={14}/></button><button type="button" className="button subtle" onClick={() => { setPageOffset(0); setZoom(1); }} disabled={!pageOffset && zoom === 1}><CalendarDays size={14}/> Ke schůzce</button><button type="button" className="icon-button" onClick={() => { setPageOffset((value) => value - 1); }} disabled={!hasDates} title="Předchozí období" aria-label="Předchozí období"><ArrowLeft size={14}/></button><button type="button" className="icon-button" onClick={() => setPageOffset((value) => value + 1)} disabled={!hasDates} title="Další období" aria-label="Další období"><ArrowRight size={14}/></button></div></header>
+    <header className="meeting-scheduler-header"><div><span className="eyebrow">PLÁNOVAČ SCHŮZKY</span><h3>Dostupnost účastníků</h3><p>Rozvrhy, pracovní dobu a kolize uvidíte pro každého účastníka zvlášť.</p></div><div className="meeting-scheduler-tools"><button type="button" className="icon-button" title="Oddálit" aria-label="Oddálit časovou osu" disabled={windowSize >= MAX_WINDOW} onClick={() => changeZoom(-1)}><Minus size={14}/></button><button type="button" className="icon-button" title="Přiblížit" aria-label="Přiblížit časovou osu" disabled={zoom <= 0.5} onClick={() => changeZoom(1)}><Plus size={14}/></button><button type="button" className="button subtle" onClick={() => { setPageOffset(0); setManualShift(0); setZoom(1); }} disabled={!pageOffset && !manualShift && zoom === 1}><CalendarDays size={14}/> Ke schůzce</button><button type="button" className="icon-button" onClick={() => { setPageOffset((value) => value - 1); setManualShift(0); }} disabled={!hasDates} title="Předchozí období" aria-label="Předchozí období"><ArrowLeft size={14}/></button><button type="button" className="icon-button" onClick={() => { setPageOffset((value) => value + 1); setManualShift(0); }} disabled={!hasDates} title="Další období" aria-label="Další období"><ArrowRight size={14}/></button></div></header>
     {people.length > 0 && <div className="meeting-scheduler-legend"><span><i className="busy"/>Obsazeno</span><span><i className="working"/>Pracovní doba</span><span><i className="non-working"/>Mimo pracovní dobu</span><span><i className="selected"/>Tato schůzka</span><span className="meeting-scheduler-timezone"><Clock3 size={12}/>{timeZone}</span></div>}
     {!people.length ? <div className="meeting-scheduler-empty"><CalendarDays size={20}/><strong>Přidejte účastníky</strong><span>Vyberte alespoň jednoho účastníka, aby se zobrazila jeho dostupnost.</span></div>
       : !hasDates ? <div className="meeting-scheduler-empty"><CalendarDays size={20}/><strong>Doplňte čas schůzky</strong><span>Časová osa se načte po zadání platného začátku a konce.</span></div>
       : <><div className="meeting-scheduler-range"><strong>{formatDateTime(viewStart, timeZone, { dateStyle: "medium" })} – {formatDateTime(viewEnd, timeZone, { dateStyle: "medium" })}</strong><button type="button" className="icon-button" onClick={() => setRefreshKey((value) => value + 1)} disabled={loading} title="Obnovit rozvrh" aria-label="Obnovit rozvrh"><RefreshCw size={13}/></button></div>
         {error && <div className="meeting-scheduler-error" role="alert">{error}<button type="button" onClick={() => setRefreshKey((value) => value + 1)}>Zkusit znovu</button></div>}
         <div className={`meeting-scheduler-viewport ${loading ? "loading" : ""}`}>
-          <div className="meeting-scheduler-axis"><div className="meeting-scheduler-name-cell">Účastník</div><div className="meeting-scheduler-track axis-track">{ticks.map((tick) => <span key={tick} style={{ left: `${position(tick)}%` }}>{tickFormat(tick)}</span>)}</div></div>
+          <div className="meeting-scheduler-axis"><div className="meeting-scheduler-name-cell">Účastník</div><div className={`meeting-scheduler-track axis-track ${dragging ? "dragging" : ""}`} {...panTrackProps()}>{ticks.map((tick) => <span key={tick} style={{ left: `${position(tick)}%` }}>{tickFormat(tick)}</span>)}</div></div>
           {people.map((id) => {
             const name = id === assignedUserId ? assignedUserName || userNames[id] || resolvedNames[id] || id : userNames[id] || resolvedNames[id] || id;
             const ranges = rangesByUser[id] || [];
             const overlapsMeeting = (range: BusyRange) => Number.isFinite(rangeDate(range)) && Number.isFinite(parseUtc(range.dateEnd)) && rangeDate(range) < meetingEnd && parseUtc(range.dateEnd) > meetingStart;
             const busyConflicts = ranges.filter((range) => range.isBusyRange && overlapsMeeting(range));
             const outsideWorkingHours = ranges.some((range) => range.isNonWorkingRange && overlapsMeeting(range));
-            return <div className="meeting-scheduler-person" key={id}><div className="meeting-scheduler-name-cell"><span className="meeting-scheduler-avatar">{name.slice(0, 1).toUpperCase()}</span><span><strong>{name}</strong><small>{busyConflicts.length ? `${busyConflicts.length} ${busyConflicts.length === 1 ? "kolize" : "kolizí"}` : outsideWorkingHours ? "Mimo pracovní dobu" : "Bez kolize"}</small></span></div><div className="meeting-scheduler-track">
+            return <div className="meeting-scheduler-person" key={id}><div className="meeting-scheduler-name-cell"><span className="meeting-scheduler-avatar">{name.slice(0, 1).toUpperCase()}</span><span><strong>{name}</strong><small>{busyConflicts.length ? `${busyConflicts.length} ${busyConflicts.length === 1 ? "kolize" : "kolizí"}` : outsideWorkingHours ? "Mimo pracovní dobu" : "Bez kolize"}</small></span></div><div className={`meeting-scheduler-track ${dragging ? "dragging" : ""}`} {...panTrackProps()}>
               {ranges.map((range, index) => {
                 const start = rangeDate(range); const end = parseUtc(range.dateEnd);
                 if (!Number.isFinite(start) || !Number.isFinite(end) || end <= viewStart || start >= viewEnd) return null;
