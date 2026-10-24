@@ -3549,6 +3549,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
         const probability = probabilityMap[String(value)];
         return probability === null || probability === undefined ? { ...old, stage: value } : { ...old, stage: value, probability };
       }
+      if (entity === "Document" && name === "file" && !record) return { ...old, file: value, name: String(value?.name || "") };
       if (entity === "Task" && ["dateEnd", "dateEndDate"].includes(name) && !value) {
         const next = { ...old, [name]: value };
         if (!next.dateEnd && !next.dateEndDate && Array.isArray(next.reminders) && next.reminders.length) next.reminders = [];
