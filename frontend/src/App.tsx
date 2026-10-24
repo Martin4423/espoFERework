@@ -3992,7 +3992,8 @@ function PortalScopeListEditor({ name, label, value, metadata, disabled, onChang
   return <div className="field-input portal-scope-list-editor"><span>{label}</span><div className="portal-scope-list">{selected.map((item, index) => <div className="portal-scope-list-row" key={`${item}-${index}`}><strong>{optionLabel(item)}</strong><div><button type="button" className="icon-button" disabled={disabled || index === 0} onClick={() => move(index, -1)} aria-label={`Posunout nahoru: ${optionLabel(item)}`}><ArrowUp size={13}/></button><button type="button" className="icon-button" disabled={disabled || index === selected.length - 1} onClick={() => move(index, 1)} aria-label={`Posunout dolů: ${optionLabel(item)}`}><ArrowDown size={13}/></button><button type="button" className="icon-button danger-ghost" disabled={disabled} onClick={() => remove(index)} aria-label={`Odebrat: ${optionLabel(item)}`}><Trash2 size={13}/></button></div></div>)}{!selected.length && <small>Žádná položka není vybraná.</small>}</div><div className="portal-scope-list-add"><select value={next} disabled={disabled || !available.length} onChange={(event) => setNext(event.target.value)}><option value="">Vyberte modul…</option>{available.map((item, index) => <option key={`${item}-${index}`} value={item}>{optionLabel(item)}</option>)}</select><button type="button" className="button subtle" disabled={disabled || !next} onClick={add}><Plus size={13}/>Přidat</button></div><small className="field-hint">{tabList ? "Pořadí určuje navigaci portálu. Nabízené moduly respektují portálová oprávnění." : "Rychlé vytvoření nabízí jen objekty povolené pro tento portál."}</small></div>;
 }
 
-function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumnsChange, primaryId, onPrimaryChange, onChange, onUploading, onUploaded, onError, relatedContext, currencyValue, onCurrencyChange, themeParamsValue, onThemeParamsChange }: { entity: string; metadata: Metadata; name: string; def: FieldDef; value: any; columns?: Row; onColumnsChange?: (columns: Row) => void; primaryId?: string; onPrimaryChange?: (id: string, label?: string) => void; onChange: (value: any) => void; onUploading?: (value: boolean) => void; onUploaded?: (id: string) => void; onError?: (message: string) => void; relatedContext?: Row; currencyValue?: string; onCurrencyChange?: (currency: string) => void; themeParamsValue?: Row; onThemeParamsChange?: (value: Row) => void }) {
+function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}, onColumnsChange, primaryId, onPrimaryChange, onChange, onUploading, onUploaded, onError, relatedContext, currencyValue, onCurrencyChange, themeParamsValue, onThemeParamsChange }: { entity: string; metadata: Metadata; name: string; def: FieldDef; value: any; columns?: Row; onColumnsChange?: (columns: Row) => void; primaryId?: string; onPrimaryChange?: (id: string, label?: string) => void; onChange: (value: any) => void; onUploading?: (value: boolean) => void; onUploaded?: (id: string) => void; onError?: (message: string) => void; relatedContext?: Row; currencyValue?: string; onCurrencyChange?: (currency: string) => void; themeParamsValue?: Row; onThemeParamsChange?: (value: Row) => void }) {
+  const def = nativeForeignFieldDef(metadata, entity, inputDef);
   const [options, setOptions] = useState<Row[]>([]);
   const [parentEntity, setParentEntity] = useState(value?.type || "");
   const [relationSearch, setRelationSearch] = useState("");
@@ -4441,7 +4442,26 @@ function metadataPathValue(root: any, path: string | undefined): any {
   return path.split(".").filter(Boolean).reduce((node, part) => node?.[part], root);
 }
 
+function nativeForeignFieldDef(metadata: Metadata | undefined, entity: string | undefined, def: FieldDef): FieldDef {
+  if (!metadata || def.type !== "foreign" || !entity || !def.link || !def.field) return def;
+  const foreignEntity = metadata.entityDefs?.[entity]?.links?.[String(def.link)]?.entity;
+  const source = foreignEntity ? metadata.entityDefs?.[foreignEntity]?.fields?.[String(def.field)] : undefined;
+  if (!source) return def;
+  return {
+    ...source,
+    ...def,
+    type: source.type || "varchar",
+    options: def.options?.length ? def.options : source.options,
+    optionsPath: def.optionsPath || source.optionsPath,
+    optionsReference: def.optionsReference || source.optionsReference,
+    translation: def.translation || source.translation,
+    style: def.style || source.style,
+    translatedOptions: def.translatedOptions || source.translatedOptions,
+  };
+}
+
 function nativeFieldOptions(metadata: Metadata, entity: string, name: string, def: FieldDef) {
+  def = nativeForeignFieldDef(metadata, entity, def);
   const [referenceEntity, referenceField] = String(def.optionsReference || "").split(".");
   const referencedDef = referenceEntity && referenceField ? metadata.entityDefs?.[referenceEntity]?.fields?.[referenceField] : undefined;
   const optionsPath = def.optionsPath || (referencedDef ? `entityDefs.${referenceEntity}.fields.${referenceField}.options` : undefined);
@@ -4484,6 +4504,7 @@ function EnumValue({ value, def, metadata, entity, name }: { value: unknown; def
 }
 
 function renderCell(value: any, def?: FieldDef, currency?: unknown, metadata?: Metadata, entity?: string, name?: string) {
+  if (def) def = nativeForeignFieldDef(metadata, entity, def);
   if (["url", "urlMultiple"].includes(String(def?.type))) return <UrlFieldDisplay value={value} multiple={def?.type === "urlMultiple"} copyToClipboard={Boolean(def?.copyToClipboard)}/>;
   if (["email", "emailAddress", "phone"].includes(String(def?.type))) return <ContactFieldDisplay value={value} type={String(def?.type)}/>;
   const text = def?.type === "currency" && metadata ? formatCurrency(value, currency, metadata) : def?.type === "currencyConverted" && metadata ? formatCurrency(value, metadata.appSettings?.defaultCurrency, metadata) : displayValue(value, def);
