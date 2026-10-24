@@ -180,8 +180,10 @@ export function NotificationCenter({ onBack, onOpenRecord, onUnreadChange }: { o
   function open(item: NotificationItem) {
     const note = item.noteData || {};
     const related = item.related || {};
-    const scope = note.parentType || item.relatedParentType || item.relatedType || related.type || item.data?.entityType || item.data?.scope;
-    const id = note.parentId || item.relatedParentId || item.relatedId || related.id || item.data?.entityId || item.data?.id;
+    const data = item.data || {};
+    if (item.type === "EmailReceived" && data.emailId) { onOpenRecord("Email", data.emailId); return; }
+    const scope = note.parentType || item.relatedParentType || item.relatedType || related.type || data.entityType || data.scope;
+    const id = note.parentId || item.relatedParentId || item.relatedId || related.id || data.entityId || data.id;
     if (scope && id) onOpenRecord(scope, id);
   }
   function title(item: NotificationItem) {
