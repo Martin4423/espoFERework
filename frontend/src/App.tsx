@@ -2089,6 +2089,14 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   </div>;
 }
 
+function emailComposerSnapshot(data: Row) {
+  return JSON.stringify({ to: data.to || "", cc: data.cc || "", bcc: data.bcc || "", subject: data.subject || "", body: data.body || "", isHtml: Boolean(data.isHtml), sendAt: data.sendAt || "", attachments: data.attachments || (data.attachmentsIds || []).map((id: string) => ({ id })) });
+}
+
+function dateTimeLocalValue(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 function EmailComposer({ onClose, onSaved, initial = {} }: { onClose: () => void; onSaved: () => void; initial?: Row }) {
   const [to, setTo] = useState(initial.to || "");
   const [cc, setCc] = useState(initial.cc || "");
@@ -2107,6 +2115,10 @@ function EmailComposer({ onClose, onSaved, initial = {} }: { onClose: () => void
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [draftLoading, setDraftLoading] = useState(Boolean(initial.id));
+  const initialAttachments = (initial.attachmentsIds || []).map((id: string) => ({ id, name: initial.attachmentsNames?.[id] || "Příloha", type: initial.attachmentsTypes?.[id] || "application/octet-stream" }));
+  const baseline = useRef(emailComposerSnapshot({ ...initial, attachments: initialAttachments, sendAt: initial.sendAt ? String(initial.sendAt).replace(" ", "T").slice(0, 16) : "" }));
+  const currentSnapshot = emailComposerSnapshot({ to, cc, bcc, subject, body, isHtml, sendAt, attachments });
+  const hasUnsavedChanges = currentSnapshot !== baseline.current;
   useEffect(() => {
     let live = true;
     const user = getSession()?.user;
@@ -2128,7 +2140,9 @@ function EmailComposer({ onClose, onSaved, initial = {} }: { onClose: () => void
       if (!live) return;
       setTo(draft.to || ""); setCc(draft.cc || ""); setBcc(draft.bcc || ""); setSubject(draft.subject || ""); setBody(draft.body || ""); setIsHtml(Boolean(draft.isHtml)); setRepliedId(draft.repliedId || ""); setInReplyTo(draft.inReplyTo || "");
       setSendAt(draft.sendAt ? String(draft.sendAt).replace(" ", "T").slice(0, 16) : "");
-      setAttachments((draft.attachmentsIds || []).map((id: string) => ({ id, name: draft.attachmentsNames?.[id] || "Příloha", type: draft.attachmentsTypes?.[id] || "application/octet-stream" })));
+      const draftAttachments = (draft.attachmentsIds || []).map((id: string) => ({ id, name: draft.attachmentsNames?.[id] || "Příloha", type: draft.attachmentsTypes?.[id] || "application/octet-stream" }));
+      setAttachments(draftAttachments);
+      baseline.current = emailComposerSnapshot({ ...draft, attachments: draftAttachments, sendAt: draft.sendAt ? String(draft.sendAt).replace(" ", "T").slice(0, 16) : "" });
     }).catch((cause) => live && setError(cause instanceof Error ? cause.message : "Koncept se nepodařilo načíst."))
       .finally(() => live && setDraftLoading(false));
     return () => { live = false; };
@@ -2166,6 +2180,8 @@ function EmailComposer({ onClose, onSaved, initial = {} }: { onClose: () => void
     finally { setUploading(false); }
   }
   async function submit(status: "Sending" | "Draft") {
+    if (sendAt && (!Number.isFinite(new Date(sendAt).getTime()) || new Date(sendAt).getTime() <= Date.now())) { setError("Naplánované odeslání musí být v budoucnosti."); return; }
+    if (status === "Sending" && sendAt) status = "Draft";
     setBusy(true); setError("");
     try {
       const escapedSignature = signature.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[character] || character)).replace(/\n/g, "<br>");
@@ -2178,17 +2194,28 @@ function EmailComposer({ onClose, onSaved, initial = {} }: { onClose: () => void
     } catch (e) { setError(e instanceof Error ? e.message : "E-mail se nepodařilo připravit."); }
     finally { setBusy(false); }
   }
-  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><form className="record-modal email-modal" onSubmit={(e) => { e.preventDefault(); void submit("Sending"); }}>
-    <div className="modal-heading"><div><span className="eyebrow">{initial.id ? "KONCEPT E-MAILU" : "NOVÁ ZPRÁVA"}</span><h2>{initial.id ? "Upravit koncept" : "Napsat e-mail"}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
+  function closeComposer() { if (!hasUnsavedChanges || window.confirm("E-mail obsahuje neuložené změny. Opravdu chcete zavřít editor?")) onClose(); }
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); closeComposer(); return; }
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key.toLowerCase() === "s") { event.preventDefault(); if (!busy && !uploading && !draftLoading) void submit("Draft"); }
+      if (event.key === "Enter") { event.preventDefault(); if (!busy && !uploading && !draftLoading) void submit(sendAt ? "Draft" : "Sending"); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  });
+  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeComposer()}><form className="record-modal email-modal" onSubmit={(e) => { e.preventDefault(); void submit(sendAt ? "Draft" : "Sending"); }}>
+    <div className="modal-heading"><div><span className="eyebrow">{initial.id ? "KONCEPT E-MAILU" : "NOVÁ ZPRÁVA"}</span><h2>{initial.id ? "Upravit koncept" : "Napsat e-mail"}</h2></div><button type="button" className="icon-button" onClick={closeComposer} aria-label="Zavřít"><X size={17}/></button></div>
     {draftLoading ? <div className="table-loading"><span className="spinner"/>Načítám koncept…</div> : <div className="email-compose-fields">
       {templates.length > 0 && <label>Šablona<select value={templateId} onChange={(e) => void applyTemplate(e.target.value)}><option value="">Bez šablony</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
       <label>Komu<input type="text" required value={to} onChange={(e) => setTo(e.target.value)} placeholder="jmeno@firma.cz" autoFocus /></label><label>Kopie<input type="text" value={cc} onChange={(e) => setCc(e.target.value)} placeholder="volitelné adresy oddělené čárkou" /></label><label>Skrytá kopie<input type="text" value={bcc} onChange={(e) => setBcc(e.target.value)} placeholder="volitelné adresy oddělené čárkou" /></label><label>Předmět<input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)} /></label><div className="email-compose-body"><div className="email-compose-body-head"><span>Zpráva</span><label><input type="checkbox" checked={isHtml} onChange={(e) => toggleHtmlFormat(e.target.checked)}/> Formátovaný text</label></div>{isHtml ? <WysiwygEditor value={body} htmlMode entity="Email" field="body" onChange={setBody}/> : <textarea rows={10} value={body} onChange={(e) => setBody(e.target.value)} />}{signature && <small>Po odeslání bude připojen váš podpis z osobního nastavení.</small>}</div>
-      <label>Odeslat později<input type="datetime-local" value={sendAt} min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} onChange={(e) => setSendAt(e.target.value)} /></label>
+      <label>Odeslat později<input type="datetime-local" value={sendAt} min={dateTimeLocalValue(new Date(Date.now() + 60000))} onChange={(e) => setSendAt(e.target.value)} /></label>
       <label>Přílohy<input type="file" multiple onChange={(e) => { void addFiles(e.target.files); e.currentTarget.value = ""; }} /></label>
       {(uploading || attachments.length > 0) && <div className="email-attachments">{uploading && <span>Nahrávám přílohy…</span>}{attachments.map((item) => <span key={item.id}><Paperclip size={12}/>{item.name}<button type="button" aria-label={`Odebrat ${item.name}`} onClick={() => setAttachments((current) => current.filter((attachment) => attachment.id !== item.id))}><X size={12}/></button></span>)}</div>}
     </div>}
     {error && <div className="inline-error">{error}</div>}
-    <div className="modal-footer"><button type="button" className="button subtle" onClick={() => void submit("Draft")} disabled={busy || uploading || draftLoading}>Uložit koncept</button><button className="button primary" disabled={busy || uploading || draftLoading}>{busy ? "Odesílám…" : sendAt ? "Naplánovat odeslání" : "Odeslat e-mail"}<ArrowRight size={14}/></button></div>
+    <div className="modal-footer"><button type="button" className="button subtle" title="Ctrl+S" onClick={() => void submit("Draft")} disabled={busy || uploading || draftLoading}>Uložit koncept <kbd>Ctrl+S</kbd></button><button className="button primary" title="Ctrl+Enter" disabled={busy || uploading || draftLoading}>{busy ? "Odesílám…" : sendAt ? "Naplánovat odeslání" : "Odeslat e-mail"}<kbd>Ctrl+Enter</kbd><ArrowRight size={14}/></button></div>
   </form></div>;
 }
 
