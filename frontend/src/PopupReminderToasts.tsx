@@ -17,6 +17,7 @@ export default function PopupReminderToasts({ metadata, isPortalUser, onOpenReco
   const [items, setItems] = useState<PopupItem[]>([]);
   const [removing, setRemoving] = useState("");
   const seen = useRef(new Set<string>());
+  const firstCheck = useRef(true);
   const eventEnabled = useMemo(() => {
     const event = (metadata.app as any)?.popupNotifications?.event;
     return Boolean(event?.grouped && !event.disabled && !(isPortalUser && event.portalDisabled));
@@ -31,11 +32,17 @@ export default function PopupReminderToasts({ metadata, isPortalUser, onOpenReco
         seen.current.add(item.id);
         return true;
       });
+      if (!firstCheck.current && next.length && !metadata.appSettings?.notificationSoundsDisabled) {
+        const audio = new Audio("/client/sounds/pop_cork.mp3");
+        audio.volume = 0.3;
+        void audio.play().catch(() => {});
+      }
+      firstCheck.current = false;
       if (next.length) setItems((old) => [...old, ...next].slice(-5));
     } catch {
       // Reminders remain available from the native Notifications/Activities endpoints.
     }
-  }, [eventEnabled]);
+  }, [eventEnabled, metadata.appSettings?.notificationSoundsDisabled]);
 
   useEffect(() => {
     if (!eventEnabled) return;

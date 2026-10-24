@@ -41,7 +41,7 @@ function notificationDetail(item: NotificationItem, metadata: Metadata) {
   const data = item.data || {};
   const note = item.noteData || {};
   const entityType = data.entityType || note.parentType || item.relatedParentType || item.relatedType;
-  const entityName = data.entityName || note.parentName || item.relatedParentName;
+  const entityName = data.entityName || data.emailName || note.parentName || item.relatedParentName;
   const post = String(note.post || "").replace(/\s+/g, " ").trim();
   if (["Note", "MentionInPost", "UserReaction"].includes(item.type)) return post || (entityName && entityType ? `${entityLabel(metadata, entityType)} · ${entityName}` : "Otevřít související příspěvek");
   if (["Assign", "EntityRemoved", "EventAttendee", "EmailInbox"].includes(item.type)) return [entityName, entityType ? entityLabel(metadata, entityType) : ""].filter(Boolean).join(" · ") || "Otevřít související záznam";
