@@ -37,6 +37,7 @@ function choices(name: string, def: FieldDef, metadata: Metadata, settings: Data
     const key = name === "assignmentNotificationsIgnoreEntityTypeList" ? "assignmentNotificationsEntityList" : "assignmentEmailNotificationsEntityList";
     options = settings[key] || Object.keys(metadata.scopes || {}).filter((scope) => metadata.scopes[scope].entity && metadata.scopes[scope].tab);
   }
+  if (name === "calendarScrollHour" || name === "calendarSlotDuration") options = (options || []).filter((option) => option !== "");
   if (!options?.length) return null;
   return options.map((option) => {
     if (name === "weekStart") return [String(option), option === -1 ? "Podle systému" : ["Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"][Number(option)]];
@@ -47,6 +48,7 @@ function choices(name: string, def: FieldDef, metadata: Metadata, settings: Data
       try { return [String(option), new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle, timeZone: "UTC" }).format(new Date(Date.UTC(2020, 0, 1, hour)))]; }
       catch { return [String(option), `${String(hour).padStart(2, "0")}:00`]; }
     }
+    if (name === "calendarSlotDuration") return [String(option), `${String(option)} minut`];
     const key = String(option);
     const label = name === "language" ? (metadata.labels as any)?.Global?.options?.language?.[key] || key.replace("_", "-") : name === "theme" ? (metadata.labels as any)?.Global?.themes?.[key] || key : metadata.labels?.Global?.scopeNamesPlural?.[key] || key;
     return [key, label];
