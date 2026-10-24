@@ -4781,6 +4781,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const currencySettings = metadata.appSettings || {};
   const currencyList = (currencySettings.currencyList || (metadata.app as any)?.currency?.list || []) as string[];
   const defaultCurrency = String(currencySettings.defaultCurrency || currencyList[0] || "USD");
+  if (String(def.view || "").includes("complex-expression") || type === "complexExpression") return <ComplexExpressionInput entity={entity} metadata={metadata} name={name} label={label} value={value} def={def} disabled={fieldDisabled} onChange={onChange}/>;
   if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(type)) {
     const upperName = name.charAt(0).toUpperCase() + name.slice(1);
     const fromName = `from${upperName}`;
@@ -5132,6 +5133,46 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
       : ["text", "wysiwyg", "jsonObject", "jsonArray", "array", "urlMultiple"].includes(type) ? <textarea {...controlProps} rows={type === "text" || type === "wysiwyg" ? 3 : 5} value={typeof value === "string" ? value : value == null ? "" : Array.isArray(value) ? value.join("\n") : JSON.stringify(value, null, 2)} placeholder={["array", "urlMultiple"].includes(type) ? "Jedna hodnota na řádek" : ["jsonObject", "jsonArray"].includes(type) ? "{}" : undefined}/>
       : <input {...controlProps} onChange={handleControlChange} type={type === "date" ? "date" : ["datetime", "datetimeOptional"].includes(type) ? "datetime-local" : type === "password" ? "password" : type === "colorpicker" ? "color" : type === "email" ? "email" : type === "url" ? "url" : type === "phone" ? "tel" : ["int", "float", "currency"].includes(type) ? "number" : "text"} value={type === "datetime" || type === "datetimeOptional" ? formatEspoDateTimeInput(String(value || ""), fieldTimeZone) : value ?? ""} step={type === "float" || type === "currency" ? "any" : undefined} autoComplete={type === "password" ? "new-password" : undefined} />}
   </label>;
+}
+
+function ComplexExpressionInput({ entity, metadata, name, label, value, def, disabled, onChange }: { entity: string; metadata: Metadata; name: string; label: string; value: unknown; def: FieldDef; disabled: boolean; onChange: (value: string) => void }) {
+  const editor = useRef<HTMLTextAreaElement>(null);
+  const [picker, setPicker] = useState<"attribute" | "function" | "">("");
+  const [query, setQuery] = useState("");
+  const targetEntity = String((def as any).targetEntityType || (def as any).targetScope || entity);
+  const attributes = useMemo(() => {
+    const result = new Set<string>(["id"]);
+    const ignore = new Set(["map", "linkMultiple", "attachmentMultiple"]);
+    const addEntityFields = (scope: string, prefix = "") => {
+      for (const [field, fieldDef] of Object.entries(metadata.entityDefs?.[scope]?.fields || {})) {
+        if (fieldDef.disabled || fieldDef.utility || fieldDef.available === false || fieldDef.notStorable || ignore.has(fieldDef.type || "")) continue;
+        result.add(`${prefix}${field}`);
+      }
+    };
+    addEntityFields(targetEntity);
+    for (const [link, linkDef] of Object.entries(metadata.entityDefs?.[targetEntity]?.links || {})) {
+      const scope = String(linkDef.entity || "");
+      if (!scope || (linkDef as any).disabled || (linkDef as any).utility || !["hasMany", "hasOne", "belongsTo"].includes(String(linkDef.type || ""))) continue;
+      result.add(`${link}.id`);
+      addEntityFields(scope, `${link}.`);
+    }
+    return [...result].sort((a, b) => a.localeCompare(b, "cs"));
+  }, [metadata.entityDefs, targetEntity]);
+  const functions = (((metadata.app as any)?.complexExpression?.functionList || []) as Array<{ name: string; insertText?: string; description?: string; returnType?: string }>).filter((item) => item.name && item.insertText);
+  const items = picker === "attribute" ? attributes.map((item) => ({ value: item, label: item, detail: "Atribut" })) : functions.map((item) => ({ value: item.insertText || "", label: item.name, detail: item.returnType || item.description || "Funkce" }));
+  const filtered = items.filter((item) => `${item.label} ${item.value} ${item.detail}`.toLocaleLowerCase("cs").includes(query.trim().toLocaleLowerCase("cs")));
+  const insert = (text: string) => {
+    const input = editor.current;
+    const current = String(value || "");
+    const start = input?.selectionStart ?? current.length;
+    const end = input?.selectionEnd ?? current.length;
+    const next = `${current.slice(0, start)}${text}${current.slice(end)}`;
+    onChange(next);
+    setPicker("");
+    setQuery("");
+    requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start + text.length, start + text.length); });
+  };
+  return <div className="field-input complex-expression-field"><span>{label}{def.required && <i> *</i>}</span><div className="complex-expression-toolbar"><button type="button" className="button subtle" disabled={disabled} aria-expanded={picker === "attribute"} onClick={() => { setPicker((current) => current === "attribute" ? "" : "attribute"); setQuery(""); }}><Plus size={13}/> Vložit atribut</button><button type="button" className="button subtle" disabled={disabled} aria-expanded={picker === "function"} onClick={() => { setPicker((current) => current === "function" ? "" : "function"); setQuery(""); }}><Code2 size={13}/> Vložit funkci</button><a href="https://docs.espocrm.com/user-guide/complex-expressions/" target="_blank" rel="noreferrer">Nápověda syntaxe <ExternalLink size={12}/></a></div>{picker && <div className="complex-expression-picker" role="dialog" aria-label={picker === "attribute" ? "Vložit atribut" : "Vložit funkci"}><label><Search size={13}/><input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={picker === "attribute" ? "Hledat atribut…" : "Hledat funkci…"}/></label><div className="complex-expression-options">{filtered.slice(0, 100).map((item) => <button type="button" key={`${picker}-${item.label}`} onClick={() => insert(item.value)}><code>{item.label}</code><small>{item.detail}</small></button>)}{!filtered.length && <small className="field-hint">Nic jsme nenašli.</small>}</div><small className="field-hint">{filtered.length > 100 ? `Zobrazeno 100 z ${filtered.length}. Upřesněte hledání.` : `${filtered.length} možností`}</small></div>}<textarea ref={editor} id={`field-${name}`} className="complex-expression-code" value={typeof value === "string" ? value : ""} disabled={disabled} required={def.required} maxLength={def.maxLength} rows={Math.min(14, Math.max(5, String(value || "").split("\n").length))} spellCheck={false} autoCapitalize="off" autoCorrect="off" onChange={(event) => onChange(event.target.value)} placeholder="Začněte psát výraz nebo vložte atribut či funkci…"/></div>;
 }
 
 function MultipleContactField({ label, email, rows, options, phonePattern, disabled, required, onlyPrimary, maxCount, maxLength, defaultOptOut, onChange }: { label: string; email: boolean; rows: Row[]; options: string[]; phonePattern: RegExp; disabled: boolean; required: boolean; onlyPrimary: boolean; maxCount: number; maxLength: number; defaultOptOut: boolean; onChange: (rows: Row[]) => void }) {

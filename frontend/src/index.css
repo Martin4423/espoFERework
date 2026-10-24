@@ -873,6 +873,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .range-field-separator { align-self: center; margin-top: 15px; color: #8993a5; text-align: center; }
 .range-field-currency { grid-column: 1 / -1; grid-template-columns: auto minmax(110px, 180px); align-items: center; }
 .currency-range-field .range-field-currency { grid-column: 1 / -1; }
+.complex-expression-field { position: relative; min-width: 0; grid-column: 1 / -1; }
+.complex-expression-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.complex-expression-toolbar > a { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; color: var(--muted, #778198); font-size: 10px; text-decoration: none; }
+.complex-expression-toolbar > a:hover { color: var(--primary, #675fce); }
+.complex-expression-picker { position: absolute; z-index: 35; top: 72px; left: 0; display: grid; width: min(390px, 100%); max-height: 390px; padding: 9px; gap: 7px; border: 1px solid var(--line, #e1e5ed); border-radius: 10px; background: var(--surface, #fff); box-shadow: 0 14px 40px #18243b24; }
+.complex-expression-picker > label { display: flex; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid var(--line, #e1e5ed); border-radius: 7px; color: var(--muted, #778198); }
+.complex-expression-picker > label input { min-width: 0; border: 0; box-shadow: none; }
+.complex-expression-options { display: grid; max-height: 285px; overflow: auto; }
+.complex-expression-options > button { display: grid; gap: 2px; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ink, #29354a); text-align: left; cursor: pointer; }
+.complex-expression-options > button:hover, .complex-expression-options > button:focus-visible { outline: 0; background: var(--surface-muted, #f2f4f8); }
+.complex-expression-options code { color: var(--primary, #675fce); font: 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.complex-expression-options small, .complex-expression-picker > .field-hint { color: var(--muted, #778198); font-size: 9px; }
+.complex-expression-code { width: 100%; min-height: 130px; margin-top: 2px; padding: 12px; resize: vertical; border: 1px solid #293448; border-radius: 8px; outline: 0; background: #171d29 !important; color: #e0e8f5 !important; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; tab-size: 4; }
+.complex-expression-code:focus { border-color: #7770e6; box-shadow: 0 0 0 3px #7770e622; }
 .person-name-field legend { padding: 0 0 6px; color: #68748a; font-size: 10px; font-weight: 600; }
 .person-name-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .person-name-controls label { display: grid; gap: 5px; color: #8893a6; font-size: 9px; font-weight: 500; }
