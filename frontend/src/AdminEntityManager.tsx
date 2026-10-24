@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, FileInput, Plus, Save, Trash2, X } from "./Icons";
+import { ArrowLeft, Check, FileInput, Plus, Save, Search, Trash2, X } from "./Icons";
 import { downloadAttachment, entityLabel, fetchMetadata, fieldLabel, request } from "./api";
 import EspoIcon from "./EspoIcon";
 import AdminEntityFormula from "./AdminEntityFormula";
@@ -21,6 +21,7 @@ const featuredIconClasses = [
 export default function AdminEntityManager({ metadata, onBack }: { metadata: Metadata; onBack: () => void }) {
   const [liveMetadata, setLiveMetadata] = useState(metadata);
   const [scope, setScope] = useState("");
+  const [scopeSearch, setScopeSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [data, setData] = useState<Data>({});
   const [originalData, setOriginalData] = useState<Data>({});
@@ -47,6 +48,10 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
   const hasColorField = !Boolean(liveMetadata.appSettings?.scopeColorsDisabled);
   const customScopes = scopes.filter((name) => liveMetadata.scopes[name].isCustom);
   const standardScopes = scopes.filter((name) => !liveMetadata.scopes[name].isCustom);
+  const normalizedScopeSearch = scopeSearch.trim().toLocaleLowerCase("cs");
+  const matchesScope = (name: string) => !normalizedScopeSearch || [name, liveMetadata.labels?.Global?.scopeNames?.[name], liveMetadata.labels?.Global?.scopeNamesPlural?.[name]].some((value) => String(value || "").toLocaleLowerCase("cs").includes(normalizedScopeSearch));
+  const visibleCustomScopes = customScopes.filter(matchesScope);
+  const visibleStandardScopes = standardScopes.filter(matchesScope);
   const entityFields = liveMetadata.entityDefs[scope]?.fields || {};
   const sortableFields = Object.keys(entityFields).filter((name) => !entityFields[name].disabled && !entityFields[name].orderDisabled && !liveMetadata.fields?.[entityFields[name].type || ""]?.orderDisabled).sort((a, b) => fieldLabel(a, entityFields[a], scope, liveMetadata).localeCompare(fieldLabel(b, entityFields[b], scope, liveMetadata), "cs"));
   const enumFields = Object.keys(entityFields).filter((name) => entityFields[name].type === "enum" && !entityFields[name].disabled).sort((a, b) => fieldLabel(a, entityFields[a], scope, liveMetadata).localeCompare(fieldLabel(b, entityFields[b], scope, liveMetadata), "cs"));
@@ -224,7 +229,7 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
 
   return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={() => { if (confirmDiscardChanges()) onBack(); }}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">PŘIZPŮSOBENÍ CRM</div><h1>Správce entit</h1><p>Upravujte vlastnosti modulů, jejich chování a rozšíření.</p></div><div className="entity-manager-heading-actions"><button className="button subtle" onClick={() => setExportOpen(true)} disabled={busy}><FileInput size={14}/> Exportovat úpravy</button><button className="button primary" onClick={startCreate} disabled={busy || !templates.length}><Plus size={15}/> Nová entita</button></div></div>
     {error && <div className="table-error">{error}<button onClick={() => setError("")}>Zavřít</button></div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
-    <div className="entity-manager-layout"><aside className="surface entity-manager-sidebar">{renderList(customScopes, "VLASTNÍ ENTITY")}{renderList(standardScopes, "SYSTÉMOVÉ ENTITY")}</aside>
+    <div className="entity-manager-layout"><aside className="surface entity-manager-sidebar"><div className="entity-manager-search"><Search size={14} aria-hidden="true"/><input type="search" value={scopeSearch} onChange={(event) => setScopeSearch(event.target.value)} placeholder="Hledat entity…" aria-label="Hledat entity podle názvu"/>{scopeSearch && <button type="button" className="icon-button" onClick={() => setScopeSearch("")} aria-label="Vymazat hledání entit"><X size={13}/></button>}</div>{renderList(visibleCustomScopes, "VLASTNÍ ENTITY")}{renderList(visibleStandardScopes, "SYSTÉMOVÉ ENTITY")}{normalizedScopeSearch && !visibleCustomScopes.length && !visibleStandardScopes.length && <div className="entity-manager-search-empty">Žádná entita neodpovídá „{scopeSearch.trim()}“.</div>}</aside>
       <section className="surface entity-manager-editor">{creating || scope ? <><div className="settings-card-head"><h2>{creating ? "Vytvořit vlastní entitu" : data.labelSingular || entityLabel(liveMetadata, scope)}</h2><p>{creating ? "Zvolte šablonu a vlastnosti nového modulu." : `${scope} · ${selectedScope.isCustom ? "vlastní entita" : "systémová entita"}${editable ? "" : " · pouze pro čtení"}`}</p></div>
         <div className="settings-fields entity-manager-fields"><label className="setting-field"><span>Interní název</span><input value={data.name || ""} disabled={!creating || busy} required pattern="[A-Za-z][A-Za-z0-9]*" onChange={(event) => update("name", event.target.value)} placeholder="Projekt"/><small>{creating ? "EspoCRM doplní prefix vlastní entity podle konfigurace instalace." : "Technický název entity."}</small></label>
           {creating && <label className="setting-field"><span>Šablona entity</span><select value={data.type || ""} onChange={(event) => update("type", event.target.value)}>{templates.map((type: string) => <option key={type} value={type}>{type}</option>)}</select></label>}

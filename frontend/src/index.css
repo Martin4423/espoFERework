@@ -369,6 +369,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .entity-manager-sidebar { max-height: 72vh; overflow: auto; padding: 12px; }
 .entity-manager-list-heading { display: flex; justify-content: space-between; padding: 12px 5px 7px; color: #7e899c; font-size: 8px; font-weight: 750; letter-spacing: .08em; }
 .entity-manager-list-heading span { color: #a0a8b5; }
+.entity-manager-search { position: sticky; top: -12px; z-index: 1; display: flex; align-items: center; gap: 8px; margin: -12px -12px 4px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface, #fff); color: #8490a3; }
+.entity-manager-search input { flex: 1; min-width: 0; padding: 7px 0; border: 0; outline: 0; background: transparent; color: var(--ink, #344054); font-size: 11px; }
+.entity-manager-search input::placeholder { color: #a3adbd; }
+.entity-manager-search:focus-within { border-bottom-color: var(--accent, #766de2); box-shadow: 0 1px 0 var(--accent, #766de2); }
+.entity-manager-search .icon-button { width: 24px; height: 24px; flex: 0 0 24px; }
+.entity-manager-search-empty { padding: 18px 8px; color: #8a95a8; font-size: 11px; line-height: 1.5; text-align: center; }
 .entity-manager-scope { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; padding: 9px 8px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; text-align: left; }
 .entity-manager-scope:hover, .entity-manager-scope.active { background: #f2f1ff; }
 .entity-manager-scope > span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
