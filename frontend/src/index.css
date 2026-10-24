@@ -2674,6 +2674,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .select-records-table th, .select-records-table td { max-width: 300px; padding: 9px 10px; border-bottom: 1px solid var(--line, #edf0f5); color: var(--text, #303c54); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .select-records-table th { position: sticky; top: 0; z-index: 1; background: #f7f8fb; color: var(--muted, #778198); font-size: 9px; font-weight: 650; text-transform: uppercase; }
 .select-records-table tbody tr { cursor: pointer; }
+.select-records-table tbody tr:focus-visible { outline: 2px solid var(--accent, #526db0); outline-offset: -2px; }
 .select-records-table tbody tr:hover, .select-records-table tbody tr.selected { background: #f0f3fc; }
 .select-records-table tbody tr:last-child td { border-bottom: 0; }
 .select-records-table input { accent-color: #526db0; }
@@ -2682,7 +2683,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .select-records-pagination, .select-records-footer-actions { display: flex; align-items: center; gap: 7px; color: var(--muted, #778198); font-size: 10px; }
 .select-records-all-results { display: inline-flex; align-items: center; gap: 5px; margin-right: auto; white-space: nowrap; }
 .select-records-all-results input { accent-color: #526db0; }
-@media (max-width: 620px) { .select-records-dialog { padding: 10px; } .select-records-dialog > footer { align-items: stretch; flex-direction: column; } .select-records-pagination, .select-records-footer-actions { justify-content: space-between; } }
+@media (max-width: 620px) { .select-records-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 10px; } .select-records-content { flex-direction: column; min-height: 0; } .select-records-content > .category-navigation { flex: 0 0 auto; width: 100%; max-height: 145px; } .select-records-table-wrap { min-height: 140px; } .select-records-dialog > footer { align-items: stretch; flex-direction: column; } .select-records-pagination, .select-records-footer-actions { justify-content: space-between; flex-wrap: wrap; } .select-records-footer-actions > button { flex: 1 1 auto; justify-content: center; } .select-records-all-results { margin-right: 0; } }
 .text-field-input textarea { min-height: 96px; resize: vertical; }
 .text-preview-trigger { justify-self: start; min-height: 29px; }
 .text-preview-backdrop { z-index: 195; }
