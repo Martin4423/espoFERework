@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClipboardEvent, FormEvent } from "react";
 import { Activity, ArrowDown, ArrowLeft, Bell, Check, ChevronRight, Globe, LoaderCircle, Mail, MessageSquare, Paperclip, RefreshCw, Search, Send, Trash2, UserRound, Users, X } from "./Icons";
-import { canAccessEntity, entityLabel, request, uploadAttachment } from "./api";
+import { canAccessEntity, entityLabel, humanize, request, uploadAttachment } from "./api";
 import type { Metadata, User } from "./api";
 import { StreamItem, type Note } from "./RecordStream";
 import SelectRecordsDialog from "./SelectRecordsDialog";
@@ -16,6 +16,11 @@ function notificationTitle(item: NotificationItem, metadata: Metadata) {
   const actor = note.createdByName || item.createdByName || data.userName;
   const entityType = data.entityType || item.relatedParentType || item.relatedType;
   if (item.message) return item.message;
+  if (item.type === "Note" && note.type === "EventConfirmation") {
+    const statusKey = String(note.data?.status || "Tentative");
+    const status = (metadata.labels as any)?.Meeting?.options?.acceptanceStatus?.[statusKey] || ({ Accepted: "přijal/a", Declined: "odmítl/a", Tentative: "se zatím nerozhodl/a" } as Record<string, string>)[statusKey] || "odpověděl/a";
+    return actor ? `${actor} ${status} pozvánku` : "Odpověď na pozvánku";
+  }
   if (item.type === "Note") return actor ? `Nová aktivita od ${actor}` : "Nová aktivita";
   if (item.type === "MentionInPost") return actor ? `${actor} vás zmínil/a v příspěvku` : "Zmínka v příspěvku";
   if (item.type === "UserReaction") {
@@ -23,10 +28,13 @@ function notificationTitle(item: NotificationItem, metadata: Metadata) {
     return actor ? `${actor} reagoval/a na příspěvek${reaction ? ` · ${reaction}` : ""}` : "Reakce na příspěvek";
   }
   if (item.type === "Assign") return entityType ? `Byl vám přiřazen ${entityLabel(metadata, entityType)}` : "Záznam vám byl přiřazen";
+  if (item.type === "EventAttendee") return actor ? `${actor} vás přidal/a k události` : "Byli jste přidáni k události";
+  if (item.type === "EmailInbox") return actor ? `${actor} přidal/a e-mail do vaší schránky` : "Nový e-mail ve schránce";
   if (item.type === "EmailReceived") return "Nový e-mail";
   if (item.type === "EntityRemoved") return actor ? `${actor} odstranil/a záznam` : "Záznam byl odstraněn";
   if (item.type === "System") return data.message || "Systémové oznámení";
-  return item.type || "Oznámení";
+  const customView = (metadata.clientDefs?.Notification as any)?.itemViews?.[String(item.type || "")];
+  return customView ? `Oznámení · ${humanize(item.type || "")}` : humanize(item.type || "Oznámení");
 }
 
 function notificationDetail(item: NotificationItem, metadata: Metadata) {
@@ -36,7 +44,7 @@ function notificationDetail(item: NotificationItem, metadata: Metadata) {
   const entityName = data.entityName || note.parentName || item.relatedParentName;
   const post = String(note.post || "").replace(/\s+/g, " ").trim();
   if (["Note", "MentionInPost", "UserReaction"].includes(item.type)) return post || (entityName && entityType ? `${entityLabel(metadata, entityType)} · ${entityName}` : "Otevřít související příspěvek");
-  if (item.type === "Assign" || item.type === "EntityRemoved") return [entityName, entityType ? entityLabel(metadata, entityType) : ""].filter(Boolean).join(" · ") || "Otevřít související záznam";
+  if (["Assign", "EntityRemoved", "EventAttendee", "EmailInbox"].includes(item.type)) return [entityName, entityType ? entityLabel(metadata, entityType) : ""].filter(Boolean).join(" · ") || "Otevřít související záznam";
   if (item.type === "EmailReceived") return [data.emailName || data.subject, data.personEntityName || data.fromString].filter(Boolean).join(" · ") || "Otevřít doručený e-mail";
   if (item.type === "Message") return data.message || item.message || "";
   return entityName && entityType ? `${entityLabel(metadata, entityType)} · ${entityName}` : item.type || "";
