@@ -2958,6 +2958,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     return initial;
   });
   const autoPublishDate = useRef(false);
+  const [dateTimeZone, setDateTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [changingAppSecret, setChangingAppSecret] = useState(!record);
   const [passwordStrengthParams, setPasswordStrengthParams] = useState<PasswordRecoveryInfo["strengthParams"] | null>(null);
   useEffect(() => {
@@ -2996,10 +2997,12 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   }, [entity, values.team, values.targetUserPosition]);
   useEffect(() => {
     const session = getSession();
-    if (record || !session || !["Meeting", "Call", "Task"].includes(entity)) return;
+    if (!session || !["Meeting", "Call", "Task"].includes(entity)) return;
     let live = true;
     request<Row>(`Preferences/${encodeURIComponent(session.user.id)}`).then((preferences) => {
       if (!live) return;
+      if (typeof preferences.timeZone === "string" && preferences.timeZone) setDateTimeZone(preferences.timeZone);
+      if (record) return;
       const defaultName = entity === "Task" ? "defaultRemindersTask" : "defaultReminders";
       if (Array.isArray(preferences[defaultName])) setValues((current) => current.reminders?.length ? current : { ...current, reminders: preferences[defaultName] });
     }).catch(() => {});
@@ -3258,6 +3261,11 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const emailFilterActions = values.isGlobal ? ["Skip"] : values.parent?.type === "User" ? ["Skip", "Move to Folder", "None"] : values.parent?.type === "InboundEmail" ? ["Skip", "Move to Group Folder"] : values.parent?.type === "EmailAccount" ? ["Skip"] : ["Skip"];
   function updateFieldValue(name: string, value: any) {
     setValues((old) => {
+      if (entity === "Task" && ["dateEnd", "dateEndDate"].includes(name) && !value) {
+        const next = { ...old, [name]: value };
+        if (!next.dateEnd && !next.dateEndDate && Array.isArray(next.reminders) && next.reminders.length) next.reminders = [];
+        return next;
+      }
       if (entity === "KnowledgeBaseArticle" && name === "status") {
         if (value === "Published" && !old.publishDate) {
           autoPublishDate.current = true;
@@ -3467,7 +3475,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       return <div className="user-password-control" key={name}><div className="user-password-input"><FieldInput entity={entity} metadata={metadata} name={name} def={def} value={password} onChange={(value) => updateFieldValue(name, value)}/><button type="button" className="button subtle" disabled={!passwordStrengthParams} onClick={() => { const generated = generateUserPassword(passwordStrengthParams || {}); setValues((old) => ({ ...old, password: generated, passwordConfirm: generated, passwordPreview: generated, sendAccessInfo: old.emailAddress && (old.type !== "portal" || old.portals?.length) ? true : false })); }}><WandSparkles size={14}/> {passwordStrengthParams ? "Vygenerovat heslo" : "Načítám pravidla…"}</button></div>{hasPasswordRules && <ul className="user-password-rules" aria-label="Požadavky na heslo">{passwordRules.map(([passed, label]) => <li className={passed ? "ok" : ""} key={label}><span aria-hidden="true">{passed ? "✓" : "○"}</span>{label}</li>)}</ul>}{values.passwordPreview && <label className="field-input user-password-preview"><span>Vygenerované heslo</span><input readOnly value={values.passwordPreview}/></label>}</div>;
     }
     if (entity === "LayoutSet" && name === "layoutList") return <LayoutSetLayoutsField key={name} metadata={metadata} selected={values.layoutList || []} onChange={(selected) => updateFieldValue(name, selected)}/>;
-    if (name === "reminders" && ["Meeting", "Call", "Task"].includes(entity)) return <ReminderEditor key={name} metadata={metadata} value={values.reminders || []} onChange={(value) => setValues((old) => ({ ...old, reminders: value }))}/>;
+    if (name === "reminders" && ["Meeting", "Call", "Task"].includes(entity)) return <ReminderEditor key={name} metadata={metadata} value={values.reminders || []} deadline={entity === "Task" ? values.dateEndDate || values.dateEnd : undefined} dateOnly={entity === "Task" && Boolean(values.dateEndDate)} timeZone={dateTimeZone} onChange={(value) => setValues((old) => ({ ...old, reminders: value }))}/>;
     const weekdayIndex = name.match(/^weekday([0-6])TimeRanges$/)?.[1];
     if (["WorkingTimeCalendar", "WorkingTimeRange"].includes(entity) && (name === "timeRanges" || weekdayIndex != null)) return <TimeRangesEditor key={name} label={fieldLabel(name, def, entity, metadata)} value={values[name] || []} disabled={Boolean(def.readOnly || def.disabled || (weekdayIndex != null && !values[`weekday${weekdayIndex}`]))} required={Boolean(def.required)} onChange={(value) => updateFieldValue(name, value)}/>;
     return <FieldInput key={name} entity={entity} metadata={metadata} name={name} def={def} value={values[name]} themeParamsValue={values.themeParams} onThemeParamsChange={(themeParams) => setValues((old) => ({ ...old, themeParams }))} currencyValue={values[`${name}Currency`]} onCurrencyChange={(currency) => updateFieldValue(`${name}Currency`, currency)} columns={values[`${name}Columns`] || {}} primaryId={def.primaryLink ? values[`${def.primaryLink}Id`] : undefined} onPrimaryChange={def.primaryLink ? (id, label) => setValues((old) => ({ ...old, [`${def.primaryLink}Id`]: id, [`${def.primaryLink}Name`]: label || "" })) : undefined} relatedContext={values} onColumnsChange={def.type === "linkMultiple" && def.columns ? (columns) => setValues((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} onChange={(value) => updateFieldValue(name, value)} onUploading={setUploading} onUploaded={(id) => setUploadedIds((old) => [...old, id])} onError={setError}/>;
@@ -3644,12 +3652,28 @@ function LeadCaptureFieldConfigurator({ metadata, selected, params, onChange }: 
     return <div className={`lead-capture-field-row ${supported ? "" : "unsupported"}`} key={name}><span className="lead-capture-field-order">{index + 1}</span><span className="lead-capture-field-name"><strong>{labelFor(name, def)}</strong><small>{supported ? (def.type || "pole") : `Typ ${def.type || "pole"} veřejný formulář nepodporuje`}</small></span><label className="lead-capture-required"><input type="checkbox" checked={Boolean(params[name]?.required)} onChange={(event) => toggleRequired(name, event.target.checked)}/> Povinné</label><button type="button" className="icon-button" onClick={() => move(name, -1)} disabled={!index} aria-label={`Posunout ${labelFor(name, def)} výš`}><ArrowUp size={14}/></button><button type="button" className="icon-button" onClick={() => move(name, 1)} disabled={index === chosen.length - 1} aria-label={`Posunout ${labelFor(name, def)} níž`}><ArrowDown size={14}/></button><button type="button" className="icon-button danger-ghost" onClick={() => choose(name)} aria-label={`Odebrat ${labelFor(name, def)}`}><X size={14}/></button></div>;
   })}{!chosen.length && <div className="lead-capture-empty">Přidejte pole z nabídky níže.</div>}</div><label className="field-input lead-capture-add"><span>Přidat pole</span><select value="" onChange={(event) => event.target.value && choose(event.target.value)}><option value="">Vyberte pole zájemce…</option>{candidates.filter(([name]) => !chosen.includes(name)).map(([name, def]) => <option key={name} value={name}>{labelFor(name, def)}{allowedTypes.has(def.type || "") ? "" : " · nepodporovaný typ"}</option>)}</select></label></div>;
 }
-function ReminderEditor({ metadata, value, onChange }: { metadata: Metadata; value: Array<{ type: string; seconds: number }>; onChange: (value: Array<{ type: string; seconds: number }>) => void }) {
+function localDateTimeInZoneTimestamp(value: string, timeZone: string): number {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) return NaN;
+  const desired = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]), Number(match[6] || 0));
+  let result = desired;
+  try {
+    for (let i = 0; i < 3; i++) {
+      const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date(result));
+      const part = (type: string) => Number(parts.find((item) => item.type === type)?.value || 0);
+      result += desired - Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"), part("second"));
+    }
+  } catch { return NaN; }
+  return result;
+}
+
+function ReminderEditor({ metadata, value, deadline, dateOnly = false, timeZone = "UTC", onChange }: { metadata: Metadata; value: Array<{ type: string; seconds: number }>; deadline?: string; dateOnly?: boolean; timeZone?: string; onChange: (value: Array<{ type: string; seconds: number }>) => void }) {
   const reminderDefs = metadata.entityDefs?.Reminder?.fields || {};
   const typeOptions = (reminderDefs.type?.options || ["Popup", "Email"]).map(String);
   const secondsOptions: number[] = (reminderDefs.seconds?.options || [0, 60, 300, 900, 1800, 3600, 86400, 604800]).map(Number);
+  const deadlineTimestamp = deadline ? dateOnly ? localDateTimeInZoneTimestamp(`${String(deadline).slice(0, 10)} 23:59:00`, timeZone) : Date.parse(`${String(deadline).replace(" ", "T")}Z`) : NaN;
   const formatLead = (seconds: number) => seconds === 0 ? "V okamžiku události" : seconds % 86400 === 0 ? `${seconds / 86400} ${seconds === 86400 ? "den" : "dní"} předem` : seconds % 3600 === 0 ? `${seconds / 3600} h předem` : seconds % 60 === 0 ? `${seconds / 60} min předem` : `${seconds} s předem`;
-  return <div className="field-input reminder-editor"><span>{fieldLabel("reminders", metadata.entityDefs?.Meeting?.fields?.reminders || metadata.entityDefs?.Call?.fields?.reminders || metadata.entityDefs?.Task?.fields?.reminders, "Meeting", metadata)}</span>{value.length ? <div className="reminder-list">{value.map((reminder, index) => <div className="reminder-row" key={`${index}-${reminder.type}-${reminder.seconds}`}><select aria-label="Typ připomínky" value={reminder.type || "Popup"} onChange={(event) => onChange(value.map((item, i) => i === index ? { ...item, type: event.target.value } : item))}>{typeOptions.map((type) => <option key={type} value={type}>{type === "Popup" ? "Oznámení v CRM" : type === "Email" ? "E-mail" : type}</option>)}</select><select aria-label="Čas připomínky" value={Number(reminder.seconds || 0)} onChange={(event) => onChange(value.map((item, i) => i === index ? { ...item, seconds: Number(event.target.value) } : item))}>{secondsOptions.map((seconds) => <option key={seconds} value={seconds}>{formatLead(seconds)}</option>)}</select><button type="button" className="icon-button danger-ghost" aria-label="Odebrat připomínku" onClick={() => onChange(value.filter((_, i) => i !== index))}>×</button></div>)}</div> : <p className="reminder-empty">Bez připomínek</p>}<button type="button" className="button subtle reminder-add" onClick={() => onChange([...value, { type: String(reminderDefs.type?.default || "Popup"), seconds: Number(reminderDefs.seconds?.default || 0) }])}><Plus size={13}/> Přidat připomínku</button><small className="field-hint">Připomínky vycházejí z výchozího nastavení účtu. E-mailové doručení závisí na konfiguraci CRM.</small></div>;
+  return <div className="field-input reminder-editor"><span>{fieldLabel("reminders", metadata.entityDefs?.Meeting?.fields?.reminders || metadata.entityDefs?.Call?.fields?.reminders || metadata.entityDefs?.Task?.fields?.reminders, "Meeting", metadata)}</span>{value.length ? <div className="reminder-list">{value.map((reminder, index) => <div className="reminder-row" key={`${index}-${reminder.type}-${reminder.seconds}`}><select aria-label="Typ připomínky" value={reminder.type || "Popup"} onChange={(event) => onChange(value.map((item, i) => i === index ? { ...item, type: event.target.value } : item))}>{typeOptions.map((type) => <option key={type} value={type}>{type === "Popup" ? "Oznámení v CRM" : type === "Email" ? "E-mail" : type}</option>)}</select><select aria-label="Čas připomínky" value={Number(reminder.seconds || 0)} onChange={(event) => onChange(value.map((item, i) => i === index ? { ...item, seconds: Number(event.target.value) } : item))}>{secondsOptions.filter((seconds) => seconds === Number(reminder.seconds || 0) || !Number.isFinite(deadlineTimestamp) || Date.now() + seconds * 1000 < deadlineTimestamp).map((seconds) => <option key={seconds} value={seconds}>{formatLead(seconds)}</option>)}</select><button type="button" className="icon-button danger-ghost" aria-label="Odebrat připomínku" onClick={() => onChange(value.filter((_, i) => i !== index))}>×</button></div>)}</div> : <p className="reminder-empty">Bez připomínek</p>}<button type="button" className="button subtle reminder-add" onClick={() => onChange([...value, { type: String(reminderDefs.type?.default || "Popup"), seconds: Number(reminderDefs.seconds?.default || 0) }])}><Plus size={13}/> Přidat připomínku</button><small className="field-hint">Připomínky vycházejí z výchozího nastavení účtu. E-mailové doručení závisí na konfiguraci CRM.</small></div>;
 }
 
 function TeamMembershipField({ metadata, ids, columns, onChange }: { metadata: Metadata; ids: string[]; columns: Row; onChange: (ids: string[], columns: Row) => void }) {
