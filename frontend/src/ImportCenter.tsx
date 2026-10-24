@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleAlert, Clock3, Copy, FileInput, FileSpreadsheet, RefreshCw, RotateCcw, Save, Trash2, Upload, X } from "./Icons";
-import { downloadAttachment, entityLabel, fieldLabel, getSession, request } from "./api";
-import type { Metadata } from "./api";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleAlert, Clock3, Copy, ExternalLink, FileInput, FileSpreadsheet, Pencil, RefreshCw, RotateCcw, Save, Trash2, Upload, X } from "./Icons";
+import { canChangeEntity, downloadAttachment, entityLabel, fieldLabel, fetchLayout, getListFields, getSession, request } from "./api";
+import type { LayoutItem, Metadata } from "./api";
 
 type Row = Record<string, any>;
 type HistoryResult = { list: Row[]; total: number };
@@ -32,6 +32,56 @@ function ImportErrorList({ items, total, offset, busy, metadata, onPage, onExpor
   return <div className="import-error-report"><div className="import-error-heading"><strong><CircleAlert size={14}/> Chyby a přeskočené řádky ({total})</strong><button className="button subtle" onClick={onExport} disabled={exportBusy}><FileSpreadsheet size={13}/>Exportovat CSV</button></div>{busy ? <div className="table-loading"><span className="spinner"/>Načítám chyby…</div> : items.length ? <div className="import-error-list">{items.map((item) => <article key={item.id}><strong>Řádek {lineNumber(item)} · {typeLabel(item.type)}</strong>{Array.isArray(item.validationFailures) && item.validationFailures.length ? <ul>{item.validationFailures.map((failure: any, index: number) => <li key={index}>{failureLabel(failure, item.entityType || "")}</li>)}</ul> : <span>Záznam nebyl zpracován.</span>}{item.row != null && <details><summary>Zdrojová data řádku</summary><pre>{JSON.stringify(item.row, null, 2)}</pre></details>}</article>)}</div> : <div className="import-error-empty">Import neobsahuje žádné chybové řádky.</div>}{total > pageSize && <div className="import-error-pagination"><button className="button subtle" disabled={offset <= 0 || busy} onClick={() => onPage(Math.max(0, offset - pageSize))}><ArrowLeft size={13}/>Předchozí</button><span>{offset + 1}–{Math.min(offset + items.length, total)} z {total}</span><button className="button subtle" disabled={offset + pageSize >= total || busy} onClick={() => onPage(offset + pageSize)}>Další<ArrowRight size={13}/></button></div>}</div>;
 }
 
+function ImportResultRecords({ importId, entity, relation, metadata, onOpenRecord, onChanged }: { importId: string; entity: string; relation: "imported" | "updated" | "duplicates"; metadata: Metadata; onOpenRecord?: (entity: string, row: Row) => void; onChanged: () => void }) {
+  const [items, setItems] = useState<Row[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [actionId, setActionId] = useState("");
+  const pageSize = 20;
+  const fallbackFields = useMemo(() => getListFields(metadata, entity), [metadata, entity]);
+  const [layoutFields, setLayoutFields] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    fetchLayout<LayoutItem[][]>(entity, "listSmall").then((layout) => {
+      const result = Array.from(new Set((layout || []).flat().filter((item): item is Exclude<LayoutItem, false> => Boolean(item && typeof item === "object" && item.name)).map((item) => item.name!).filter((name) => Boolean(metadata.entityDefs?.[entity]?.fields?.[name]))));
+      if (live) setLayoutFields(result);
+    }).catch(() => live && setLayoutFields([]));
+    return () => { live = false; };
+  }, [entity, metadata]);
+  const fields = layoutFields.length ? layoutFields : fallbackFields;
+  useEffect(() => {
+    let live = true;
+    setBusy(true); setError("");
+    const params = new URLSearchParams({ maxSize: String(pageSize), offset: String(offset), orderBy: "createdAt", order: "desc" });
+    request<HistoryResult>(`Import/${encodeURIComponent(importId)}/${relation}?${params}`).then((result) => {
+      if (!live) return;
+      setItems(result.list || []); setTotal(result.total || 0);
+    }).catch((cause) => live && setError(cause instanceof Error ? cause.message : "Výsledky importu se nepodařilo načíst."))
+      .finally(() => live && setBusy(false));
+    return () => { live = false; };
+  }, [importId, relation, offset]);
+  async function unmarkDuplicate(row: Row) {
+    if (!window.confirm(`Odebrat označení duplicity u záznamu „${row.name || row.subject || row.id}“?`)) return;
+    setActionId(row.id); setError("");
+    try {
+      await request(`Import/${encodeURIComponent(importId)}/unmarkDuplicates`, { method: "POST", body: JSON.stringify({ entityId: row.id, entityType: entity }) });
+      setItems((current) => current.filter((item) => item.id !== row.id)); setTotal((current) => Math.max(0, current - 1));
+      onChanged();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Označení duplicity se nepodařilo odebrat."); }
+    finally { setActionId(""); }
+  }
+  function displayValue(row: Row, field: string) {
+    const value = row[`${field}Name`] ?? row[field];
+    if (value == null || value === "") return "—";
+    if (typeof value === "object") return Array.isArray(value) ? value.join(", ") : value.name || value.value || JSON.stringify(value);
+    if (typeof value === "boolean") return value ? "Ano" : "Ne";
+    return String(value);
+  }
+  return <section className="import-result-records"><div className="import-result-records-heading"><div><strong>{relation === "imported" ? "Vytvořené záznamy" : relation === "updated" ? "Aktualizované záznamy" : "Duplicitní záznamy"}</strong><span>{total.toLocaleString("cs-CZ")} záznamů</span></div>{busy && <span className="spinner"/>}</div>{error && <div className="inline-error">{error}</div>}{busy && !items.length ? <div className="table-loading"><span className="spinner"/>Načítám záznamy…</div> : items.length ? <div className="import-result-records-table"><table><thead><tr>{fields.map((field) => <th key={field}>{fieldLabel(field, metadata.entityDefs?.[entity]?.fields?.[field], entity, metadata)}</th>)}<th>Akce</th></tr></thead><tbody>{items.map((row) => <tr key={row.id}><td colSpan={fields.length + 1} className="import-result-row-cell"><div className="import-result-row" style={{ gridTemplateColumns: `repeat(${Math.max(fields.length, 1)}, minmax(0, 1fr)) auto` }}>{fields.map((field) => <button type="button" className="import-result-value" key={field} title={displayValue(row, field)} onClick={() => onOpenRecord?.(entity, row)}>{displayValue(row, field)}</button>)}<div className="import-result-row-actions">{onOpenRecord && <button type="button" className="icon-button" title={relation === "updated" ? "Otevřít a případně upravit" : "Otevřít záznam"} aria-label="Otevřít záznam" onClick={() => onOpenRecord(entity, row)}>{relation === "updated" && canChangeEntity(metadata, entity, "edit") ? <Pencil size={14}/> : <ExternalLink size={14}/>}</button>}{relation === "duplicates" && <button type="button" className="icon-button" title="Odebrat označení duplicity" aria-label="Odebrat označení duplicity" disabled={actionId === row.id} onClick={() => void unmarkDuplicate(row)}><X size={14}/></button>}</div></div></td></tr>)}</tbody></table></div> : <div className="import-error-empty">V této skupině nejsou žádné záznamy.</div>}{total > pageSize && <div className="import-error-pagination"><button className="button subtle" disabled={offset <= 0 || busy} onClick={() => setOffset(Math.max(0, offset - pageSize))}><ArrowLeft size={13}/>Předchozí</button><span>{offset + 1}–{Math.min(offset + items.length, total)} z {total}</span><button className="button subtle" disabled={offset + pageSize >= total || busy} onClick={() => setOffset(offset + pageSize)}>Další<ArrowRight size={13}/></button></div>}</section>;
+}
+
 function parseCsv(input: string, delimiter: string, qualifier = '"') {
   const result: string[][] = [];
   let row: string[] = [], cell = "", quoted = false;
@@ -56,11 +106,12 @@ function parseCsv(input: string, delimiter: string, qualifier = '"') {
   return result;
 }
 
-export default function ImportCenter({ metadata }: { metadata: Metadata }) {
+export default function ImportCenter({ metadata, onOpenRecord }: { metadata: Metadata; onOpenRecord?: (entity: string, row: Row) => void }) {
   const [history, setHistory] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<Row | null>(null);
+  const [resultRelation, setResultRelation] = useState<"imported" | "updated" | "duplicates" | "">("");
   const [importErrors, setImportErrors] = useState<Row[]>([]);
   const [importErrorTotal, setImportErrorTotal] = useState(0);
   const [importErrorOffset, setImportErrorOffset] = useState(0);
@@ -156,7 +207,7 @@ export default function ImportCenter({ metadata }: { metadata: Metadata }) {
     const defaults = preferenceRecord.importParams?.default || {};
     setStage(1); setEntity(importable[0] || ""); setFileName(""); setFileContents(""); setHeaderRow(defaults.headerRow ?? true); setDelimiter(defaults.delimiter || ","); setMode("create"); setMapping([]); setUpdateBy([]);
     setDateFormat(defaults.dateFormat || "YYYY-MM-DD"); setTimeFormat(defaults.timeFormat || "HH:mm:ss"); setDecimalMark(defaults.decimalMark || "."); setTimezone(defaults.timezone || "UTC"); setCurrency(defaults.currency || ""); setTextQualifier(defaults.textQualifier ?? '"'); setPersonNameFormat(defaults.personNameFormat || "f l"); setSilentMode(defaults.silentMode ?? true); setIdleMode(Boolean(defaults.idleMode)); setManualMode(Boolean(defaults.manualMode)); setSkipDuplicateChecking(Boolean(defaults.skipDuplicateChecking));
-    setError(""); setNotice(""); setManualCommand(""); setSelectedId(""); setImportErrorOffset(0);
+    setError(""); setNotice(""); setManualCommand(""); setSelectedId(""); setResultRelation(""); setImportErrorOffset(0);
   }
   async function saveDefaults() {
     const user = getSession()?.user;
@@ -201,7 +252,7 @@ export default function ImportCenter({ metadata }: { metadata: Metadata }) {
       const params: ImportParams & Row = { entityType: entity, action: mode, attributeList: mapping, updateBy, attachmentId: upload.attachmentId, headerRow, delimiter, decimalMark, dateFormat, timeFormat, timezone, currency: currency || undefined, personNameFormat, textQualifier, silentMode, idleMode: manualMode ? false : idleMode, manualMode, skipDuplicateChecking };
       const result = await request<Row>("Import", { method: "POST", body: JSON.stringify(params) });
       if (!result.id) throw new Error("Import byl přijat, ale API nevrátilo jeho ID.");
-      setSelectedId(result.id); setImportErrorOffset(0); setStage(0);
+      setSelectedId(result.id); setResultRelation(""); setImportErrorOffset(0); setStage(0);
       if (result.manualMode) { const command = `php command.php import --id=${result.id}`; setManualCommand(command); setNotice("Import je připraven k ručnímu spuštění na serveru."); }
       else { setManualCommand(""); setNotice(idleMode ? "Import byl zařazen do fronty.": "Import byl spuštěn."); }
       await loadHistory();
@@ -239,7 +290,7 @@ export default function ImportCenter({ metadata }: { metadata: Metadata }) {
         <div className="import-mapping-summary"><CircleAlert size={15}/><span>Vybráno {mapping.filter(Boolean).length} sloupců z {headers.length}. {mode !== "create" && `Vyhledání podle ${updateBy.length} polí.`}</span></div>
         <div className="modal-footer"><button className="button subtle" onClick={() => setStage(1)}>Zpět</button><button className="button primary" disabled={busy} onClick={() => void runImport()}>{busy ? "Nahrávám a importuji…" : "Spustit import"}<ArrowRight size={14}/></button></div>
       </div>}
-    </section> : <div className="import-history-grid"><section className="surface import-history"><div className="import-list-header"><div><h2>Poslední importy</h2><p>{total ? `${total} importů celkem` : "Historie zpracování dat"}</p></div><button className="icon-button" onClick={() => void loadHistory()} title="Obnovit"><RefreshCw size={15}/></button></div>{busy && !history.length ? <div className="table-loading"><span className="spinner"/>Načítám historii…</div> : history.length ? history.map((item) => <button key={item.id} className={`import-history-row ${item.id === selectedId ? "active" : ""}`} onClick={() => { setSelectedId(item.id); setImportErrorOffset(0); setStage(0); }}><span className={`import-status-dot ${String(item.status).toLowerCase().replaceAll(" ", "-")}`}/><span className="import-history-main"><strong>{entityLabel(metadata, item.entityType, true) || item.entityType || "Import"}</strong><small>{item.fileName || item.file?.name || item.createdAt || "Import dat"}</small></span><span className="import-history-state">{item.status || "—"}</span><ChevronRight size={14}/></button>) : <div className="import-empty"><FileInput size={24}/><strong>Zatím žádné importy</strong><span>Po nahrání CSV se výsledky zobrazí tady.</span></div>}</section>
-      {detail ? <section className="surface import-detail"><div className="import-list-header"><div><div className="eyebrow">VÝSLEDEK IMPORTU</div><h2>{entityLabel(metadata, detail.entityType, true) || detail.entityType}</h2><p>{detail.createdAt ? new Date(String(detail.createdAt).replace(" ", "T")).toLocaleString("cs-CZ") : ""}</p></div><button className="icon-button" title="Znovu načíst" onClick={() => void request<Row>(`Import/${selectedId}`).then(setDetail)}><RefreshCw size={15}/></button></div><div className="import-status"><span className={`import-status-dot ${String(detailStatus).toLowerCase().replaceAll(" ", "-")}`}/><strong>{detailStatus || "Neznámý stav"}</strong>{["Pending", "In Process"].includes(detailStatus) && <Clock3 size={14}/>}</div>{detailStatus === "Standby" && <div className="import-manual-command"><strong>Ruční spuštění na serveru</strong><code>{manualCommand || `php command.php import --id=${selectedId}`}</code><button className="button subtle" onClick={() => void navigator.clipboard.writeText(manualCommand || `php command.php import --id=${selectedId}`).then(() => setNotice("Příkaz byl zkopírován."))}><Copy size={13}/>Kopírovat příkaz</button></div>}<div className="import-result-stats"><div><strong>{detail.importedCount ?? "—"}</strong><span>Vytvořeno</span></div><div><strong>{detail.updatedCount ?? "—"}</strong><span>Aktualizováno</span></div><div><strong>{detail.duplicateCount ?? "—"}</strong><span>Duplicit</span></div></div>{(importErrors.length > 0 || importErrorTotal > 0 || importErrorsBusy) && <ImportErrorList items={importErrors} total={importErrorTotal} offset={importErrorOffset} busy={importErrorsBusy} metadata={metadata} onPage={setImportErrorOffset} onExport={() => void exportErrors()} exportBusy={busy}/>}<div className="import-detail-actions"><button className="button" onClick={() => void historyAction("revert")} disabled={!detail.importedCount && !detail.updatedCount}><RotateCcw size={14}/>Vrátit změny</button><button className="button" onClick={() => void historyAction("removeDuplicates")} disabled={!detail.duplicateCount}><Trash2 size={14}/>Odstranit duplicity</button><button className="button danger" onClick={() => void historyAction("delete")}><Trash2 size={14}/>Smazat záznam</button></div><p className="import-detail-help">Operace a počty odpovídají zaznamenanému importu v EspoCRM.</p></section> : <section className="surface import-detail import-empty-detail"><FileInput size={25}/><strong>Vyberte import</strong><span>Zobrazíme jeho stav a dostupné akce.</span></section>}</div>}
+    </section> : <div className="import-history-grid"><section className="surface import-history"><div className="import-list-header"><div><h2>Poslední importy</h2><p>{total ? `${total} importů celkem` : "Historie zpracování dat"}</p></div><button className="icon-button" onClick={() => void loadHistory()} title="Obnovit"><RefreshCw size={15}/></button></div>{busy && !history.length ? <div className="table-loading"><span className="spinner"/>Načítám historii…</div> : history.length ? history.map((item) => <button key={item.id} className={`import-history-row ${item.id === selectedId ? "active" : ""}`} onClick={() => { setSelectedId(item.id); setResultRelation(""); setImportErrorOffset(0); setStage(0); }}><span className={`import-status-dot ${String(item.status).toLowerCase().replaceAll(" ", "-")}`}/><span className="import-history-main"><strong>{entityLabel(metadata, item.entityType, true) || item.entityType || "Import"}</strong><small>{item.fileName || item.file?.name || item.createdAt || "Import dat"}</small></span><span className="import-history-state">{item.status || "—"}</span><ChevronRight size={14}/></button>) : <div className="import-empty"><FileInput size={24}/><strong>Zatím žádné importy</strong><span>Po nahrání CSV se výsledky zobrazí tady.</span></div>}</section>
+      {detail ? <section className="surface import-detail"><div className="import-list-header"><div><div className="eyebrow">VÝSLEDEK IMPORTU</div><h2>{entityLabel(metadata, detail.entityType, true) || detail.entityType}</h2><p>{detail.createdAt ? new Date(String(detail.createdAt).replace(" ", "T")).toLocaleString("cs-CZ") : ""}</p></div><button className="icon-button" title="Znovu načíst" onClick={() => void request<Row>(`Import/${selectedId}`).then(setDetail)}><RefreshCw size={15}/></button></div><div className="import-status"><span className={`import-status-dot ${String(detailStatus).toLowerCase().replaceAll(" ", "-")}`}/><strong>{detailStatus || "Neznámý stav"}</strong>{["Pending", "In Process"].includes(detailStatus) && <Clock3 size={14}/>}</div>{detailStatus === "Standby" && <div className="import-manual-command"><strong>Ruční spuštění na serveru</strong><code>{manualCommand || `php command.php import --id=${selectedId}`}</code><button className="button subtle" onClick={() => void navigator.clipboard.writeText(manualCommand || `php command.php import --id=${selectedId}`).then(() => setNotice("Příkaz byl zkopírován."))}><Copy size={13}/>Kopírovat příkaz</button></div>}<div className="import-result-stats"><div><strong>{detail.importedCount ?? "—"}</strong><span>Vytvořeno</span></div><div><strong>{detail.updatedCount ?? "—"}</strong><span>Aktualizováno</span></div><div><strong>{detail.duplicateCount ?? "—"}</strong><span>Duplicit</span></div></div><div className="import-result-tabs" role="tablist" aria-label="Záznamy z importu">{([ ["imported", "Vytvořené", detail.importedCount], ["updated", "Aktualizované", detail.updatedCount], ["duplicates", "Duplicitní", detail.duplicateCount] ] as const).map(([key, label, count]) => <button type="button" key={key} role="tab" aria-selected={resultRelation === key} className={resultRelation === key ? "active" : ""} onClick={() => setResultRelation(resultRelation === key ? "" : key)}>{label}<b>{count ?? 0}</b></button>)}</div>{resultRelation && <ImportResultRecords importId={selectedId} entity={detail.entityType} relation={resultRelation} metadata={metadata} onOpenRecord={onOpenRecord} onChanged={() => { void request<Row>(`Import/${encodeURIComponent(selectedId)}`).then(setDetail).catch(() => {}); }}/ >}{(importErrors.length > 0 || importErrorTotal > 0 || importErrorsBusy) && <ImportErrorList items={importErrors} total={importErrorTotal} offset={importErrorOffset} busy={importErrorsBusy} metadata={metadata} onPage={setImportErrorOffset} onExport={() => void exportErrors()} exportBusy={busy}/>}<div className="import-detail-actions"><button className="button" onClick={() => void historyAction("revert")} disabled={!detail.importedCount && !detail.updatedCount}><RotateCcw size={14}/>Vrátit změny</button><button className="button" onClick={() => void historyAction("removeDuplicates")} disabled={!detail.duplicateCount}><Trash2 size={14}/>Odstranit duplicity</button><button className="button danger" onClick={() => void historyAction("delete")}><Trash2 size={14}/>Smazat záznam</button></div><p className="import-detail-help">Operace a počty odpovídají zaznamenanému importu v EspoCRM.</p></section> : <section className="surface import-detail import-empty-detail"><FileInput size={25}/><strong>Vyberte import</strong><span>Zobrazíme jeho stav a dostupné akce.</span></section>}</div>}
   </div>;
 }

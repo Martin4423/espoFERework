@@ -919,7 +919,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : entity === "__label-manager__"
         ? <AdminLabelManager metadata={metadata} onBack={openAdmin} onRefreshMetadata={onRefreshMetadata} />
         : entity === "Import" || entity === "__import__"
-        ? <ImportCenter metadata={metadata} />
+        ? <ImportCenter metadata={metadata} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} />
         : entity === "Attachment"
         ? <AttachmentCenter metadata={metadata} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} />
         : entity === "ActionHistoryRecord"
