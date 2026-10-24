@@ -65,6 +65,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .sidebar { position: fixed; z-index: 50; inset: 0 auto 0 0; width: 248px; display: flex; flex-direction: column; color: #cbd2e0; background: var(--nav); padding: 23px 14px 16px; }
 .sidebar-brand { color: #fff; margin: 0 10px 32px; }
 .sidebar-brand .brand-mark { width: 32px; height: 32px; font-size: 21px; border-radius: 10px; }
+.sidebar-collapse-toggle { width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; margin-left: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 7px; background: rgba(255,255,255,.04); color: #aeb8ca; cursor: pointer; }
+.sidebar-collapse-toggle:hover { background: rgba(255,255,255,.1); color: #fff; }
+.sidebar, .main-shell { transition: width .18s ease, margin .18s ease, padding .18s ease; }
+.app-shell.sidebar-collapsed .sidebar { width: 72px; padding: 18px 10px 14px; }
+.app-shell.sidebar-collapsed .main-shell { width: calc(100% - 72px); margin-left: 72px; }
+.app-shell.sidebar-collapsed .sidebar-brand { position: relative; flex-direction: column; gap: 10px; margin: 0 0 17px; }
+.app-shell.sidebar-collapsed .sidebar-brand > span:not(.brand-mark) { display: none; }
+.app-shell.sidebar-collapsed .sidebar-brand .brand-mark { margin: 0 auto; }
+.app-shell.sidebar-collapsed .sidebar-collapse-toggle { margin: 0 auto; }
+.app-shell.sidebar-collapsed .workspace-pill { justify-content: center; height: 26px; padding: 0; margin: 0 0 14px; border-color: transparent; }
+.app-shell.sidebar-collapsed .workspace-pill > span:not(.workspace-dot), .app-shell.sidebar-collapsed .workspace-pill > svg { display: none; }
+.app-shell.sidebar-collapsed .nav-list .nav-caption:not(.native-nav-group-title) { display: none; }
+.app-shell.sidebar-collapsed .nav-item { justify-content: center; gap: 0; padding: 0 5px; }
+.app-shell.sidebar-collapsed .nav-item > span:not(.nav-icon) { display: none; }
+.app-shell.sidebar-collapsed .native-nav-group-title { justify-content: center; width: 100%; margin: 4px 0; padding: 10px 0; }
+.app-shell.sidebar-collapsed .native-nav-group-title > span { display: none; }
+.app-shell.sidebar-collapsed .sidebar-bottom { padding-top: 9px; }
+.app-shell.sidebar-collapsed .sidebar-version { display: none; }
 .workspace-pill { height: 39px; display: flex; align-items: center; gap: 9px; padding: 0 10px; margin: 0 3px 24px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; color: #8f9ab1; font-size: 9px; letter-spacing: .08em; font-weight: 700; }
 .workspace-pill b { margin-left: auto; font-size: 13px; color: #aab2c3; }
 .workspace-dot { width: 6px; height: 6px; box-shadow: none; }
@@ -1211,6 +1229,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 760px) {
   .sidebar { transform: translateX(-100%); transition: transform .2s ease; box-shadow: 10px 0 30px rgba(20,27,46,.18); }
   .sidebar.mobile-open { transform: translateX(0); }
+  .app-shell.sidebar-collapsed .sidebar { width: 248px; padding: 23px 14px 16px; }
+  .app-shell.sidebar-collapsed .sidebar-brand { flex-direction: row; gap: 11px; margin: 0 10px 32px; }
+  .app-shell.sidebar-collapsed .sidebar-brand > span:not(.brand-mark), .app-shell.sidebar-collapsed .workspace-pill > span:not(.workspace-dot), .app-shell.sidebar-collapsed .workspace-pill > svg, .app-shell.sidebar-collapsed .sidebar-version { display: initial; }
+  .app-shell.sidebar-collapsed .sidebar-brand .brand-mark { margin: 0; }
+  .app-shell.sidebar-collapsed .sidebar-collapse-toggle { display: none; }
+  .app-shell.sidebar-collapsed .workspace-pill { justify-content: flex-start; height: 39px; padding: 0 10px; margin: 0 3px 24px; border-color: rgba(255,255,255,.1); }
+  .app-shell.sidebar-collapsed .nav-list .nav-caption:not(.native-nav-group-title) { display: flex; }
+  .app-shell.sidebar-collapsed .nav-item { justify-content: flex-start; gap: 12px; padding: 0 11px; }
+  .app-shell.sidebar-collapsed .nav-item > span:not(.nav-icon), .app-shell.sidebar-collapsed .native-nav-group-title > span { display: initial; }
+  .app-shell.sidebar-collapsed .native-nav-group-title { justify-content: space-between; width: calc(100% - 20px); margin: 10px 10px 4px; padding: 5px 2px; }
+  .app-shell.sidebar-collapsed .sidebar-bottom { padding-top: 13px; }
+  .app-shell.sidebar-collapsed .main-shell { width: 100%; margin-left: 0; }
   .sidebar-close { display: block; margin-left: auto; border: 0; background: transparent; color: #aeb8ca; font-size: 22px; }
   .scrim { position: fixed; z-index: 45; inset: 0; border: 0; background: rgba(20,27,46,.35); }
   .main-shell { width: 100%; margin-left: 0; }
