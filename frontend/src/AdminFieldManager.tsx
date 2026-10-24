@@ -96,7 +96,7 @@ export default function AdminFieldManager({ metadata, onBack }: { metadata: Meta
     if (creating && !/^[a-z][a-zA-Z0-9]*$/.test(String(data.name || ""))) { setError("Interní název musí začínat malým písmenem a obsahovat pouze písmena a číslice."); return; }
     if (!String(data.label || "").trim()) { setError("Zadejte zobrazovaný název pole."); return; }
     for (const param of paramDefs) {
-      const value = data[param.name] ?? param.default;
+      const value = data[param.name] !== undefined ? data[param.name] : param.default;
       if (param.required && (value == null || value === "" || Array.isArray(value) && value.length === 0)) { setError(`${fieldLabel(param.name, undefined)} je povinné pole.`); return; }
       if (["int", "float"].includes(param.type || "") && value !== "" && value != null) {
         const number = Number(value);
@@ -247,7 +247,7 @@ export default function AdminFieldManager({ metadata, onBack }: { metadata: Meta
     if (param.hidden) return null;
     const name = param.name as string;
     const type = param.type || "varchar";
-    const value = data[name] ?? param.default ?? (["array", "arrayInt", "multiEnum"].includes(type) ? [] : "");
+    const value = data[name] !== undefined ? data[name] : param.default !== undefined ? param.default : (["array", "arrayInt", "multiEnum"].includes(type) ? [] : "");
     const options = (() => {
       const list = param.name === "default" && (param.view?.includes("options/default") || nativeFieldDefs.customizationDefaultView === "views/admin/field-manager/fields/currency-default") ? optionsForDefault(param) : paramOptionList(param);
       // Native enum views retain an existing value even when it is no longer in the option list.
