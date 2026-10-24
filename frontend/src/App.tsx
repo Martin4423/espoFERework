@@ -1065,6 +1065,7 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   const [emailFilters, setEmailFilters] = useState({ from: "", subject: "", dateFrom: "", dateTo: "" });
   const [filterDraft, setFilterDraft] = useState({ from: "", subject: "", dateFrom: "", dateTo: "" });
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [importEmlOpen, setImportEmlOpen] = useState(false);
   const [folders, setFolders] = useState<MailFolder[]>([]);
   const [groupFolders, setGroupFolders] = useState<MailFolder[]>([]);
   const [folderReload, setFolderReload] = useState(0);
@@ -1165,7 +1166,7 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     return <div className="mail-folder-row" key={`${entityName}-${folder.id}`}><button className={`mail-folder ${folder.id === folderId ? "active" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{entityName === "GroupEmailFolder" ? <Users size={14}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>{(canEdit || canDelete) && <div className="mail-folder-actions">{canEdit && <><button className="icon-button" title="Posunout nahoru" aria-label={`Posunout složku ${folder.name} nahoru`} disabled={index === 0} onClick={() => void reorderFolder(entityName, folder.id, "Up")}><ArrowUp size={12}/></button><button className="icon-button" title="Posunout dolů" aria-label={`Posunout složku ${folder.name} dolů`} disabled={index === list.length - 1} onClick={() => void reorderFolder(entityName, folder.id, "Down")}><ArrowDown size={12}/></button><button className="icon-button" title="Upravit složku" aria-label={`Upravit složku ${folder.name}`} onClick={() => setFolderEditor({ entity: entityName, record: folder })}><Pencil size={12}/></button></>}{canDelete && <button className="icon-button danger-ghost" title="Odstranit složku" aria-label={`Odstranit složku ${folder.name}`} onClick={() => void deleteFolder(entityName, folder)}><Trash2 size={12}/></button>}</div>}</div>;
   };
   return <div className="mail-page">
-    <header className="mail-page-heading"><div><div className="eyebrow">KOMUNIKACE</div><h1>E-mail</h1><p>Schránka, složky a zprávy propojené se záznamy CRM.</p></div><button className="button primary" onClick={onCompose}><Plus size={15}/>Napsat e-mail</button></header>
+    <header className="mail-page-heading"><div><div className="eyebrow">KOMUNIKACE</div><h1>E-mail</h1><p>Schránka, složky a zprávy propojené se záznamy CRM.</p></div><div className="mail-heading-actions">{canCreateEntity(metadata, "Email") && <button type="button" className="button subtle" onClick={() => setImportEmlOpen(true)}><FileInput size={14}/>Importovat EML</button>}<button className="button primary" onClick={onCompose}><Plus size={15}/>Napsat e-mail</button></div></header>
     <section className="mail-surface surface"><aside className="mail-sidebar"><div className="mail-sidebar-title">SCHRÁNKY</div>{systemMailFolders.map((folder) => <button key={folder.id} className={`mail-folder ${folder.id === folderId ? "active" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{folder.id === "inbox" ? <InboxIcon size={16}/> : folder.id === "important" ? <Star size={15}/> : folder.id === "sent" ? <Send size={15}/> : folder.id === "drafts" ? <FileText size={15}/> : folder.id === "archive" ? <Archive size={15}/> : folder.id === "trash" ? <Trash2 size={15}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>)}
       {(folders.length > 0 || canAccessEntity(metadata, "EmailFolder")) && <><div className="mail-sidebar-title custom-folders-title">VLASTNÍ SLOŽKY</div>{folders.map((folder, index) => renderCustomFolder(folder, "EmailFolder", index, folders))}</>}
       {(groupFolders.length > 0 || canAccessEntity(metadata, "GroupEmailFolder")) && <><div className="mail-sidebar-title custom-folders-title">SKUPINOVÉ SLOŽKY</div>{groupFolders.map((folder, index) => renderCustomFolder(folder, "GroupEmailFolder", index, groupFolders))}</>}
@@ -1185,8 +1186,26 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
       </div>) : <div className="mail-empty"><Mail size={25}/><strong>Žádné zprávy</strong><span>Ve složce „{currentFolder?.name || "E-mail"}“ zatím nic není.</span></div>}</div>
       <div className="mail-pagination"><span>{rows.length ? `${offset + 1}–${offset + rows.length}` : "0"}{total ? ` z ${total}` : " zpráv"}</span><div><button disabled={!offset || busy} onClick={() => setOffset(Math.max(0, offset - pageSize))}><ChevronLeft size={15}/></button><button disabled={busy || total > 0 && offset + rows.length >= total || rows.length < pageSize} onClick={() => setOffset(offset + pageSize)}><ChevronRight size={15}/></button></div></div>
     </div></section>
-    {folderEditor && <RecordEditor entity={folderEditor.entity} fields={getEditorFields(metadata, folderEditor.entity)} metadata={metadata} record={folderEditor.record} onClose={() => setFolderEditor(null)} onSaved={() => { setFolderEditor(null); setFolderReload((value) => value + 1); }}/ >}
+    {folderEditor && <RecordEditor entity={folderEditor.entity} fields={getEditorFields(metadata, folderEditor.entity)} metadata={metadata} record={folderEditor.record} onClose={() => setFolderEditor(null)} onSaved={() => { setFolderEditor(null); setFolderReload((value) => value + 1); }}/ >}{importEmlOpen && <EmailEmlImportDialog onClose={() => setImportEmlOpen(false)} onImported={(id) => { setImportEmlOpen(false); onOpenRecord({ id }); void load(); }}/ >}
   </div>;
+}
+
+function EmailEmlImportDialog({ onClose, onImported }: { onClose: () => void; onImported: (id: string) => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function importFile() {
+    if (!file || !/\.eml$/i.test(file.name)) { setError("Vyberte soubor s příponou .eml."); return; }
+    setBusy(true); setError("");
+    try {
+      const attachment = await uploadAttachment(file, "ImportEml", "file");
+      const result = await request<{ id: string }>("Email/importEml", { method: "POST", body: JSON.stringify({ fileId: attachment.id }) });
+      if (!result.id) throw new Error("Importovaný e-mail se nepodařilo otevřít.");
+      onImported(result.id);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Soubor EML se nepodařilo importovat."); }
+    finally { setBusy(false); }
+  }
+  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && onClose()}><section className="record-modal email-eml-dialog"><div className="modal-heading"><div><span className="eyebrow">IMPORT ZPRÁVY</span><h2>Importovat EML</h2><p>Načtěte zprávu ze souboru EML do schránky CRM.</p></div><button type="button" className="icon-button" onClick={onClose} disabled={busy} aria-label="Zavřít"><X size={16}/></button></div><label className="email-eml-picker"><span>Soubor EML</span><input type="file" accept=".eml,message/rfc822" disabled={busy} onChange={(event) => { const selected = event.target.files?.[0] || null; setFile(selected); setError(""); }}/>{file && <small>{file.name} · {(file.size / 1024).toLocaleString("cs-CZ", { maximumFractionDigits: 0 })} kB</small>}</label>{error && <div className="inline-error">{error}</div>}<div className="modal-footer"><button type="button" className="button subtle" disabled={busy} onClick={onClose}>Zrušit</button><button type="button" className="button primary" disabled={busy || !file} onClick={() => void importFile()}>{busy ? "Importuji…" : "Importovat zprávu"}<FileInput size={14}/></button></div></section></div>;
 }
 
 type EmailThreadEntry = { id: string; subject?: string; fromString?: string; personStringData?: string; dateSent?: string; status?: string; repliedId?: string; threadDepth?: number };
