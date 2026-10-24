@@ -80,6 +80,19 @@ function addressText(address: AddressParts): string {
   return [address.street, address.city, address.state, address.postalCode, address.country].map((part) => String(part || "").trim()).filter(Boolean).join(", ");
 }
 
+function authenticationProviderLayout(metadata: Metadata, entity: string, methodName: string): DetailLayoutPanel | null {
+  if (entity !== "AuthenticationProvider" || !methodName) return null;
+  const methods = (metadata as any).authenticationMethods || {};
+  const method = methods[methodName];
+  if (!method?.provider?.isAvailable) return null;
+  const layout = method.provider.layout || method.settings?.layout;
+  if (!layout?.rows) return null;
+  const entityFields = metadata.entityDefs?.[entity]?.fields || {};
+  const rows = layout.rows.map((row: LayoutItem[]) => row.map((item) => item && typeof item === "object" && item.name && !entityFields[item.name] ? false : item));
+  return { ...layout, label: layout.label || methodName, tabBreak: true, tabLabel: layout.label || methodName, rows };
+}
+
+
 function GoogleAddressMap({ address, apiKey, mapId }: { address: AddressParts; apiKey: string; mapId: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState("Načítám mapu…");
@@ -2493,7 +2506,9 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   const [detailLayout, setDetailLayout] = useState<DetailLayoutPanel[]>([]);
   useEffect(() => { let live = true; fetchLayout<DetailLayoutPanel[]>(entity, "detail").then((layout) => live && Array.isArray(layout) && setDetailLayout(layout)).catch(() => {}); return () => { live = false; }; }, [entity]);
   const fallbackDetails = Object.entries(fields).filter(([name, def]) => readableFieldPermissions[name]?.read !== "no" && !def.notStorable && !def.utility && !def.hidden && !name.endsWith("Data") && !name.endsWith("Id") && (record[name] != null || record[`${name}Name`] != null) && record[name] !== "").map(([name]) => ({ name }));
-  const panels = detailLayout.length ? detailLayout : [{ label: "Informace o záznamu", rows: fallbackDetails.map((item) => [item]) }];
+  const basePanels = detailLayout.length ? detailLayout : [{ label: "Informace o záznamu", rows: fallbackDetails.map((item) => [item]) }];
+  const providerPanel = authenticationProviderLayout(metadata, entity, String(record.method || ""));
+  const panels = providerPanel ? [...basePanels, providerPanel] : basePanels;
   const notActualStatuses = metadata.entityDefs?.Lead?.fields?.status?.notActualOptions || [];
   const convertible = entity === "Lead" && Boolean(record.status) && ![...notActualStatuses, "Converted"].includes(record.status);
   const hasPersonalData = Boolean((metadata.scopes[entity] as any)?.hasPersonalData);
@@ -3107,6 +3122,8 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
   const used = new Set<string>();
   if (entity === "Portal" && fieldMap.has("themeParams")) used.add("themeParams");
   const currentUserType = entity === "User" ? String(values.type || record?.type || initialValues.type || "regular") : "";
+  const providerPanel = authenticationProviderLayout(metadata, entity, String(values.method || record?.method || initialValues.method || ""));
+  const editorDetailLayout = providerPanel ? [...detailLayout, providerPanel] : detailLayout;
   const userManagedFields = new Set(["type", "isActive", "teams", "defaultTeam", "roles", "portals", "accounts", "portalRoles", "contact", "dashboardTemplate", "workingTimeCalendar", "layoutSet", "authMethod", "password", "passwordConfirm", "sendAccessInfo"]);
   const isUserFieldVisible = (name: string) => {
     if (entity !== "User") return true;
@@ -3135,7 +3152,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
     });
     ["data", "fieldData"].forEach((name) => { if (fieldMap.has(name)) used.add(name); });
   } else {
-    groups = detailLayout.flatMap((panel, index) => {
+    groups = editorDetailLayout.flatMap((panel, index) => {
       const names = (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name && fieldMap.has(item.name) && !used.has(item.name) ? [item.name] : []);
       names.forEach((name) => used.add(name));
       return names.length ? [{ title: panel.label || (index === 0 ? "Základní informace" : `Další údaje ${index}`), names }] : [];
