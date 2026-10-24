@@ -1753,6 +1753,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .relationship-selected-head .relationship-primary-toggle.active { color: #bf9137; background: #fff3d4; }
 .relationship-selected-head .relationship-remove:hover { color: #c45360; background: #fbeaec; }
 .relationship-column-values { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding-top: 7px; border-top: 1px solid #e8edf4; }
+.link-multiple-display { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; }
+.link-multiple-display-item { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.link-multiple-name { padding: 0; border: 0; background: none; color: #5148c8; font: inherit; text-align: left; cursor: pointer; }
+span.link-multiple-name { color: inherit; cursor: inherit; }
+button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
+.link-multiple-column-value { display: inline-flex; align-items: center; gap: 4px; color: #8490a2; font-size: .9em; }
+.link-multiple-column-value i { color: #b1bac7; font-style: normal; }
+.link-multiple-status-icon { display: inline-flex; width: 15px; height: 15px; flex: 0 0 15px; align-items: center; justify-content: center; border-radius: 50%; background: #f0f2f5; color: #7c8798; }
+.link-multiple-status-icon.success { background: #eaf7f1; color: #419477; }
+.link-multiple-status-icon.info { background: #edf3ff; color: #5279c9; }
+.link-multiple-status-icon.warning { background: #fff5e6; color: #bc8124; }
+.link-multiple-status-icon.danger { background: #fbeaec; color: #c45360; }
+.link-multiple-status-icon i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
 .relationship-column-control { display: grid; gap: 4px; min-width: 130px; color: #7c8798; font-size: 8px; }
 .relationship-column-control input,.relationship-column-control select { min-width: 100px; height: 29px; padding: 0 7px; border: 1px solid #dfe4ec; border-radius: 5px; background: #fff; color: #344057; font-size: 9px; }
 .relationship-column-bool { display: inline-flex; align-items: center; gap: 5px; min-height: 29px; color: #687489; font-size: 9px; }
