@@ -2633,7 +2633,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     return () => { live = false; };
   }, [entity, filtersLayoutName]);
   const filterRelationEntity = (name: string, def: FieldDef) => def.entity || (metadata.entityDefs?.[entity]?.links?.[name] as any)?.entity || def.entityList?.[0] || "";
-  const filterableFields = Object.entries(fieldDefs).filter(([name, def]) => canReadField(name) && (filtersLayoutFields === null || filtersLayoutFields.includes(name)) && !def.utility && !def.hidden && !def.notStorable && !name.endsWith("Id") && !name.endsWith("Data") && metadata.fields?.[def.type || ""]?.textFilter !== false && !def.textFilterDisabled && (["varchar", "text", "url", "enum", "enumInt", "enumFloat", "multiEnum", "array", "arrayInt", "checklist", "urlMultiple", "bool", "date", "datetime", "datetimeOptional", "int", "float", "currency", "email", "phone"].includes(def.type || "") || (["link", "linkOne", "linkMultiple"].includes(def.type || "") && Boolean(filterRelationEntity(name, def)))));
+  const filterableFields = Object.entries(fieldDefs).filter(([name, def]) => canReadField(name) && (filtersLayoutFields === null || filtersLayoutFields.includes(name)) && !def.utility && !def.hidden && !def.notStorable && !name.endsWith("Id") && !name.endsWith("Data") && metadata.fields?.[def.type || ""]?.textFilter !== false && !def.textFilterDisabled && (["varchar", "text", "url", "enum", "enumInt", "enumFloat", "multiEnum", "array", "arrayInt", "checklist", "urlMultiple", "file", "image", "attachmentMultiple", "bool", "date", "datetime", "datetimeOptional", "int", "float", "currency", "email", "phone"].includes(def.type || "") || (["link", "linkOne", "linkMultiple"].includes(def.type || "") && Boolean(filterRelationEntity(name, def)))));
   const preferencesUserId = getSession()?.user.id;
   useEffect(() => {
     if (!preferencesUserId) { setSavedPresets([]); return; }
@@ -2718,6 +2718,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     if (/category[-]?tree/i.test(String(def.view || ""))) return [["inCategory", "V této kategorii"]];
     if (isEnumColumnField(field, def)) return [["anyOf", "Je některá z hodnot"], ["noneOf", "Není žádná z hodnot"]];
     if (isVarcharColumnField(field, def)) return [["startsWith", "Začíná na"], ["contains", "Obsahuje"], ["equals", "Je přesně"], ["endsWith", "Končí na"], ["like", "Odpovídá vzoru"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
+    if (["file", "image", "attachmentMultiple"].includes(type || "")) return [["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
     if (type === "text") return [["contains", "Obsahuje"], ["startsWith", "Začíná na"], ["equals", "Je přesně"], ["endsWith", "Končí na"], ["like", "Odpovídá vzoru"], ["notContains", "Neobsahuje"], ["notLike", "Neodpovídá vzoru"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
     if (type === "link" && ["views/fields/user", "views/fields/user-with-avatar", "views/fields/assigned-user", "views/fields/assigned-users"].includes(String(def.view || ""))) return [["is", "Je záznam"], ["isNot", "Není záznam"], ["isOneOf", "Je některý záznam"], ["isNotOneOf", "Není žádný záznam"], ["isFromTeams", "Uživatel je z vybraných týmů"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"]];
     if (type === "linkOne") return [["is", "Je záznam"], ["isEmpty", "Je prázdné"], ["isNotEmpty", "Není prázdné"], ["isOneOf", "Je některý záznam"]];
@@ -2794,6 +2795,14 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       if (condition.operator === "anyOf") return [{ type: "linkedWith", attribute, value: ids }];
       if (condition.operator === "allOf") return [{ type: "linkedWithAll", attribute, value: ids }];
       if (condition.operator === "noneOf") return [{ type: "notLinkedWith", attribute, value: ids }];
+    }
+    if (type === "attachmentMultiple") {
+      if (condition.operator === "isEmpty") return [{ type: "isNotLinked", attribute }];
+      if (condition.operator === "isNotEmpty") return [{ type: "isLinked", attribute }];
+    }
+    if (["file", "image"].includes(type || "")) {
+      if (condition.operator === "isEmpty") return [{ type: "isNull", attribute: `${attribute}Id` }];
+      if (condition.operator === "isNotEmpty") return [{ type: "isNotNull", attribute: `${attribute}Id` }];
     }
     if (["array", "arrayInt", "checklist", "multiEnum", "urlMultiple"].includes(type || "")) {
       if (condition.operator === "isEmpty") return [{ type: "arrayIsEmpty", attribute }];
