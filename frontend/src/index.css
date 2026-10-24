@@ -92,6 +92,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .notification-trigger { position: relative; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid #eceef3; border-radius: 8px; background: #fff; color: #7e8aa0; cursor: pointer; }
 .notification-trigger:hover { border-color: #dcd9f6; color: #7069ca; background: #faf9ff; }
 .notification-trigger > span { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; display: grid; place-items: center; border: 2px solid #fff; border-radius: 10px; background: #e46e79; color: #fff; font-size: 8px; font-weight: 700; }
+.record-star-action { color: #9aa4b5; }
+.record-star-action:hover, .record-star-action.is-starred { color: #c18a28; background: #fff8e9; }
 .notification-popover-scrim { position: fixed; z-index: 45; inset: 66px 0 0; background: transparent; }
 .notification-popover { position: absolute; top: 8px; right: 20px; width: min(410px, calc(100vw - 28px)); max-height: min(640px, calc(100vh - 86px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e8eaf1; border-radius: 14px; background: #fff; box-shadow: 0 18px 60px rgba(29, 39, 67, .18); }
 .notification-popover > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid #edf0f5; }
