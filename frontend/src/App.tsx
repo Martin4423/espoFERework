@@ -3421,6 +3421,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       if (def.type === "linkMultiple" && def.columns) payload[`${name}Columns`] = values[`${name}Columns`] || {};
     }
     if (entity === "DashboardTemplate" || entity === "Portal") payload.dashletsOptions = values.dashletsOptions || {};
+    if (entity === "Contact" && values.title !== undefined) payload.accountRole = values.title || null;
     if (entity === "EmailTemplate" && initialValues.oneOff) payload.oneOff = true;
     if (entity === "User" && fields.some(([name]) => name === "teams")) payload.teamsColumns = values.teamsColumns || {};
     if (entity === "Meeting") {
@@ -3549,6 +3550,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
         const probability = probabilityMap[String(value)];
         return probability === null || probability === undefined ? { ...old, stage: value } : { ...old, stage: value, probability };
       }
+      if (entity === "Contact" && name === "title") return { ...old, title: value, accountRole: value };
       if (entity === "Document" && name === "file" && !record) return { ...old, file: value, name: String(value?.name || "") };
       if (entity === "Task" && ["dateEnd", "dateEndDate"].includes(name) && !value) {
         const next = { ...old, [name]: value };
@@ -3701,6 +3703,11 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     if (record && def.readOnlyAfterCreate) def = { ...def, readOnly: true };
     if (entity === "AuthenticationProvider" && name === "method") { const methods = (metadata as any).authenticationMethods || {}; const available = Object.entries(methods).filter(([, value]: [string, any]) => Boolean(value?.provider?.isAvailable)).map(([method]) => method); const currentMethod = String(values.method || ""); def = { ...def, options: [...new Set([...available, ...(currentMethod && !available.includes(currentMethod) ? [currentMethod] : [])])] }; }
     if (entity === "KnowledgeBaseArticle" && name === "language") { const languages = Array.isArray(metadata.app?.language?.list) ? metadata.app.language.list.map(String) : []; const currentLanguage = String(values.language || ""); def = { ...def, options: [...new Set([...languages, ...(currentLanguage && !languages.includes(currentLanguage) ? [currentLanguage] : [])])] }; }
+    if (entity === "Contact" && name === "title") {
+      const roles = ((metadata.entityDefs?.Account?.fields?.contactRole as any)?.options || []).map(String);
+      const currentRole = String(values.title || "");
+      def = { ...def, type: "enum", optionsReference: "Account.contactRole", translation: "Account.options.contactRole", options: [...new Set([...roles, ...(currentRole && !roles.includes(currentRole) ? [currentRole] : [])])] };
+    }
     if (entity === "InboundEmail") {
       const roundRobin = values.createCase && ["Round-Robin", "Least-Busy"].includes(String(values.caseDistribution || ""));
       const directAssignment = values.createCase && values.caseDistribution === "Direct-Assignment";
