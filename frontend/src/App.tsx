@@ -5030,6 +5030,7 @@ function RoleAclEditor({ metadata, type, data, fieldData, onChange }: { metadata
 
 function RoleFieldAcl({ metadata, scope, type, data, onChange }: { metadata: Metadata; scope: string; type: "acl" | "aclPortal"; data: Row; onChange: (data: Row) => void }) {
   const [newField, setNewField] = useState("");
+  const [fieldQuery, setFieldQuery] = useState("");
   const fields = metadata.entityDefs?.[scope]?.fields || {};
   const entityAcl = (metadata as any).entityAcl?.[scope]?.fields || {};
   const mandatoryFields = (metadata.app as any)?.[type]?.mandatory?.scopeFieldLevel?.[scope] || {};
@@ -5045,8 +5046,16 @@ function RoleFieldAcl({ metadata, scope, type, data, onChange }: { metadata: Met
     if (action === "edit" && value === "yes" && current.read === "no") current.read = "yes";
     if (Object.keys(current).length) next[name] = current; else delete next[name]; onChange(next);
   };
-  const fieldEntries = Object.entries(data).sort(([a], [b]) => fieldLabel(a, fields[a], scope, metadata).localeCompare(fieldLabel(b, fields[b], scope, metadata), "cs"));
-  return <div className="role-field-acl"><div className="role-field-acl-head"><span>Pole</span><span>Čtení</span><span>Úpravy</span></div>{fieldEntries.map(([name, acl]) => <div className="role-field-acl-row" key={name}><strong>{fieldLabel(name, fields[name], scope, metadata)}</strong>{["read", "edit"].map((action) => { const value = acl?.[action] || ""; const editOptions = action === "edit" && acl?.read === "no" ? ["no"] : ["yes", "no"]; return <select key={action} aria-label={`${fieldLabel(name, fields[name], scope, metadata)} ${action}`} value={value} onChange={(event) => set(name, action, event.target.value)}><option value="">Výchozí</option>{editOptions.map((item) => <option key={item} value={item}>{item === "yes" ? "Ano" : "Ne"}</option>)}</select>; })}</div>)}<div className="role-field-acl-add"><select value={newField} onChange={(event) => setNewField(event.target.value)}><option value="">Přidat omezení pole…</option>{available.map((name) => <option key={name} value={name}>{fieldLabel(name, fields[name], scope, metadata)}</option>)}</select><button type="button" className="button subtle" disabled={!newField} onClick={() => { if (!newField) return; const next = { ...data, [newField]: { read: "no", edit: "no" } }; onChange(next); setNewField(""); }}>Přidat</button></div></div>;
+  const fieldEntries = Object.entries(data)
+    .sort(([a], [b]) => fieldLabel(a, fields[a], scope, metadata).localeCompare(fieldLabel(b, fields[b], scope, metadata), "cs"))
+    .filter(([name]) => !fieldQuery.trim() || `${name} ${fieldLabel(name, fields[name], scope, metadata)}`.toLocaleLowerCase("cs-CZ").includes(fieldQuery.trim().toLocaleLowerCase("cs-CZ")));
+  return <div className="role-field-acl">
+    <label className="role-field-acl-search"><Search size={13}/><input type="search" value={fieldQuery} onChange={(event) => setFieldQuery(event.target.value)} placeholder="Hledat omezené pole…" aria-label="Hledat omezená pole"/><span>{fieldEntries.length}/{Object.keys(data).length}</span></label>
+    <div className="role-field-acl-head"><span>Pole</span><span>Čtení</span><span>Úpravy</span><span/></div>
+    {fieldEntries.map(([name, acl]) => <div className="role-field-acl-row" key={name}><strong title={name}>{fieldLabel(name, fields[name], scope, metadata)}</strong>{["read", "edit"].map((action) => { const value = acl?.[action] || ""; const editOptions = action === "edit" && acl?.read === "no" ? ["no"] : ["yes", "no"]; return <select key={action} aria-label={`${fieldLabel(name, fields[name], scope, metadata)} ${action}`} value={value} onChange={(event) => set(name, action, event.target.value)}><option value="">Výchozí</option>{editOptions.map((item) => <option key={item} value={item}>{item === "yes" ? "Ano" : "Ne"}</option>)}</select>; })}<button type="button" className="role-field-acl-reset" title="Odebrat omezení pole" aria-label={`Odebrat omezení pole ${fieldLabel(name, fields[name], scope, metadata)}`} onClick={() => { const next = { ...data }; delete next[name]; onChange(next); }}>Obnovit</button></div>)}
+    {!fieldEntries.length && <p className="role-field-acl-empty">{Object.keys(data).length ? "Žádné omezené pole neodpovídá hledání." : "Zatím nejsou nastavena žádná omezení polí."}</p>}
+    <div className="role-field-acl-add"><select value={newField} onChange={(event) => setNewField(event.target.value)}><option value="">Přidat omezení pole…</option>{available.map((name) => <option key={name} value={name}>{fieldLabel(name, fields[name], scope, metadata)}</option>)}</select><button type="button" className="button subtle" disabled={!newField} onClick={() => { if (!newField) return; const next = { ...data, [newField]: { read: "no", edit: "no" } }; onChange(next); setNewField(""); }}>Přidat</button></div>
+  </div>;
 }
 
 function AddressFormatPreview({ format }: { format: unknown }) {

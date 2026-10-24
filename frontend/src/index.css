@@ -1871,13 +1871,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .role-acl-fields { grid-column: 1 / -1; padding: 4px 2px 2px; }
 .role-acl-fields summary { color: #65748d; font-size: 10px; font-weight: 600; cursor: pointer; }
 .role-field-acl { display: grid; gap: 5px; margin-top: 10px; }
-.role-field-acl-head, .role-field-acl-row { display: grid; grid-template-columns: minmax(140px, 1fr) 110px 110px; gap: 8px; align-items: center; }
+.role-field-acl-head, .role-field-acl-row { display: grid; grid-template-columns: minmax(140px, 1fr) 110px 110px 68px; gap: 8px; align-items: center; }
 .role-field-acl-head { color: #7a8493; font-size: 9px; text-transform: uppercase; }
-.role-field-acl-row strong { font-size: 10px; font-weight: 500; }
+.role-field-acl-row strong { overflow: hidden; font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.role-field-acl-search { display: flex; align-items: center; gap: 7px; width: min(100%, 360px); min-height: 34px; padding: 0 9px; border: 1px solid #dfe4ec; border-radius: 7px; color: #7b8798; }
+.role-field-acl-search:focus-within { border-color: #8aa7ee; box-shadow: 0 0 0 3px rgb(69 112 215 / 10%); }
+.role-field-acl-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: #344057; font-size: 11px; }
+.role-field-acl-search span { font-size: 10px; font-variant-numeric: tabular-nums; }
+.role-field-acl-reset { min-height: 30px; border: 0; background: transparent; color: #6d7890; font-size: 10px; cursor: pointer; }
+.role-field-acl-reset:hover { color: #b23d4a; }
+.role-field-acl-empty { margin: 0; padding: 10px; border-radius: 6px; background: #f7f8fb; color: #7b8798; font-size: 11px; }
 .role-field-acl-add { display: flex; gap: 6px; margin-top: 5px; }
 .role-field-acl-add select { flex: 1; }
 @media (max-width: 700px) { .role-acl-row { grid-template-columns: minmax(120px, 1.3fr) repeat(6, minmax(86px, 1fr)); } }
 @media (max-width: 520px) { .role-acl-search { width: 100%; } .role-acl-filter { flex: 1; } .role-acl-filter select { width: 100%; } .role-acl-result-count { width: 100%; margin: 0; } }
+@media (max-width: 520px) { .role-field-acl-head, .role-field-acl-row { grid-template-columns: minmax(100px, 1fr) 78px 78px 56px; gap: 5px; } .role-field-acl-row select { padding-inline: 4px; font-size: 9px; } }
 
 .team-membership-field { display: grid; gap: 8px; }
 .team-membership-list { display: grid; gap: 6px; }
