@@ -4013,8 +4013,9 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
   const fieldDisabled = Boolean(def.readOnly || def.disabled || assignedUserField && assignmentPermission === "no" || entity === "Note" && name === "users" && noteMessagePermission === "no" && notePortalPermission === "no");
   const isCategoryTree = /category[-]?tree/i.test(String(def.view || "")) || /category[-]?tree/i.test(type);
   const label = fieldLabel(name, def, entity, metadata);
+  const resolvedOptions = nativeFieldOptions(metadata, entity, name, def);
   if (entity === "Portal" && ["tabList", "quickCreateList"].includes(name)) return <PortalScopeListEditor name={name} label={label} value={value} metadata={metadata} disabled={fieldDisabled} onChange={onChange}/>;
-  const optionLabel = (option: string | number) => ((["language", "formLanguage"].includes(name) ? (metadata.labels as any)?.Global?.options?.language?.[String(option)] : undefined) || (name === "theme" ? (metadata.labels as any)?.Global?.themes?.[String(option)] : undefined) || (metadata.labels as any)?.[entity]?.options?.[name]?.[String(option)] || String(option));
+  const optionLabel = (option: string | number) => ((["language", "formLanguage"].includes(name) ? (metadata.labels as any)?.Global?.options?.language?.[String(option)] : undefined) || (name === "theme" ? (metadata.labels as any)?.Global?.themes?.[String(option)] : undefined) || resolvedOptions.labels[String(option)] || String(option));
   const currencySettings = metadata.appSettings || {};
   const currencyList = (currencySettings.currencyList || (metadata.app as any)?.currency?.list || []) as string[];
   const defaultCurrency = String(currencySettings.defaultCurrency || currencyList[0] || "USD");
@@ -4035,8 +4036,8 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
   }
   if (type === "currencyConverted") return <label className="field-input currency-converted-field"><span>{label}{def.required && <i> *</i>}</span><output>{value == null || value === "" ? "—" : `${new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: Number(currencySettings.currencyDecimalPlaces ?? 2) }).format(Number(value))} ${((metadata.app as any)?.currency?.symbolMap || {})[defaultCurrency] || defaultCurrency}`}</output></label>;
   const dynamicEnumOptions = useMemo(() => {
-    if (type === "arrayInt") return def.options || [];
-    if (type !== "multiEnum" || def.options?.length) return def.options || [];
+    if (type === "arrayInt") return resolvedOptions.options;
+    if (type !== "multiEnum" || resolvedOptions.options.length) return resolvedOptions.options;
     if (entity === "Settings" && name === "currencyList") return ((metadata.app as any)?.currency?.list || []) as string[];
     const scopes = metadata.scopes as Record<string, any>;
     const view = String(def.view || "");
@@ -4054,16 +4055,16 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
       if (def.translation?.includes("scopeNames")) return Boolean(item.entity && item.object);
       return true;
     }).sort((a, b) => entityLabel(metadata, a, true).localeCompare(entityLabel(metadata, b, true), "cs"));
-  }, [def.options, metadata, name, type]);
+  }, [resolvedOptions.options, metadata, name, type]);
   const fieldOptions = useMemo(() => {
-    if (def.options?.length) return def.options;
+    if (resolvedOptions.options.length) return resolvedOptions.options;
     if (name === "language" || name === "formLanguage") return ((metadata.app as any)?.language?.list || []) as string[];
     if (entity === "Settings" && name === "pdfEngine") return Object.keys((metadata.app as any)?.pdfEngines || {});
     if (entity === "Settings" && name === "smsProvider") return Object.keys((metadata.app as any)?.smsProviders || {});
     if (entity === "Settings" && name === "authenticationMethod") return Object.keys((metadata as any).authenticationMethods || {});
     if (entity === "Settings" && ["defaultCurrency", "baseCurrency"].includes(name)) return currencyList;
     return [];
-  }, [currencyList, def.options, entity, metadata, name]);
+  }, [currencyList, resolvedOptions.options, entity, metadata, name]);
   const relationEntity = metadata.entityDefs?.[entity]?.links?.[name]?.entity;
   const parentCandidates: string[] = entity === "Note" && name === "parent" ? Object.keys(metadata.scopes || {}) : def.entityList || (metadata.entityDefs?.[entity]?.links?.[name] as any)?.entityList || Object.keys(metadata.scopes || {}).filter((scope) => metadata.scopes[scope].entity);
   const attachmentParentExcluded = new Set(["Preferences", "ExternalAccount", "Notification", "Note", "ArrayValue", "Attachment"]);
@@ -4133,7 +4134,7 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
     onChange(entity === "Portal" && name === "customId" && next ? encodeURIComponent(next.replace(/ /i, "-").toLowerCase()) : next);
   };
   const inputLabel = <span>{label}{def.required && <i> *</i>}</span>;
-  if (["array", "urlMultiple"].includes(type)) return <ArrayFieldInput label={inputLabel} value={Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split("\n").filter(Boolean) : []} disabled={Boolean(def.readOnly || def.disabled)} maxCount={def.maxCount} maxLength={def.maxItemLength || (type === "urlMultiple" ? 255 : 100)} options={(def.options || []).map(String)} urlMode={type === "urlMultiple"} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
+  if (["array", "urlMultiple"].includes(type)) return <ArrayFieldInput label={inputLabel} value={Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split("\n").filter(Boolean) : []} disabled={Boolean(def.readOnly || def.disabled)} maxCount={def.maxCount} maxLength={def.maxItemLength || (type === "urlMultiple" ? 255 : 100)} options={resolvedOptions.options.map(String)} optionLabels={resolvedOptions.labels} urlMode={type === "urlMultiple"} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
   if (type === "url") return <UrlFieldInput label={inputLabel} value={String(value || "")} disabled={Boolean(def.readOnly || def.disabled)} required={Boolean(def.required)} maxLength={Number(def.maxLength || 255)} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
   if (type === "wysiwyg") return <div className={`field-input html-field ${def.required ? "required" : ""}`}><span>{inputLabel}</span><HtmlFieldEditor entity={entity} metadata={metadata} value={value} onChange={onChange} htmlMode={entity !== "EmailTemplate" || relatedContext?.isHtml !== false} fieldName={name} disabled={Boolean(def.readOnly || def.disabled)}/></div>;
   if (type === "address") {
@@ -4288,7 +4289,7 @@ function MultipleContactField({ label, email, rows, options, phonePattern, disab
   })}</div>{!onlyPrimary && (!maxCount || normalizedItems.length < maxCount) && <button type="button" className="button subtle multiple-contact-add" onClick={add} disabled={disabled || !normalizedItems.length || Boolean(items.some((item) => !String(item[key] || "").trim()))}><Plus size={13}/> Přidat {email ? "adresu" : "telefon"}</button>}</fieldset>;
 }
 
-function ArrayFieldInput({ label, value, disabled, maxCount, maxLength, options, urlMode = false, stripProtocol = false, onChange }: { label: React.ReactNode; value: string[]; disabled: boolean; maxCount?: number; maxLength?: number; options: string[]; urlMode?: boolean; stripProtocol?: boolean; onChange: (value: string[]) => void }) {
+function ArrayFieldInput({ label, value, disabled, maxCount, maxLength, options, optionLabels, urlMode = false, stripProtocol = false, onChange }: { label: React.ReactNode; value: string[]; disabled: boolean; maxCount?: number; maxLength?: number; options: string[]; optionLabels: Record<string, string>; urlMode?: boolean; stripProtocol?: boolean; onChange: (value: string[]) => void }) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const add = (raw: string) => {
@@ -4310,7 +4311,7 @@ function ArrayFieldInput({ label, value, disabled, maxCount, maxLength, options,
     const next = [...value]; [next[index], next[target]] = [next[target], next[index]]; onChange(next);
   };
   const safeUrl = (item: string) => { try { const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(item) ? item : `https://${item}`); return /^https?:$/.test(url.protocol) ? url.toString() : null; } catch { return null; } };
-  return <div className={`field-input native-array-field ${urlMode ? "url-multiple-field" : ""}`}><span>{label}</span><div className="native-array-items">{value.map((item, index) => <div className="native-array-item" key={`${item}-${index}`}><span>{urlMode ? safeUrl(item) ? <a href={safeUrl(item) || undefined} target="_blank" rel="noreferrer">{item}</a> : item : item}</span><div><button type="button" className="icon-button" aria-label={`Posunout ${item} nahoru`} disabled={disabled || index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${item} dolů`} disabled={disabled || index === value.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className="icon-button danger-ghost" aria-label={`Odebrat ${item}`} disabled={disabled} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}>×</button></div></div>)}{!value.length && <small className="field-hint">Zatím nejsou přidané žádné položky.</small>}</div>{!disabled && (!maxCount || value.length < maxCount) && <div className="native-array-add">{options.length ? <select value={draft} onChange={(event) => { if (event.target.value) add(event.target.value); }}><option value="">Vyberte položku…</option>{options.filter((option) => !value.includes(option)).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input value={draft} maxLength={maxLength} placeholder={urlMode ? "https://example.com" : "Nová položka…"} onChange={(event) => { setDraft(event.target.value); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(draft); } }}/>}<button type="button" className="button subtle" disabled={!draft.trim()} onClick={() => add(draft)}>Přidat</button></div>}{error && <small className="field-error">{error}</small>}</div>;
+  return <div className={`field-input native-array-field ${urlMode ? "url-multiple-field" : ""}`}><span>{label}</span><div className="native-array-items">{value.map((item, index) => <div className="native-array-item" key={`${item}-${index}`}><span>{urlMode ? safeUrl(item) ? <a href={safeUrl(item) || undefined} target="_blank" rel="noreferrer">{item}</a> : item : optionLabels[item] || item}</span><div><button type="button" className="icon-button" aria-label={`Posunout ${item} nahoru`} disabled={disabled || index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${item} dolů`} disabled={disabled || index === value.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className="icon-button danger-ghost" aria-label={`Odebrat ${item}`} disabled={disabled} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}>×</button></div></div>)}{!value.length && <small className="field-hint">Zatím nejsou přidané žádné položky.</small>}</div>{!disabled && (!maxCount || value.length < maxCount) && <div className="native-array-add">{options.length ? <select value={draft} onChange={(event) => { if (event.target.value) add(event.target.value); }}><option value="">Vyberte položku…</option>{options.filter((option) => !value.includes(option)).map((option) => <option key={option} value={option}>{optionLabels[option] || option}</option>)}</select> : <input value={draft} maxLength={maxLength} placeholder={urlMode ? "https://example.com" : "Nová položka…"} onChange={(event) => { setDraft(event.target.value); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(draft); } }}/>}<button type="button" className="button subtle" disabled={!draft.trim()} onClick={() => add(draft)}>Přidat</button></div>}{error && <small className="field-error">{error}</small>}</div>;
 }
 
 type TimeRange = [string | null, string | null];
@@ -4413,20 +4414,42 @@ function UrlFieldInput({ label, value, disabled, required, maxLength, stripProto
   return <label className={`field-input ${required ? "required" : ""}`}><span>{label}</span><input type="text" inputMode="url" spellCheck={false} autoCapitalize="none" autoCorrect="off" value={value} disabled={disabled} required={required} maxLength={maxLength} placeholder="https://example.com" onChange={(event) => { onChange(event.target.value); setError(""); event.currentTarget.setCustomValidity(""); }} onBlur={(event) => { const normalized = normalize(event.target.value); const validationMessage = validate(normalized); onChange(normalized); setError(validationMessage); event.currentTarget.setCustomValidity(validationMessage); }}/>{error && <small className="field-error">{error}</small>}</label>;
 }
 
+function metadataPathValue(root: any, path: string | undefined): any {
+  if (!path) return undefined;
+  return path.split(".").filter(Boolean).reduce((node, part) => node?.[part], root);
+}
+
+function nativeFieldOptions(metadata: Metadata, entity: string, name: string, def: FieldDef) {
+  const [referenceEntity, referenceField] = String(def.optionsReference || "").split(".");
+  const referencedDef = referenceEntity && referenceField ? metadata.entityDefs?.[referenceEntity]?.fields?.[referenceField] : undefined;
+  const optionsPath = def.optionsPath || (referencedDef ? `entityDefs.${referenceEntity}.fields.${referenceField}.options` : undefined);
+  const rawOptions = optionsPath ? metadataPathValue(metadata, optionsPath) : def.options?.length ? def.options : referencedDef?.options;
+  const options = Array.isArray(rawOptions) ? rawOptions : [];
+  const translationPath = def.translation || (referencedDef ? `${referenceEntity}.options.${referenceField}` : undefined);
+  const translated = metadataPathValue(metadata.labels, translationPath);
+  const localOptions = (metadata.labels as any)?.[entity]?.options?.[name] || {};
+  return {
+    options,
+    labels: { ...localOptions, ...(translated && typeof translated === "object" ? translated : {}), ...(def.translatedOptions || {}) },
+    style: def.style || referencedDef?.style || {},
+  };
+}
+
 function EnumValue({ value, def, metadata, entity, name }: { value: unknown; def?: FieldDef; metadata?: Metadata; entity?: string; name?: string }) {
   const raw = String(value ?? "");
   if (!raw) return <span className="muted-cell">—</span>;
   const labels = metadata?.labels as any;
   const directOptions = labels?.[entity || ""]?.options?.[name || ""];
+  const resolved = metadata && entity && name && def ? nativeFieldOptions(metadata, entity, name, def) : null;
   const translationPath = String(def?.translation || "").split(".").filter(Boolean);
-  let translated: any = directOptions?.[raw] || def?.translatedOptions?.[raw];
+  let translated: any = directOptions?.[raw] || resolved?.labels?.[raw] || def?.translatedOptions?.[raw];
   if (!translated && translationPath.length) {
     let node: any = labels;
     for (const part of translationPath) node = node?.[part];
     translated = node?.[raw];
   }
   const text = String(translated || raw);
-  let styleMap = def?.style || {};
+  let styleMap = resolved?.style || def?.style || {};
   if (!Object.keys(styleMap).length && def?.optionsReference) {
     const [referenceEntity, referenceField] = String(def.optionsReference).split(".");
     styleMap = metadata?.entityDefs?.[referenceEntity]?.fields?.[referenceField]?.style || {};
