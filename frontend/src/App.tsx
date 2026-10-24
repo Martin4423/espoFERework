@@ -1203,27 +1203,40 @@ function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNav
   const [error, setError] = useState("");
   const quickTabs = useMemo<QuickSearchTab[]>(() => {
     const items: QuickSearchTab[] = [];
-    const add = (label: string, target: string, admin = false) => { if (label && !items.some((item) => item.target === target)) items.push({ label, target, admin }); };
+    const add = (label: string, target: string, admin = false) => { if (label && !items.some((item) => item.target === target || item.label.toLocaleLowerCase() === label.toLocaleLowerCase())) items.push({ label, target, admin }); };
+    const hasTabAccess = (scopeName: string) => {
+      const scope = metadata.scopes?.[scopeName] as any;
+      if (!scope || scope.disabled) return false;
+      if (scope.acl) return canAccessEntity(metadata, scopeName);
+      if (scope.tabAclPermission) { const level = metadata.userAcl?.[scope.tabAclPermission]; return Boolean(level && level !== "no"); }
+      return true;
+    };
     const walk = (list: any[]) => list.forEach((item) => {
       if (typeof item === "string") {
         if (item === "Home") add("Přehled", "__dashboard__");
         else if (item === "Calendar") add("Kalendář", "__calendar__");
-        else if (item.startsWith("_") || !metadata.scopes?.[item]?.entity) return;
+        else if (item.startsWith("_") || !metadata.scopes?.[item]?.tab || !hasTabAccess(item)) return;
         else add(entityLabel(metadata, item, true), item);
       } else if (item?.type === "url") add(String(item.text || item.url || "Odkaz").replace(/^\$/, ""), `url:${item.url}`);
       else if (Array.isArray(item?.itemList)) walk(item.itemList);
     });
     walk(tabs);
-    if (isAdmin) {
-      const labels: Record<string, string> = { users: "Users", teams: "Teams", roles: "Roles", entityManager: "Entity Manager", groupEmailAccounts: "Group Email Accounts", personalEmailAccounts: "Personal Email Accounts", portalUsers: "Portal Users", workingTimeCalendar: "Working Time Calendars" };
-      Object.entries(quickAdminTargets).forEach(([key, target]) => add((metadata.labels as any)?.Admin?.labels?.[labels[key]] || labels[key], `admin:${target}`, true));
-    }
+    Object.entries(metadata.scopes || {}).filter(([scope, definition]) => definition.tab && hasTabAccess(scope)).forEach(([scope]) => add(entityLabel(metadata, scope, true), scope));
+    if (isAdmin) Object.values((metadata.app as any)?.adminPanel || {}).flatMap((panel: any) => panel?.itemList || []).filter((item: any) => item.tabQuickSearch && item.label && item.url).forEach((item: any) => {
+      const route = String(item.url).match(/^#Admin\/([^/?#]+)/)?.[1];
+      const target = route ? quickAdminTargets[route] : String(item.url).match(/^#([^/?#]+)$/)?.[1];
+      if (!target) return;
+      const labelKey = String(item.label).replace(/^\$label:/, "");
+      const label = (metadata.labels as any)?.Admin?.labels?.[labelKey] || labelKey;
+      add(label, `admin:${target}`, true);
+    });
     return items;
   }, [metadata, tabs, isAdmin]);
   const matchingTabs = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     if (!normalized) return [];
-    return quickTabs.filter((item) => item.label.toLocaleLowerCase().includes(normalized)).sort((a, b) => Number(!a.label.toLocaleLowerCase().startsWith(normalized)) - Number(!b.label.toLocaleLowerCase().startsWith(normalized)) || a.label.length - b.label.length || a.label.localeCompare(b.label)).slice(0, 8);
+    const matches = (item: QuickSearchTab) => { const label = item.label.toLocaleLowerCase(); return label.startsWith(normalized) || label.split(/\s+/).some((word) => word.startsWith(normalized)); };
+    return quickTabs.filter(matches).sort((a, b) => Number(!a.label.toLocaleLowerCase().startsWith(normalized)) - Number(!b.label.toLocaleLowerCase().startsWith(normalized)) || a.label.length - b.label.length || a.label.localeCompare(b.label)).slice(0, 8);
   }, [query, quickTabs]);
   const selectableCount = matchingTabs.length + results.length;
   useEffect(() => {
