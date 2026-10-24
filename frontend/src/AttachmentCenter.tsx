@@ -29,7 +29,7 @@ function fileIcon(item: Attachment) {
   return kind === "image" ? FileImage : kind === "document" ? FileText : File;
 }
 
-function AttachmentPreviewDialog({ item, url, loading, error, onClose, onRetry, onDownload, onOpenRelated }: {
+function AttachmentPreviewDialog({ item, url, loading, error, onClose, onRetry, onDownload, onOpenAttachment, onOpenRelated }: {
   item: Attachment;
   url: string;
   loading: boolean;
@@ -37,11 +37,12 @@ function AttachmentPreviewDialog({ item, url, loading, error, onClose, onRetry, 
   onClose: () => void;
   onRetry: () => void;
   onDownload: () => void;
+  onOpenAttachment: () => void;
   onOpenRelated: () => void;
 }) {
   const dialogRef = useDialogFocus<HTMLElement>(onClose);
   const hasRelation = Boolean((item.relatedType || item.parentType) && (item.relatedId || item.parentId));
-  return <div className="modal-backdrop attachment-preview-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={dialogRef} tabIndex={-1} className="attachment-preview" role="dialog" aria-modal="true" aria-label={`Náhled souboru ${item.name || "přílohy"}`}><header><div><span className="eyebrow">NÁHLED PŘÍLOHY</span><strong title={item.name}>{item.name || "Soubor"}</strong><small>{item.type || "Neznámý typ"} · {formatSize(item.size)}</small></div><div><button type="button" className="button subtle" onClick={onDownload}><ArrowDownToLine size={14}/>Stáhnout</button><button type="button" className="icon-button" aria-label="Zavřít náhled" onClick={onClose}><X size={16}/></button></div></header><div className="attachment-preview-body" aria-busy={loading}>{loading ? <div role="status" aria-label="Načítám náhled"><LoaderCircle className="spin" size={26}/></div> : error ? <div className="attachment-preview-unsupported" role="alert"><FileText size={32}/><strong>Náhled se nepodařilo načíst</strong><span>{error}</span><button type="button" className="button subtle" onClick={onRetry}><RefreshCw size={13}/>Zkusit znovu</button></div> : url && kindOf(item) === "image" ? <img src={url} alt={item.name || "Náhled obrázku"}/> : url && item.type === "application/pdf" ? <iframe src={url} title={`PDF ${item.name || "náhled"}`}/> : <div className="attachment-preview-unsupported"><FileText size={32}/><strong>Náhled není dostupný</strong><span>Stáhněte soubor, abyste ho otevřeli.</span></div>}</div><footer><span>{item.relatedType || item.parentType ? `Soubor patří k záznamu ${item.relatedName || item.parentName || "v CRM"}.` : "Soubor není propojený se záznamem."}</span>{hasRelation && <button type="button" className="button subtle" onClick={onOpenRelated}><Link2 size={13}/>Otevřít záznam</button>}</footer></section></div>;
+  return <div className="modal-backdrop attachment-preview-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={dialogRef} tabIndex={-1} className="attachment-preview" role="dialog" aria-modal="true" aria-label={`Náhled souboru ${item.name || "přílohy"}`}><header><div><span className="eyebrow">NÁHLED PŘÍLOHY</span><strong title={item.name}>{item.name || "Soubor"}</strong><small>{item.type || "Neznámý typ"} · {formatSize(item.size)}</small></div><div><button type="button" className="button subtle" onClick={onOpenAttachment}><FileText size={14}/>Podrobnosti</button><button type="button" className="button subtle" onClick={onDownload}><ArrowDownToLine size={14}/>Stáhnout</button><button type="button" className="icon-button" aria-label="Zavřít náhled" onClick={onClose}><X size={16}/></button></div></header><div className="attachment-preview-body" aria-busy={loading}>{loading ? <div role="status" aria-label="Načítám náhled"><LoaderCircle className="spin" size={26}/></div> : error ? <div className="attachment-preview-unsupported" role="alert"><FileText size={32}/><strong>Náhled se nepodařilo načíst</strong><span>{error}</span><button type="button" className="button subtle" onClick={onRetry}><RefreshCw size={13}/>Zkusit znovu</button></div> : url && kindOf(item) === "image" ? <img src={url} alt={item.name || "Náhled obrázku"}/> : url && item.type === "application/pdf" ? <iframe src={url} title={`PDF ${item.name || "náhled"}`}/> : <div className="attachment-preview-unsupported"><FileText size={32}/><strong>Náhled není dostupný</strong><span>Stáhněte soubor, abyste ho otevřeli.</span></div>}</div><footer><span>{item.relatedType || item.parentType ? `Soubor patří k záznamu ${item.relatedName || item.parentName || "v CRM"}.` : "Soubor není propojený se záznamem."}</span>{hasRelation && <button type="button" className="button subtle" onClick={onOpenRelated}><Link2 size={13}/>Otevřít záznam</button>}</footer></section></div>;
 }
 
 export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata: Metadata; onOpenRecord: (entity: string, record: Attachment) => void }) {
@@ -62,6 +63,7 @@ export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata:
   const [error, setError] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [openingDetails, setOpeningDetails] = useState(false);
   const canDelete = canChangeEntity(metadata, "Attachment", "delete");
   const page = Math.floor(offset / pageSize) + 1;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -132,6 +134,12 @@ export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata:
   function showPreview(item: Attachment) {
     setPreview(item); setPreviewError(""); setError("");
   }
+  async function openAttachmentDetails(item: Attachment) {
+    setOpeningDetails(true); setPreviewError("");
+    try { const fullRecord = await request<Attachment>(`Attachment/${encodeURIComponent(item.id)}`); setPreview(null); onOpenRecord("Attachment", fullRecord); }
+    catch (cause) { setPreviewError(cause instanceof Error ? cause.message : "Detail přílohy se nepodařilo otevřít."); }
+    finally { setOpeningDetails(false); }
+  }
 
   return <div className="attachment-center">
     <div className="entity-heading"><div><div className="eyebrow">SOUBORY CRM</div><h1>Přílohy<span className="title-count">{total.toLocaleString("cs-CZ")}</span></h1><p>Prohlížejte soubory uložené v záznamech EspoCRM.</p></div><button type="button" className="button subtle" onClick={() => void load()} disabled={busy}><RefreshCw size={14}/>Obnovit</button></div>
@@ -148,6 +156,6 @@ export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata:
       </article>; })}</div> : <div className="attachment-empty"><span><File size={20}/></span><strong>{search ? "Žádné soubory nenalezeny" : "Zatím tu nejsou žádné přílohy"}</strong><small>{search ? "Zkuste jiný název nebo změňte filtr." : "Soubory se objeví po přiložení k záznamům v CRM."}</small></div>}
       <footer className="attachment-pagination"><span>Zobrazeno {total ? (offset + 1).toLocaleString("cs-CZ") : 0}–{Math.min(offset + pageSize, total).toLocaleString("cs-CZ")} z {total.toLocaleString("cs-CZ")}</span><div><button type="button" className="button subtle" disabled={offset <= 0 || busy} onClick={() => setOffset(Math.max(0, offset - pageSize))}><ArrowLeft size={13}/>Předchozí</button><b>{page} / {pageCount}</b><button type="button" className="button subtle" disabled={offset + pageSize >= total || busy} onClick={() => setOffset(offset + pageSize)}>Další<ArrowRight size={13}/></button></div></footer>
     </section>
-    {preview && <AttachmentPreviewDialog item={preview} url={previewUrl} loading={loadingPreview} error={previewError} onClose={() => setPreview(null)} onRetry={() => setPreviewReload((value) => value + 1)} onDownload={() => void downloadAttachment(preview.id, preview.name || "soubor")} onOpenRelated={() => void openRelated(preview)}/>}
+    {preview && <AttachmentPreviewDialog item={preview} url={previewUrl} loading={loadingPreview || openingDetails} error={previewError} onClose={() => setPreview(null)} onRetry={() => setPreviewReload((value) => value + 1)} onDownload={() => void downloadAttachment(preview.id, preview.name || "soubor")} onOpenAttachment={() => void openAttachmentDetails(preview)} onOpenRelated={() => void openRelated(preview)}/>}
   </div>;
 }
