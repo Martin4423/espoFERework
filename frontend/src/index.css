@@ -2395,7 +2395,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .action-history-head > span:nth-of-type(4) { grid-column: 6; }
 .action-history-head input, .history-select input { accent-color: #625bd7; }
 .action-history-row { min-height: 60px; padding: 5px 12px; border-bottom: 1px solid #f0f2f5; color: #78869a; font-size: 9px; }
-.action-history-row:hover { background: #fbfbff; }
+.action-history-row:hover, .action-history-row.selected { background: #f7f6ff; }
 .history-select { display: grid; place-items: center; height: 100%; }
 .history-target { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 5px 8px 5px 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .history-target > span:last-child { display: grid; min-width: 0; gap: 4px; }
