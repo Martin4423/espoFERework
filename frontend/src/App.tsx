@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, ComponentType, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { ChangeEvent, ComponentType, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, SyntheticEvent } from "react";
 import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, History, Inbox as InboxIcon, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, EyeSlash, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
 import { phoneCountryLabels, phoneCountryOptions } from "./phoneCountries";
@@ -3412,6 +3412,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const [recordBaseline, setRecordBaseline] = useState<Row>(activeRecord || {});
   const [versionNumber, setVersionNumber] = useState(activeRecord?.versionNumber ?? null);
   const formRef = useRef<HTMLFormElement>(null);
+  const templateSelection = useRef<Record<string, { start: number; end: number }>>({});
   const saveAndContinueRequested = useRef(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [saveConflict, setSaveConflict] = useState<{ fields: SaveConflictField[]; latest: Row } | null>(null);
@@ -3977,11 +3978,31 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     const primaryLink = primaryLinkForField(entity, name, def);
     return <FieldInput key={name} entity={entity} metadata={metadata} name={name} def={def} value={values[name]} themeParamsValue={values.themeParams} onThemeParamsChange={(themeParams) => setValues((old) => ({ ...old, themeParams }))} currencyValue={values[`${name}Currency`]} onCurrencyChange={(currency) => updateFieldValue(`${name}Currency`, currency)} columns={values[`${name}Columns`] || {}} primaryId={primaryLink ? values[`${primaryLink}Id`] : undefined} onPrimaryChange={primaryLink ? (id, label) => setValues((old) => ({ ...old, [`${primaryLink}Id`]: id, [`${primaryLink}Name`]: label || "" })) : undefined} relatedContext={values} onColumnsChange={def.type === "linkMultiple" && def.columns ? (columns) => setValues((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} onChange={(value) => updateFieldValue(name, value)} timeZone={dateTimeZone} onUploading={setUploading} onUploaded={(id) => setUploadedIds((old) => [...old, id])} onError={setError}/>;
   };
-  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && void cancel()}><form ref={formRef} className="record-modal" onSubmit={submit}>
+  const rememberTemplateSelection = (event: SyntheticEvent<HTMLFormElement>) => {
+    const target = event.target;
+    if (!(target instanceof HTMLTextAreaElement)) return;
+    const name = target.id.replace(/^field-/, "");
+    if (!["header", "body", "footer"].includes(name)) return;
+    templateSelection.current[name] = { start: target.selectionStart, end: target.selectionEnd };
+  };
+  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && void cancel()}><form ref={formRef} className="record-modal" onSubmit={submit} onSelect={rememberTemplateSelection} onClick={rememberTemplateSelection} onKeyUp={rememberTemplateSelection}>
     <div className="modal-heading"><div><span className="eyebrow">{activeRecord ? "UPRAVIT" : duplicate ? "KOPIE ZÁZNAMU" : "NOVÝ ZÁZNAM"} · {entityLabel(metadata, entity, true).toUpperCase()}</span><h2>{activeRecord ? "Upravit záznam" : duplicate ? `Duplikovat ${entityLabel(metadata, entity).toLowerCase()}` : `Vytvořit ${entityLabel(metadata, entity).toLowerCase()}`}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
     {entity === "EmailFilter" && <div className="email-filter-guidance"><strong>Jak pravidla vyhodnocovat</strong><span>Adresy a předmět podporují zástupný znak <code>*</code>. „Obsahuje některý“ projde při shodě alespoň jedné fráze; „Obsahuje všechny“ vyžaduje shodu všech zadaných frází.</span><small>Akce a cílová složka se řídí typem účtu, ke kterému je filtr přiřazen.</small></div>}
     <div className="record-editor-groups">{groups.filter((group) => group.names.some(editorFieldVisible)).map((group) => <section className="record-editor-group" key={group.title}><h3>{group.title}</h3><div className="modal-fields">{group.names.map(renderField)}</div></section>)}</div>
-    {entity === "Template" && values.entityType && <TemplatePlaceholderPicker metadata={metadata} entityType={String(values.entityType)} onInsert={(target, code) => setValues((old) => ({ ...old, [target]: `${String(old[target] || "")}${old[target] ? " " : ""}${code}` }))}/>}
+    {entity === "Template" && values.entityType && <TemplatePlaceholderPicker metadata={metadata} entityType={String(values.entityType)} onInsert={(target, code) => setValues((old) => {
+      const current = String(old[target] || "");
+      const selection = templateSelection.current[target] || { start: current.length, end: current.length };
+      const start = Math.max(0, Math.min(selection.start, current.length));
+      const end = Math.max(start, Math.min(selection.end, current.length));
+      const next = `${current.slice(0, start)}${code}${current.slice(end)}`;
+      const cursor = start + code.length;
+      requestAnimationFrame(() => {
+        const field = document.getElementById(`field-${target}`) as HTMLTextAreaElement | null;
+        field?.focus(); field?.setSelectionRange(cursor, cursor);
+        templateSelection.current[target] = { start: cursor, end: cursor };
+      });
+      return { ...old, [target]: next };
+    })}/>}
     {entity === "Meeting" && (metadata.clientDefs?.Meeting?.bottomPanels?.edit || []).some((panel: any) => panel.name === "scheduler") && <MeetingScheduler metadata={metadata} userIds={values.users || []} userNames={values.usersNames} assignedUserId={values.assignedUserId} assignedUserName={values.assignedUserName} dateStart={values.isAllDay ? values.dateStartDate : values.dateStart} dateEnd={values.isAllDay ? values.dateEndDate : values.dateEnd} allDay={Boolean(values.isAllDay)} entityId={activeRecord?.id}/>}
     {(entity === "Role" || entity === "PortalRole") && <RoleAclEditor metadata={metadata} type={entity === "PortalRole" ? "aclPortal" : "acl"} data={values.data || {}} fieldData={values.fieldData || {}} onChange={(data, fieldData) => setValues((old) => ({ ...old, data, fieldData }))}/>}
     {!["EmailAccount", "InboundEmail"].includes(entity) || mailActionNames.has("testConnection") && mailActionNames.has("smtpTestSend") ? null : <div className="email-test-bar"><span>Ověřte nastavení připojení před uložením účtu.</span><div><button type="button" className="button subtle" onClick={() => void testMailConnection()} disabled={connectionTestBusy || !values.host}>{connectionTestBusy ? "Testuji připojení…" : "Testovat připojení"}<Network size={14}/></button><button type="button" className="button subtle" onClick={() => { setTestEmailTo(String((getSession()?.user as User & { emailAddress?: string } | undefined)?.emailAddress || "")); setTestEmailError(""); setTestEmailOpen(true); }} disabled={testEmailBusy || !values.smtpHost || !values.emailAddress || (entity === "InboundEmail" && !values.useSmtp)}>{testEmailBusy ? "Odesílám…" : "Odeslat testovací e-mail"}<Mail size={14}/></button></div></div>}
@@ -4095,33 +4116,57 @@ function WebhookEventField({ metadata, value, required, disabled, onChange }: { 
 function TemplatePlaceholderPicker({ metadata, entityType, onInsert }: { metadata: Metadata; entityType: string; onInsert: (target: string, code: string) => void }) {
   const [target, setTarget] = useState("body");
   const [attribute, setAttribute] = useState("");
-  const defs = metadata.entityDefs?.[entityType]?.fields || {};
   const fieldAllowed = (scope: string, name: string, def: FieldDef) => {
     const acl = metadata.userAcl?.fieldTable?.[scope]?.[name];
-    return !def.disabled && !def.utility && !def.notStorable && !def.directAccessDisabled && !def.templatePlaceholderDisabled && acl?.read !== "no" && !["map", "foreign"].includes(def.type || "");
+    const entityAcl = (metadata as any).entityAcl?.[scope]?.fields?.[name] || {};
+    return !entityAcl.onlyAdmin && !entityAcl.forbidden && !entityAcl.internal && !def.disabled && !def.utility && !def.notStorable && !def.directAccessDisabled && !def.templatePlaceholderDisabled && acl?.read !== "no" && !["map", "foreign"].includes(def.type || "");
   };
-  const options: Array<{ value: string; label: string; text: boolean }> = [];
-  for (const [name, def] of Object.entries(defs)) {
-    if (!fieldAllowed(entityType, name, def)) continue;
-    options.push({ value: name, label: fieldLabel(name, def, entityType, metadata), text: ["text", "wysiwyg"].includes(def.type || "") });
-    if (def.type === "personName") options.push({ value: "name", label: "Jméno", text: false });
-  }
-  for (const [link, linkDef] of Object.entries(metadata.entityDefs?.[entityType]?.links || {})) {
-    if (linkDef.type !== "belongsTo" || !linkDef.entity) continue;
-    const relationFields = metadata.entityDefs?.[linkDef.entity]?.fields || {};
-    for (const [name, def] of Object.entries(relationFields)) {
-      if (!fieldAllowed(linkDef.entity, name, def)) continue;
-      options.push({ value: `${link}.${name}`, label: `${fieldLabel(link, undefined, entityType, metadata)} · ${fieldLabel(name, def, linkDef.entity, metadata)}`, text: ["text", "wysiwyg"].includes(def.type || "") });
+  const options: Array<{ value: string; label: string; text: boolean; placeholder?: string }> = [];
+  const addFields = (scope: string, linkPrefix = "", linkLabel = "") => {
+    const fields = metadata.entityDefs?.[scope]?.fields || {};
+    for (const [name, def] of Object.entries(fields)) {
+      if (!fieldAllowed(scope, name, def)) continue;
+      const prefix = (field: string) => linkPrefix ? `${linkPrefix}.${field}` : field;
+      const display = (label: string) => linkLabel ? `${linkLabel} · ${label}` : label;
+      const label = fieldLabel(name, def, scope, metadata);
+      if (def.type === "image") {
+        options.push({ value: prefix(`${name}ImageTag`), placeholder: `imageTag ${prefix(`${name}Id`)}`, label: display(label), text: false });
+        continue;
+      }
+      if (def.type === "barcode") {
+        const codeType = String((def as any).codeType || "QR").replace(/'/g, "\\'");
+        options.push({ value: prefix(`${name}Barcode`), placeholder: `barcodeImage ${prefix(name)} type='${codeType}'`, label: display(label), text: false });
+        continue;
+      }
+      const actualFields = (metadata.fields?.[def.type || ""] as any)?.actualFields as string[] | undefined;
+      const attributes = actualFields?.length
+        ? actualFields.map((part) => !part ? name : (metadata.fields?.[def.type || ""] as any)?.naming === "prefix" ? `${part}${name[0]?.toUpperCase()}${name.slice(1)}` : `${name}${part[0]?.toUpperCase()}${part.slice(1)}`)
+        : [name];
+      if (def.type === "personName" && !attributes.includes("name")) attributes.unshift("name");
+      for (const field of [...new Set(attributes)]) {
+        if (field.endsWith("ImageName") || def.type === "image" && field === `${name}Name` || def.type === "image" && field === `${name}Id`) continue;
+        const fieldDef = fields[field] || def;
+        const suffix = field === name || field === "name" ? "" : ` · ${fieldLabel(field, fieldDef, scope, metadata)}`;
+        options.push({ value: prefix(field), label: `${display(label)}${suffix}`, text: ["text", "wysiwyg"].includes(fieldDef.type || "") });
+      }
     }
+  };
+  addFields(entityType);
+  for (const [link, linkDef] of Object.entries(metadata.entityDefs?.[entityType]?.links || {})) {
+    const entityAcl = (metadata as any).entityAcl?.[entityType]?.links?.[link] || {};
+    if (linkDef.type !== "belongsTo" || !linkDef.entity || (linkDef as any).disabled || (linkDef as any).utility || entityAcl.onlyAdmin || entityAcl.forbidden || entityAcl.internal) continue;
+    addFields(linkDef.entity, link, fieldLabel(link, undefined, entityType, metadata));
   }
-  options.push({ value: "id", label: "ID záznamu", text: false }, { value: "today", label: "Dnešní datum", text: false }, { value: "now", label: "Aktuální datum a čas", text: false });
+  options.push({ value: "id", label: "ID záznamu", text: false }, { value: "today", label: "Dnešní datum", text: false }, { value: "now", label: "Aktuální datum a čas", text: false }, { value: "pagebreak", label: "Zalomení stránky", text: false });
+  const sortedOptions = options.sort((a, b) => a.label.localeCompare(b.label, "cs"));
   const insert = () => {
-    const item = options.find((option) => option.value === attribute);
+    const item = sortedOptions.find((option) => option.value === attribute);
     if (!item) return;
-    onInsert(target, item.text ? `{{{${item.value}}}}` : `{{${item.value}}}`);
+    const placeholder = item.placeholder || item.value;
+    onInsert(target, item.text ? `{{{${placeholder}}}}` : `{{${placeholder}}}`);
     setAttribute("");
   };
-  return <section className="record-editor-group template-placeholder-picker"><h3>Proměnné šablony · {entityLabel(metadata, entityType)}</h3><p>Vložte do obsahu pole dynamickou hodnotu záznamu. Textová pole používají bezpečné HTML proměnné.</p><div className="template-placeholder-controls"><label className="field-input"><span>Vložit do pole</span><select value={target} onChange={(event) => setTarget(event.target.value)}>{["header", "body", "footer"].map((name) => <option key={name} value={name}>{fieldLabel(name, metadata.entityDefs?.Template?.fields?.[name], "Template", metadata)}</option>)}</select></label><label className="field-input"><span>Proměnná</span><select value={attribute} onChange={(event) => setAttribute(event.target.value)}><option value="">Vyberte proměnnou…</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label} · {`{{${option.value}}}`}</option>)}</select></label><button type="button" className="button subtle" disabled={!attribute} onClick={insert}>Vložit proměnnou</button></div></section>;
+  return <section className="record-editor-group template-placeholder-picker"><h3>Proměnné šablony · {entityLabel(metadata, entityType)}</h3><p>Vložte hodnotu záznamu do záhlaví, těla nebo zápatí. Pro přesné umístění klikněte nejdřív do textu; vložená proměnná nahradí vybraný text.</p><div className="template-placeholder-controls"><label className="field-input"><span>Vložit do pole</span><select value={target} onChange={(event) => setTarget(event.target.value)}>{["header", "body", "footer"].map((name) => <option key={name} value={name}>{fieldLabel(name, metadata.entityDefs?.Template?.fields?.[name], "Template", metadata)}</option>)}</select></label><label className="field-input"><span>Proměnná</span><select value={attribute} onChange={(event) => setAttribute(event.target.value)}><option value="">Vyberte proměnnou…</option>{sortedOptions.map((option) => <option key={option.value} value={option.value}>{option.label} · {`{{${option.placeholder || option.value}}}`}</option>)}</select></label><button type="button" className="button subtle" disabled={!attribute} onClick={insert}>Vložit proměnnou</button></div></section>;
 }
 
 function LeadCaptureFieldConfigurator({ metadata, selected, params, onChange }: { metadata: Metadata; selected: string[]; params: Row; onChange: (selected: string[], params: Row) => void }) {
