@@ -1510,6 +1510,8 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
   const [documentBusy, setDocumentBusy] = useState(false);
   const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
   const [documentDraft, setDocumentDraft] = useState<Row | null>(null);
+  const [moveTargets, setMoveTargets] = useState<Row[] | null>(null);
+  const [moveSearch, setMoveSearch] = useState("");
   useEffect(() => {
     let live = true;
     setBusy(true);
@@ -1525,6 +1527,29 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
     return () => { live = false; };
   }, [initial.id]);
   async function action(path: string, method = "POST") { setError(""); try { await request(path, { method, body: JSON.stringify({ id: record.id }) }); onChanged(); if (path.includes("inTrash")) onClose(); if (path.includes("important")) setRecord((old) => ({ ...old, isImportant: method === "POST" })); } catch (e) { setError(e instanceof Error ? e.message : "Akci se nepodařilo provést."); } }
+  async function openMovePicker() {
+    setError(""); setMoveSearch("");
+    try {
+      const result = await request<{ list: Row[] }>("EmailFolder/action/listAll");
+      const groupOnly = Boolean(record.groupFolderId) || !record.isUsers;
+      const noArchive = !record.groupFolderId && !record.isUsers;
+      const builtIn = new Set(["all", "inbox", "important", "sent", "drafts", "trash", "archive"]);
+      const currentId = record.inTrash ? "trash" : record.inArchive ? "archive" : record.groupFolderId ? `group:${record.groupFolderId}` : record.folderId || "inbox";
+      const options: Row[] = [{ id: "inbox", name: groupOnly ? "Všechny zprávy" : "Doručené" }];
+      if (!noArchive) options.push({ id: "archive", name: "Archiv" });
+      options.push(...(result.list || []).filter((item) => !builtIn.has(item.id) && (!groupOnly || String(item.id).startsWith("group:"))));
+      setMoveTargets(options.filter((item) => item.id !== currentId));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Složky se nepodařilo načíst."); }
+  }
+  async function moveDetail(destination: string) {
+    setBusy(true); setError("");
+    try {
+      await request(`Email/inbox/folders/${encodeURIComponent(destination)}`, { method: "POST", body: JSON.stringify({ id: record.id }) });
+      const updated = await request<Row>(`Email/${encodeURIComponent(record.id)}`);
+      setRecord(updated); setMoveTargets(null); onChanged();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Zprávu se nepodařilo přesunout."); }
+    finally { setBusy(false); }
+  }
   function replyDraft(mode: "reply" | "replyAll" | "forward") {
     const reply = mode === "reply" || mode === "replyAll";
     const subject = String(record.subject || "");
@@ -1572,6 +1597,7 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
   return <><button className="drawer-backdrop" onClick={onClose} aria-label="Zavřít e-mail"/><aside className="record-drawer email-drawer">
     <div className="drawer-top"><span className="eyebrow">E-MAIL · ZPRÁVA</span><div>
       <button className="icon-button" title="Důležité" onClick={() => void action("Email/inbox/important", record.isImportant ? "DELETE" : "POST")}><Star size={15} fill={record.isImportant ? "currentColor" : "none"}/></button>
+      {canChangeEntity(metadata, "Email", "edit") && <button className="icon-button" title="Přesunout do složky" aria-label="Přesunout e-mail do složky" onClick={() => void openMovePicker()}><Folder size={15}/></button>}
       <button className="icon-button" title="Archivovat" onClick={() => void action("Email/inbox/folders/archive")}><Archive size={15}/></button>
       <button className="icon-button danger-ghost" title={record.inTrash ? "Obnovit ze smazaných" : "Přesunout do koše"} onClick={() => void action("Email/inbox/inTrash", record.inTrash ? "DELETE" : "POST")}><Trash2 size={15}/></button>
       <button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button>
@@ -1601,6 +1627,7 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
     </>}
     <div className="drawer-meta"><span>Stav</span><b>{record.status === "Draft" ? "Koncept" : record.isRead ? "Přečteno" : "Nepřečteno"}</b><span>Odesláno</span><b>{formatDate(record.dateSent)}</b></div>
   </aside>
+    {moveTargets && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMoveTargets(null)}><section className="record-modal mail-folder-picker" role="dialog" aria-modal="true" aria-labelledby="email-detail-folder-title"><div className="modal-heading"><div><span className="eyebrow">PŘESUN E-MAILU</span><h2 id="email-detail-folder-title">Vybrat cílovou složku</h2><p>Zpráva bude přesunuta do zvolené složky.</p></div><button type="button" className="icon-button" onClick={() => setMoveTargets(null)} aria-label="Zavřít"><X size={16}/></button></div><label className="mail-folder-picker-search"><Search size={16}/><input autoFocus value={moveSearch} onChange={(event) => setMoveSearch(event.target.value)} placeholder="Filtrovat složky…"/></label><div className="mail-folder-picker-options">{moveTargets.filter((folder) => String(folder.name || "").toLocaleLowerCase("cs-CZ").includes(moveSearch.trim().toLocaleLowerCase("cs-CZ"))).map((folder) => <button type="button" key={folder.id} disabled={busy} onClick={() => void moveDetail(folder.id)}><span className="mail-folder-picker-icon">{folder.id === "inbox" ? <InboxIcon size={17}/> : folder.id === "archive" ? <Archive size={17}/> : String(folder.id).startsWith("group:") ? <Users size={17}/> : <Mail size={17}/>}</span><span>{folder.name}</span><ArrowRight size={15}/></button>)}{moveTargets.every((folder) => !String(folder.name || "").toLocaleLowerCase("cs-CZ").includes(moveSearch.trim().toLocaleLowerCase("cs-CZ"))) && <div className="mail-empty"><Folder size={23}/><strong>Žádné cílové složky</strong><span>Zkuste upravit hledaný výraz.</span></div>}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setMoveTargets(null)} disabled={busy}>Zrušit</button></div></section></div>}
     {documentPickerOpen && <div className="modal-backdrop attachment-choice-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setDocumentPickerOpen(false)}><section className="record-modal attachment-choice-modal" role="dialog" aria-modal="true" aria-label="Vybrat přílohu pro dokument"><div className="modal-heading"><div><span className="eyebrow">PŘÍLOHY E-MAILU</span><h2>Vyberte soubor</h2></div><button type="button" className="icon-button" aria-label="Zavřít" onClick={() => setDocumentPickerOpen(false)}><X size={16}/></button></div><div className="attachment-choice-list">{attachmentIds.map((id) => <button key={id} type="button" onClick={() => void createDocumentFromAttachment(id)}><Paperclip size={15}/><span>{attachmentNames[id] || "Příloha"}</span><ArrowRight size={14}/></button>)}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setDocumentPickerOpen(false)}>Zrušit</button></div></section></div>}
     {eventCreateInitial && <RecordEditor key={`${record.id}-ics-event`} entity="Meeting" fields={getEditorFields(metadata, "Meeting")} metadata={metadata} initialValues={eventCreateInitial} onClose={() => setEventCreateInitial(null)} onSaved={() => { setEventCreateInitial(null); onChanged(); void request<Row>(`Email/${encodeURIComponent(record.id)}`).then(setRecord).catch((cause) => setError(cause instanceof Error ? cause.message : "E-mail se schůzkou se nepodařilo obnovit.")); }}/ >}
     {documentDraft && <RecordEditor entity="Document" fields={getEditorFields(metadata, "Document")} metadata={metadata} initialValues={documentDraft} onClose={() => setDocumentDraft(null)} onSaved={() => { setDocumentDraft(null); onChanged(); }}/ >}
