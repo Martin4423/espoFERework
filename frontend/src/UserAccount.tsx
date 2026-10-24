@@ -28,7 +28,7 @@ function choices(name: string, def: FieldDef, metadata: Metadata, settings: Data
   if (name === "dateFormat") options = metadata.app?.dateTime?.dateFormatList;
   if (name === "timeFormat") options = metadata.app?.dateTime?.timeFormatList;
   if (name === "defaultCurrency") options = settings.currencyList || [settings.defaultCurrency].filter(Boolean);
-  if (name === "theme") options = Object.keys((metadata.labels as any)?.Global?.themes || {});
+  if (name === "theme") options = Object.keys((metadata as any).themes || {}).sort((a, b) => a === "EspoRtl" ? -1 : b === "EspoRtl" ? 1 : a.localeCompare(b, "cs"));
   if (name === "weekStart") options = [-1, 0, 1, 2, 3, 4, 5, 6];
   if (["assignmentNotificationsIgnoreEntityTypeList", "assignmentEmailNotificationsIgnoreEntityTypeList"].includes(name)) {
     const key = name === "assignmentNotificationsIgnoreEntityTypeList" ? "assignmentNotificationsEntityList" : "assignmentEmailNotificationsEntityList";
@@ -38,17 +38,31 @@ function choices(name: string, def: FieldDef, metadata: Metadata, settings: Data
   return options.map((option) => {
     if (name === "weekStart") return [String(option), option === -1 ? "Podle systému" : ["Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota"][Number(option)]];
     const key = String(option);
-    const label = name === "language" ? key.replace("_", "-") : name === "theme" ? (metadata.labels as any)?.Global?.themes?.[key] || key : metadata.labels?.Global?.scopeNamesPlural?.[key] || key;
+    const label = name === "language" ? (metadata.labels as any)?.Global?.options?.language?.[key] || key.replace("_", "-") : name === "theme" ? (metadata.labels as any)?.Global?.themes?.[key] || key : metadata.labels?.Global?.scopeNamesPlural?.[key] || key;
     return [key, label];
   });
 }
 
-function PreferenceControl({ field, value, metadata, settings, onChange }: { field: PrefField; value: any; metadata: Metadata; settings: Data; onChange: (value: any) => void }) {
+function PreferenceControl({ field, value, metadata, settings, themeParams, onChange, onThemeParamsChange }: { field: PrefField; value: any; metadata: Metadata; settings: Data; themeParams: Data; onChange: (value: any) => void; onThemeParamsChange: (value: Data) => void }) {
   const { name, def } = field;
   const label = fieldLabel(name, def, "Preferences", metadata);
   const controlId = `pref-${name}`;
   const optionList = choices(name, def, metadata, settings, value);
   const type = def.type || "varchar";
+  if (name === "theme") {
+    const themes = ((metadata as any).themes || {}) as Data;
+    const effectiveTheme = String(value || settings.theme || "Espo");
+    const navbarDef = themes[effectiveTheme]?.params?.navbar || {};
+    const navbarOptions: string[] = Array.isArray(navbarDef.options) && navbarDef.options.length > 1 ? navbarDef.options.map(String) : [];
+    const navbarValue = String(themeParams?.navbar || navbarDef.default || "");
+    function setTheme(nextTheme: string) {
+      onChange(nextTheme);
+      const nextNavbar = themes[nextTheme || settings.theme || "Espo"]?.params?.navbar || {};
+      const nextOptions: string[] = Array.isArray(nextNavbar.options) ? nextNavbar.options.map(String) : [];
+      if (nextOptions.length > 1 && !nextOptions.includes(navbarValue)) onThemeParamsChange({ ...(themeParams || {}), navbar: nextNavbar.default || nextOptions[0] });
+    }
+    return <div className="field-input preference-theme-field"><span>{label}</span><div className="theme-field-controls"><select id={controlId} value={value ?? ""} onChange={(event) => setTheme(event.target.value)}><option value="">Výchozí · {(metadata.labels as any)?.Global?.themes?.[settings.theme] || settings.theme || "Espo"}</option>{(optionList || []).map(([key, title]) => <option value={key} key={key}>{title}</option>)}</select>{navbarOptions.length > 0 && <select aria-label="Rozložení navigace" value={navbarValue} onChange={(event) => onThemeParamsChange({ ...(themeParams || {}), navbar: event.target.value })}>{navbarOptions.map((navbar) => <option key={navbar} value={navbar}>{(metadata.labels as any)?.Global?.themeNavbars?.[navbar] || navbar}</option>)}</select>}</div></div>;
+  }
   if (type === "bool") return <label className="preference-toggle" htmlFor={controlId}><span><strong>{label}</strong><small>{def.tooltip || "Osobní nastavení účtu."}</small></span><input id={controlId} type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)}/><i/></label>;
   if (optionList && ["checklist", "multiEnum"].includes(type)) {
     const selected: string[] = Array.isArray(value) ? value.map(String) : [];
@@ -132,6 +146,7 @@ export function UserPreferencesView({ metadata, user, onBack }: { metadata: Meta
       else changed[name] = now;
     }
   }
+  if (JSON.stringify(values.themeParams || {}) !== JSON.stringify(original.themeParams || {})) changed.themeParams = values.themeParams || {};
   async function save() {
     setError(""); setNotice("");
     for (const [name, value] of Object.entries(values)) if (typeof value === "string" && (["jsonArray", "jsonObject"].includes(metadata.entityDefs?.Preferences?.fields?.[name]?.type || "") || name === "tabList") && value.trim()) {
@@ -159,7 +174,7 @@ export function UserPreferencesView({ metadata, user, onBack }: { metadata: Meta
   }
   return <div className="admin-view user-account-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Zpět do CRM</button><div className="eyebrow">OSOBNÍ NASTAVENÍ</div><h1>Moje preference</h1><p>Jazyk, formáty, kalendář, vzhled a upozornění pro účet {user.name}.</p></div><div className="account-toolbar"><button className="button subtle" onClick={() => setConfirmReset(true)} disabled={busy || saving}><RotateCcw size={14}/>Obnovit preference</button><button className="button primary" onClick={() => void save()} disabled={busy || saving || !Object.keys(changed).length}><Save size={15}/>{saving ? "Ukládám…" : "Uložit"}</button></div></div>
     {error && <div className="table-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
-    {busy ? <div className="surface table-loading"><span className="spinner"/>Načítám preference a nativní layout…</div> : fieldsBySection.length ? <><nav className="preference-tabs">{fieldsBySection.map((item, index) => <button className={index === section ? "active" : ""} key={item.title} onClick={() => setSection(index)}>{item.title}<span>{item.fields.length}</span></button>)}</nav><section className="surface preference-panel"><div className="settings-card-head"><div><h2>{activeSection?.title}</h2><p>Rozložení a pole načtená z konfigurace instalace.</p></div></div><div className="settings-fields">{activeSection?.fields.map((field) => <PreferenceControl key={field.name} field={field} value={values[field.name] ?? field.def.default ?? ""} metadata={metadata} settings={settings} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))}/>)}</div>{activeSection?.title === "Uživatelské rozhraní" && user.type === "admin" && <div className="preference-reset-dashboard"><span><strong>Rozložení dashboardu</strong><small>Obnoví výchozí dashboard vašeho účtu.</small></span><button className="button subtle" onClick={() => void resetDashboard()} disabled={saving}><RotateCcw size={14}/>Obnovit dashboard</button></div>}</section></> : <div className="surface table-loading">Pro tento účet nejsou z layoutu EspoCRM dostupná žádná editovatelná pole.</div>}
+    {busy ? <div className="surface table-loading"><span className="spinner"/>Načítám preference a nativní layout…</div> : fieldsBySection.length ? <><nav className="preference-tabs">{fieldsBySection.map((item, index) => <button className={index === section ? "active" : ""} key={item.title} onClick={() => setSection(index)}>{item.title}<span>{item.fields.length}</span></button>)}</nav><section className="surface preference-panel"><div className="settings-card-head"><div><h2>{activeSection?.title}</h2><p>Rozložení a pole načtená z konfigurace instalace.</p></div></div><div className="settings-fields">{activeSection?.fields.map((field) => <PreferenceControl key={field.name} field={field} value={values[field.name] ?? field.def.default ?? ""} metadata={metadata} settings={settings} themeParams={values.themeParams || {}} onThemeParamsChange={(themeParams) => setValues((current) => ({ ...current, themeParams }))} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))}/>)}</div>{activeSection?.title === "Uživatelské rozhraní" && user.type === "admin" && <div className="preference-reset-dashboard"><span><strong>Rozložení dashboardu</strong><small>Obnoví výchozí dashboard vašeho účtu.</small></span><button className="button subtle" onClick={() => void resetDashboard()} disabled={saving}><RotateCcw size={14}/>Obnovit dashboard</button></div>}</section></> : <div className="surface table-loading">Pro tento účet nejsou z layoutu EspoCRM dostupná žádná editovatelná pole.</div>}
     {confirmReset && <div className="modal-backdrop"><section className="record-modal account-confirm"><div className="modal-heading"><div><span className="eyebrow">POTVRZENÍ</span><h2>Obnovit preference?</h2></div><button className="icon-button" onClick={() => setConfirmReset(false)} aria-label="Zavřít"><X size={16}/></button></div><p>Tato akce odstraní osobní nastavení a načte výchozí hodnoty EspoCRM.</p><div className="modal-footer"><button className="button subtle" onClick={() => setConfirmReset(false)}>Zrušit</button><button className="button danger" onClick={() => void resetAll()} disabled={saving}>Obnovit</button></div></section></div>}
   </div>;
 }
