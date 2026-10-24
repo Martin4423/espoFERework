@@ -2979,6 +2979,12 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
     if (entity === "User" && values.password && passwordStrengthParams === null) { setError("Načítám pravidla hesla. Zkuste to prosím znovu za chvíli."); setBusy(false); return; }
     if (entity === "User" && values.password) { const passwordIssue = validateRequestedPassword(String(values.password), passwordStrengthParams || {}); if (passwordIssue) { setError(passwordIssue); setBusy(false); return; } }
     if (entity === "WorkingTimeRange" && values.dateStart && values.dateEnd && String(values.dateEnd) < String(values.dateStart)) { setError("Datum konce musí být stejné nebo pozdější než datum začátku."); setBusy(false); return; }
+    for (const [name, def] of fields) {
+      if (def.type !== "attachmentMultiple") continue;
+      const count = Array.isArray(values[name]) ? values[name].length : 0;
+      if (def.required && count === 0) { setError(`Pole „${fieldLabel(name, def, entity, metadata)}“ je povinné.`); setBusy(false); return; }
+      if (Number(def.maxCount) > 0 && count > Number(def.maxCount)) { setError(`Pole „${fieldLabel(name, def, entity, metadata)}“ může obsahovat nejvýše ${def.maxCount} souborů.`); setBusy(false); return; }
+    }
     if (["WorkingTimeCalendar", "WorkingTimeRange"].includes(entity)) {
       for (const [name, def] of fields) {
         if (!(name === "timeRanges" || /^weekday[0-6]TimeRanges$/.test(name))) continue;
@@ -4123,6 +4129,10 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
       setImageCropFile(file);
       return;
     }
+    if (type === "attachmentMultiple" && Number(def.maxCount) > 0) {
+      const existingCount = Array.isArray(value) ? value.length : 0;
+      if (existingCount + fileList.length > Number(def.maxCount)) { setFileError(`Pole může obsahovat nejvýše ${def.maxCount} souborů. Odeberte některé soubory nebo vyberte menší počet.`); return; }
+    }
     setFileBusy(true); onUploading?.(true); setFileError(""); onError?.("");
     try {
       const uploaded: Array<{ id: string; name: string; type: string }> = [];
@@ -4141,6 +4151,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     try {
       const maxCount = Number(def.maxCount || 0);
       const next = [...(Array.isArray(value) ? value : [])] as Array<{ id: string; name: string; type?: string }>;
+      let exceededLimit = false;
       for (const row of rows) {
         const items: Row[] = source === "Attachment"
           ? [row]
@@ -4148,13 +4159,12 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
         for (const item of items) {
           const attachment = { id: String(item.id), name: String(item.name || item.fileName || "Soubor"), type: String(item.type || item.mimeType || "") };
           if (!attachment.id || next.some((current) => current.id === attachment.id)) continue;
-          if (maxCount && next.length >= maxCount) break;
+          if (maxCount && next.length >= maxCount) { exceededLimit = true; continue; }
           next.push(attachment);
         }
-        if (maxCount && next.length >= maxCount) break;
       }
       onChange(next);
-      if (maxCount && next.length >= maxCount) setFileError(`Pole může obsahovat nejvýše ${maxCount} souborů.`);
+      if (exceededLimit) setFileError(`Byl dosažen limit ${maxCount} souborů; další vybrané přílohy nebyly přidány.`);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Soubory ze zvoleného záznamu se nepodařilo přidat.";
       setFileError(message); onError?.(message);
