@@ -1197,7 +1197,9 @@ function GlobalSearchOverlay({ metadata, onClose, onSelect }: { metadata: Metada
   useEffect(() => {
     const normalized = query.trim();
     setResults([]); setSelectedIndex(0);
-    if (normalized.length < 2) { setResults([]); setBusy(false); setError(""); return; }
+    setError("");
+    if (normalized.length < 2) { setResults([]); setBusy(false); return; }
+    setBusy(true);
     let live = true;
     const timer = window.setTimeout(() => {
       setBusy(true); setError("");
