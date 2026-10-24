@@ -473,6 +473,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-surface { overflow: hidden; }
 .calendar-toolbar { min-height: 61px; display: flex; align-items: center; justify-content: space-between; padding: 0 17px; border-bottom: 1px solid var(--line); }
 .calendar-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+.calendar-participant-filter { min-height: 30px; white-space: nowrap; }
 .calendar-view-switch { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: #fafbfc; }
 .calendar-view-switch button { padding: 5px 9px; border: 0; border-radius: 5px; background: transparent; color: #8892a2; font-size: 9px; cursor: pointer; }
 .calendar-view-switch button.active { background: #fff; color: #5f58ca; box-shadow: 0 1px 3px #1c24400f; }
