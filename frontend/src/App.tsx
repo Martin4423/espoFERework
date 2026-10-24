@@ -2633,12 +2633,22 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     return () => { live = false; };
   }, [entity, filtersLayoutName]);
   const filterRelationEntity = (name: string, def: FieldDef) => def.entity || (metadata.entityDefs?.[entity]?.links?.[name] as any)?.entity || def.entityList?.[0] || "";
+  const filterFieldDefinition = (_name: string, def: FieldDef) => def.type === "foreign" ? nativeForeignFieldDef(metadata, entity, def) : def;
+  const hasForeignFieldSource = (def: FieldDef) => {
+    const foreignEntity = metadata.entityDefs?.[entity]?.links?.[String(def.link)]?.entity;
+    return Boolean(foreignEntity && metadata.entityDefs?.[foreignEntity]?.fields?.[String(def.field)]);
+  };
   const filterParentEntityList = (name: string, def: FieldDef) => {
     const link = metadata.entityDefs?.[entity]?.links?.[name] as any;
     const candidateList = def.entityList || link?.entityList || Object.keys(metadata.scopes || {}).filter((scope) => metadata.scopes[scope]?.entity);
     return candidateList.filter((scope: string) => Boolean(metadata.scopes[scope]?.entity) && canAccessEntity(metadata, scope));
   };
-  const filterableFields = Object.entries(fieldDefs).filter(([name, def]) => canReadField(name) && (filtersLayoutFields === null || filtersLayoutFields.includes(name)) && !def.utility && !def.hidden && !def.notStorable && !name.endsWith("Id") && !name.endsWith("Data") && metadata.fields?.[def.type || ""]?.textFilter !== false && !def.textFilterDisabled && (["id", "varchar", "text", "url", "enum", "enumInt", "enumFloat", "multiEnum", "array", "arrayInt", "checklist", "urlMultiple", "file", "image", "attachmentMultiple", "bool", "date", "datetime", "datetimeOptional", "int", "float", "currency", "email", "phone"].includes(def.type || "") || (["link", "linkOne", "linkMultiple"].includes(def.type || "") && Boolean(filterRelationEntity(name, def))) || (def.type === "linkParent" && filterParentEntityList(name, def).length > 0)));
+  const filterableFields = Object.entries(fieldDefs).filter(([name, originalDef]) => {
+    const def = filterFieldDefinition(name, originalDef);
+    const type = def.type || "";
+    const supported = ["id", "varchar", "text", "url", "enum", "enumInt", "enumFloat", "multiEnum", "array", "arrayInt", "checklist", "urlMultiple", "file", "image", "attachmentMultiple", "bool", "date", "datetime", "datetimeOptional", "int", "float", "currency", "email", "phone"].includes(type) || (["link", "linkOne", "linkMultiple"].includes(type) && Boolean(filterRelationEntity(name, def))) || (type === "linkParent" && filterParentEntityList(name, def).length > 0);
+    return canReadField(name) && (filtersLayoutFields === null || filtersLayoutFields.includes(name)) && !originalDef.utility && !originalDef.hidden && !originalDef.notStorable && !name.endsWith("Id") && !name.endsWith("Data") && metadata.fields?.[type]?.textFilter !== false && !originalDef.textFilterDisabled && (!originalDef.hidden && !def.hidden) && supported && (originalDef.type !== "foreign" || hasForeignFieldSource(originalDef));
+  });
   const preferencesUserId = getSession()?.user.id;
   useEffect(() => {
     if (!preferencesUserId) { setSavedPresets([]); return; }
@@ -2718,7 +2728,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     String(def.view || "").includes("enum-column") || (entity === "Lead" && field === "acceptanceStatus");
   const isVarcharColumnField = (_field: string, def: FieldDef) => String(def.view || "").includes("varchar-column");
   const filterOperators = (field: string) => {
-    const def = fieldDefs[field] || {};
+    const def = filterFieldDefinition(field, fieldDefs[field] || {});
     const type = def.type;
     if (/category[-]?tree/i.test(String(def.view || ""))) return [["inCategory", "V této kategorii"]];
     if (isEnumColumnField(field, def)) return [["anyOf", "Je některá z hodnot"], ["noneOf", "Není žádná z hodnot"]];
@@ -2751,7 +2761,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   const filterNeedsCount = (operator: string) => ["lastXDays", "nextXDays", "olderThanXDays", "afterXDays"].includes(operator);
   function updateDraftFilter(index: number, patch: Partial<FilterCondition>) { setDraftFilters((current) => current.map((item, i) => i === index ? { ...item, ...patch } : item)); }
   function conditionToWhere(condition: FilterCondition): Row[] {
-    const def = fieldDefs[condition.field] || {};
+    const def = filterFieldDefinition(condition.field, fieldDefs[condition.field] || {});
     const type = def.type;
     const attribute = condition.field;
     const numeric = ["int", "float", "currency", "enumInt", "enumFloat"].includes(type || "");
@@ -3052,7 +3062,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       </div>
       {filterPanelOpen && <div className="advanced-filter-panel"><div className="advanced-filter-heading"><div><strong>Filtr podle polí</strong><small>Podmínky se kombinují a zpracovává je EspoCRM.</small></div><button type="button" className="button subtle" onClick={() => setDraftFilters((current) => [...current, { field: filterableFields[0]?.[0] || "", operator: filterOperators(filterableFields[0]?.[0] || "")[0]?.[0] || "equals", value: "" }])}><Plus size={13}/>Přidat podmínku</button></div>{nativeBoolFilters.length > 0 && <div className="native-bool-filters">{nativeBoolFilters.map((item) => <label key={item.name}><input type="checkbox" checked={activeBoolFilters.includes(item.name)} onChange={(event) => { setActiveBoolFilters((current) => event.target.checked ? [...current, item.name] : current.filter((name) => name !== item.name)); setOffset(0); }}/><span>{item.label}</span></label>)}</div>}{draftFilters.map((condition, index) => {
         const operators = filterOperators(condition.field);
-        const def = fieldDefs[condition.field] || {};
+        const def = filterFieldDefinition(condition.field, fieldDefs[condition.field] || {});
         const type = def.type || "varchar";
         const multi = ["anyOf", "allOf", "noneOf", "isOneOf", "isNotOneOf", "isFromTeams"].includes(condition.operator);
         const categoryField = /category[-]?tree/i.test(String(def.view || ""));
@@ -3060,7 +3070,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
         const parentEntityOptions = type === "linkParent" ? filterParentEntityList(condition.field, def) : [];
         const enumField = ["enum", "enumInt", "enumFloat"].includes(type);
         const arrayField = ["array", "arrayInt", "checklist", "multiEnum", "urlMultiple"].includes(type);
-        const arrayOptions = arrayField ? nativeFieldOptions(metadata, entity, condition.field, def) : { options: [], labels: {} };
+        const optionData = enumField || arrayField ? nativeFieldOptions(metadata, entity, condition.field, def) : { options: [], labels: {} };
         const noValue = filterNoValueOperators.has(condition.operator) || ["isTrue", "isFalse", "any"].includes(condition.operator);
         const range = filterNeedsRange(condition.operator);
         const count = filterNeedsCount(condition.operator);
@@ -3074,10 +3084,10 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
           {!noValue && (categoryField ? <button type="button" className="button subtle filter-record-picker" onClick={() => setFilterPicker({ index, category: true })}>{Array.isArray(condition.value) ? `Vybráno ${condition.value.length} kategorií…` : condition.value ? condition.valueNames?.[String(condition.value)] || "Změnit kategorii…" : "Vybrat kategorii…"}</button>
             : type === "linkParent" ? <div className="link-parent-filter-control"><select aria-label="Typ nadřazeného záznamu" value={condition.valueType || ""} onChange={(event) => updateDraftFilter(index, { valueType: event.target.value, value: "", valueNames: {} })}><option value="">Typ záznamu…</option>{parentEntityOptions.map((scope: string) => <option key={scope} value={scope}>{entityLabel(metadata, scope)}</option>)}</select><button type="button" className="button subtle filter-record-picker" disabled={!condition.valueType} onClick={() => setFilterPicker({ index, category: false })}>{condition.value ? condition.valueNames?.[String(condition.value)] || "Změnit záznam…" : "Vybrat záznam…"}</button></div>
             : relationField ? <button type="button" className="button subtle filter-record-picker" onClick={() => setFilterPicker({ index, category: false })}>{Array.isArray(condition.value) ? `Vybráno ${condition.value.length} záznamů…` : condition.value ? condition.valueNames?.[String(condition.value)] || "Změnit záznam…" : "Vybrat záznam…"}</button>
-            : multi && enumField ? <select aria-label="Hodnoty filtru" multiple value={Array.isArray(condition.value) ? condition.value : []} onChange={(event) => setValue(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}>{(def.options || []).filter((value: any) => value !== "").map((value: any) => <option key={String(value)} value={String(value)}>{(metadata.labels as any)?.[entity]?.options?.[condition.field]?.[String(value)] || String(value)}</option>)}</select>
-            : multi && arrayField && arrayOptions.options.length > 0 ? <ArrayFieldInput label="" compact value={Array.isArray(condition.value) ? condition.value.map(String) : []} disabled={false} keepItems={false} allowCustomOptions={Boolean(def.allowCustomOptions)} pattern="" maxLength={def.maxItemLength || 100} options={arrayOptions.options.map(String)} optionLabels={arrayOptions.labels} onChange={setValue}/>
+            : multi && enumField ? <select aria-label="Hodnoty filtru" multiple value={Array.isArray(condition.value) ? condition.value : []} onChange={(event) => setValue(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}>{optionData.options.filter((value: any) => value !== "").map((value: any) => <option key={String(value)} value={String(value)}>{optionData.labels[String(value)] || String(value)}</option>)}</select>
+            : multi && arrayField && optionData.options.length > 0 ? <ArrayFieldInput label="" compact value={Array.isArray(condition.value) ? condition.value.map(String) : []} disabled={false} keepItems={false} allowCustomOptions={Boolean(def.allowCustomOptions)} pattern="" maxLength={def.maxItemLength || 100} options={optionData.options.map(String)} optionLabels={optionData.labels} onChange={setValue}/>
             : multi ? <input aria-label="Hodnoty filtru" type="text" value={Array.isArray(condition.value) ? condition.value.join(", ") : String(condition.value || "")} onChange={(event) => setValue(event.target.value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean))} placeholder="Hodnoty oddělené čárkou…"/>
-            : enumField ? <select aria-label="Hodnota filtru" value={String(condition.value || "")} onChange={(event) => setValue(event.target.value)}><option value="">Vyberte hodnotu…</option>{(def.options || []).filter((value: any) => value !== "").map((value: any) => <option key={String(value)} value={String(value)}>{(metadata.labels as any)?.[entity]?.options?.[condition.field]?.[String(value)] || String(value)}</option>)}</select>
+            : enumField ? <select aria-label="Hodnota filtru" value={String(condition.value || "")} onChange={(event) => setValue(event.target.value)}><option value="">Vyberte hodnotu…</option>{optionData.options.filter((value: any) => value !== "").map((value: any) => <option key={String(value)} value={String(value)}>{optionData.labels[String(value)] || String(value)}</option>)}</select>
             : count ? <input aria-label="Počet dní" type="number" min="0" step="1" value={String(condition.value || "")} onChange={(event) => setValue(event.target.value)} placeholder="Počet dní…"/>
             : <input aria-label="Hodnota filtru" type={inputType} step={numberField && !["int", "enumInt"].includes(type) ? "any" : undefined} value={String(condition.value || "")} onChange={(event) => setValue(event.target.value)} placeholder="Hodnota…"/>)}
           {range && <input aria-label="Druhá hodnota rozsahu" type={inputType} step={numberField && !["int", "enumInt"].includes(type) ? "any" : undefined} value={condition.valueTo || ""} onChange={(event) => updateDraftFilter(index, { valueTo: event.target.value })} placeholder="Do…"/>}
