@@ -2833,3 +2833,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .reminder-display-list li > svg { flex: 0 0 auto; color: var(--primary); }
 .reminder-display-list li strong { margin-left: auto; color: var(--ink); font-size: 11px; font-weight: 550; }
 .reminder-display-empty { color: var(--muted); font-size: 12px; }
+.dashlet-task-overdue, .dashlet-task-today { display: inline-flex; align-items: center; gap: 4px; width: max-content; font-size: 10px; font-weight: 650; }
+.dashlet-task-overdue { color: #a82e35; }
+.dashlet-task-today { color: #9a6211; }
