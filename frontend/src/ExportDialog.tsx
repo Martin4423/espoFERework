@@ -29,6 +29,7 @@ export default function ExportDialog({ entity, metadata, selectedIds, total, sea
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const totalLabel = total >= 0 ? `${total.toLocaleString("cs-CZ")} záznamů` : "neznámý počet záznamů";
   const formatDef = formatDefs[format] || {};
   const formatParams = formatDef.params?.fields || {};
   const filteredFields = useMemo(() => Object.keys(fields).filter((name) => {
@@ -102,10 +103,10 @@ export default function ExportDialog({ entity, metadata, selectedIds, total, sea
   const selectedCount = selectedFields.length;
   return <div className="modal-backdrop export-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && onClose()}>
     <section className="record-modal export-modal" role="dialog" aria-modal="true" aria-labelledby="export-dialog-title">
-      <div className="modal-heading"><div><span className="eyebrow">EXPORT DAT · {entityLabel(metadata, entity, true).toLocaleUpperCase("cs-CZ")}</span><h2 id="export-dialog-title">Exportovat záznamy</h2><p>{scope === "selected" && selectedIds.length ? `${selectedIds.length} vybraných záznamů` : `${total.toLocaleString("cs-CZ")} záznamů podle aktuálních filtrů`}</p></div><button type="button" className="icon-button" onClick={onClose} disabled={busy} aria-label="Zavřít"><X size={16}/></button></div>
+      <div className="modal-heading"><div><span className="eyebrow">EXPORT DAT · {entityLabel(metadata, entity, true).toLocaleUpperCase("cs-CZ")}</span><h2 id="export-dialog-title">Exportovat záznamy</h2><p>{scope === "selected" && selectedIds.length ? `${selectedIds.length} vybraných záznamů` : `${totalLabel} podle aktuálních filtrů`}</p></div><button type="button" className="icon-button" onClick={onClose} disabled={busy} aria-label="Zavřít"><X size={16}/></button></div>
       <div className="export-layout">
         <div className="export-options">
-          <label className="field-input"><span>Rozsah záznamů</span><select value={scope} onChange={(event) => setScope(event.target.value as "selected" | "filtered")}><option value="filtered">Všechny záznamy podle aktuálních filtrů ({total.toLocaleString("cs-CZ")})</option><option value="selected" disabled={!selectedIds.length}>Jen označené ({selectedIds.length})</option></select></label>
+          <label className="field-input"><span>Rozsah záznamů</span><select value={scope} onChange={(event) => setScope(event.target.value as "selected" | "filtered")}><option value="filtered">Všechny záznamy podle aktuálních filtrů ({totalLabel})</option><option value="selected" disabled={!selectedIds.length}>Jen označené ({selectedIds.length})</option></select></label>
           <label className="field-input"><span>Formát souboru</span><select value={format} onChange={(event) => setFormat(event.target.value)}>{formats.map((item) => <option key={item} value={item}>{item.toUpperCase()}{formatDefs[item].fileExtension ? ` · .${formatDefs[item].fileExtension}` : ""}</option>)}</select></label>
           {visibleParams().map(([name, def]) => {
             const label = metadata.labels?.Export?.fields?.[name] || name.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
@@ -120,7 +121,7 @@ export default function ExportDialog({ entity, metadata, selectedIds, total, sea
       </div>
       {error && <div className="table-error export-error">{error}</div>}
       {(busy || done) && <div className={`export-progress ${done ? "success" : ""}`}>{done ? <Check size={14}/> : <span className="spinner"/>}{progress}</div>}
-      <div className="modal-footer"><button type="button" className="button subtle" onClick={onClose} disabled={busy}>Zavřít</button><button type="button" className="button primary" onClick={() => void runExport()} disabled={busy || done || !formats.length || !selectedCount}>{busy ? progress : <><Download size={14}/><FileSpreadsheet size={14}/> Exportovat {scope === "selected" && selectedIds.length ? `${selectedIds.length} záznamů` : `${total.toLocaleString("cs-CZ")} záznamů`}</>}</button></div>
+      <div className="modal-footer"><button type="button" className="button subtle" onClick={onClose} disabled={busy}>Zavřít</button><button type="button" className="button primary" onClick={() => void runExport()} disabled={busy || done || !formats.length || !selectedCount}>{busy ? progress : <><Download size={14}/><FileSpreadsheet size={14}/> Exportovat {scope === "selected" && selectedIds.length ? `${selectedIds.length} záznamů` : totalLabel}</>}</button></div>
     </section>
   </div>;
 }
