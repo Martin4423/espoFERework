@@ -2100,6 +2100,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-manager-array-add { display: flex; align-items: center; gap: 7px; }
 .field-manager-array-add input { flex: 1; min-width: 0; }
 .field-manager-array-add .button { min-height: 36px; }
+.field-manager-color > div { display: flex; align-items: center; gap: 8px; }
+.field-manager-color input[type="color"] { width: 42px; height: 38px; padding: 3px; border: 1px solid var(--line, #e5e9f0); border-radius: 8px; background: var(--surface, #fff); cursor: pointer; }
+.field-manager-color input[type="text"] { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .dashboard-layout-field { grid-column: 1 / -1; }
 .dashboard-layout-editor { display: grid; gap: 12px; min-width: 0; }
 .dashboard-layout-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 9px; border-bottom: 1px solid var(--line, #e5e9f0); }
