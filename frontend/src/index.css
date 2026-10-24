@@ -1135,6 +1135,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .notification-unread-dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: #766fe0; }
 .notification-remove { display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #a1a9b7; cursor: pointer; }
 .notification-remove:hover { background: #fff0f0; color: #b85c65; }
+.popup-reminder-stack { position: fixed; z-index: 100; top: 76px; right: 20px; display: grid; gap: 10px; width: min(370px,calc(100vw - 32px)); pointer-events: none; }
+.popup-reminder-card { display: flex; align-items: flex-start; gap: 11px; padding: 14px; border: 1px solid #e8e5fb; border-left: 3px solid #746dd1; border-radius: 12px; box-shadow: 0 14px 35px rgba(35,31,73,.16); pointer-events: auto; animation: popup-reminder-in .2s ease-out; }
+.popup-reminder-icon { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: #f0efff; color: #6d67c9; }
+.popup-reminder-main { flex: 1; min-width: 0; display: grid; gap: 4px; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.popup-reminder-main:disabled { cursor: default; }
+.popup-reminder-heading { color: #7d86a0; font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.popup-reminder-main strong { overflow: hidden; color: #35415a; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.popup-reminder-date { display: flex; align-items: center; gap: 5px; color: #838ca0; font-size: 10px; }
+.popup-reminder-close { flex: 0 0 30px; width: 30px; height: 30px; }
+@keyframes popup-reminder-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 .global-search-overlay { position: fixed; z-index: 120; inset: 0; display: flex; justify-content: center; align-items: flex-start; padding: min(15vh,130px) 18px 24px; background: rgba(19,26,43,.42); backdrop-filter: blur(3px); }
 .global-search-dialog { width: min(620px,100%); max-height: min(660px,80vh); display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,.8); border-radius: 13px; background: white; box-shadow: 0 24px 85px rgba(17,22,42,.25); }
 .global-search-input { display: flex; align-items: center; gap: 11px; min-height: 61px; padding: 0 16px; border-bottom: 1px solid var(--line); color: #8882d4; }

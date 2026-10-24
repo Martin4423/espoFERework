@@ -48,6 +48,7 @@ const KanbanBoard = lazy(() => import("./KanbanBoard"));
 const ActivityView = lazy(() => import("./SocialViews").then((module) => ({ default: module.ActivityView })));
 const GlobalStreamView = lazy(() => import("./SocialViews").then((module) => ({ default: module.GlobalStreamView })));
 const NotificationCenter = lazy(() => import("./SocialViews").then((module) => ({ default: module.NotificationCenter })));
+const PopupReminderToasts = lazy(() => import("./PopupReminderToasts"));
 const NotificationPanel = lazy(() => import("./SocialViews").then((module) => ({ default: module.NotificationPanel })));
 const UserPreferencesView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserPreferencesView })));
 const UserSecurityView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserSecurityView })));
@@ -938,6 +939,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
       {quickCreateScope && <RecordEditor entity={quickCreateScope} fields={getEditorFields(metadata, quickCreateScope).filter(([name, def]) => (quickCreateLayout?.scope !== quickCreateScope || quickCreateLayout.names.includes(name)) && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.read !== "no" && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.edit !== "no" && !def.hidden && !def.utility && !def.disabled)} metadata={metadata} initialValues={quickCreateInitialValues} onClose={() => { setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); }} onSaved={(created) => { const scope = quickCreateScope; const fromDashboard = quickCreateFromDashboard; setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); if (fromDashboard) setDashboardRefreshKey((value) => value + 1); else { openEntity(scope); setRecord(created); } }}/>}
       {emailDraft && <EmailComposer metadata={metadata} initial={emailDraft} onClose={() => setEmailDraft(null)} onSaved={() => { setEmailDraft(null); setEmailRefresh((n) => n + 1); }} />}
       {globalSearchOpen && <GlobalSearchOverlay metadata={metadata} tabs={nativeNavItems} isAdmin={user.type === "admin" || user.type === "super-admin"} onClose={() => setGlobalSearchOpen(false)} onNavigate={(target) => { setGlobalSearchOpen(false); if (target === "__dashboard__") { setEntity(null); setCalendarOpen(false); setAdminOpen(false); setActivityOpen(false); setGlobalStreamOpen(false); setNotificationsOpen(false); setLastViewedOpen(false); setAccountPage(null); setRecord(null); } else if (target === "__calendar__") openCalendar(); else openEntity(target); }} onSelect={(name, row) => { setGlobalSearchOpen(false); openEntity(name); setRecord(row); }} />}
+      <Suspense fallback={null}><PopupReminderToasts metadata={metadata} isPortalUser={isPortalUser} onOpenRecord={(scope, id) => void openNotificationRecord(scope, id)}/></Suspense>
       <footer className="app-footer"><span>ViaCRM</span><span>Vaše vztahy. Váš přehled.</span></footer>
     </section>
   </div>;
