@@ -1252,6 +1252,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .security-state.disabled { color: #777f8d; background: #f0f2f5; }
 .security-unavailable, .security-instruction { color: #727e92; font-size: 11px; line-height: 1.6; }
 .totp-secret { overflow-wrap: anywhere; margin: 8px 0 16px; padding: 13px; border: 1px dashed #cbc9ed; border-radius: 8px; background: #f8f7ff; color: #453eaa; font: 600 13px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; }
+.totp-setup-qr { display: flex; align-items: center; flex-direction: column; gap: 8px; margin: 16px auto; padding: 12px; width: fit-content; border: 1px solid #e4e7ed; border-radius: 12px; background: #fff; }
+.totp-setup-qr img { display: block; width: 224px; height: 224px; image-rendering: pixelated; }
+.totp-setup-qr small { color: #737b8d; font-size: 11px; text-align: center; }
 .account-confirm { width: min(440px, 100%); }
 .account-confirm > p { color: #6f7b8e; font-size: 12px; line-height: 1.6; }
 @media (max-width: 760px) { .security-grid { grid-template-columns: 1fr; } .entity-heading .account-toolbar { flex-wrap: wrap; justify-content: flex-start; margin-top: 12px; } .preference-panel .settings-fields { grid-template-columns: 1fr; } .preference-checklist > div { grid-template-columns: 1fr; } }
