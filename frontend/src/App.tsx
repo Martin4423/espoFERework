@@ -2868,7 +2868,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
       return [label, attribute.value];
     }));
     return [{ name, def, value, attributes, canErase: canErasePersonalData && restriction?.edit !== false && restriction?.edit !== "no" }];
-  });
+  }).sort((a, b) => fieldLabel(a.name, a.def, entity, metadata).localeCompare(fieldLabel(b.name, b.def, entity, metadata), undefined, { sensitivity: "base" }));
   const sessionUser = getSession()?.user;
   const canSelfAssign = ["Case", "Lead"].includes(entity) && !record.deleted && !record.assignedUserId && sessionUser?.type !== "portal" && Boolean(fields.assignedUser) && canEditRecord && readableFieldPermissions.assignedUser?.edit !== "no";
   const taskReminderNotActual = [
