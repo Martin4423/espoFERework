@@ -248,6 +248,12 @@ function PasswordRecoveryRequest({ onClose }: { onClose: () => void }) {
   </section></div>;
 }
 
+function getPhoneValidationPattern(metadata: Metadata) {
+  const pattern = String((metadata.app as any)?.regExpPatterns?.phoneNumberLoose?.pattern || "");
+  try { return pattern ? new RegExp(`^(?:${pattern})$`) : /^[+\d][\d\s().,/;*#-]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i; }
+  catch { return /^[+\d][\d\s().,/;*#-]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i; }
+}
+
 function validateRequestedPassword(password: string, params: PasswordRecoveryInfo["strengthParams"] = {}) {
   const rules: Array<[boolean, string]> = [];
   const minLength = Number(params.passwordStrengthLength || 0);
@@ -2689,7 +2695,8 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
         if (seen.has(normalized)) { setError(`${fieldLabel(name, def, entity, metadata)}: stejná hodnota je uvedena vícekrát.`); setBusy(false); return; }
         seen.add(normalized);
         if (item.invalid) continue;
-        const valid = email ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) : /^[+\d][\d\s().,/;*#-]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i.test(value);
+        const phonePattern = getPhoneValidationPattern(metadata);
+        const valid = email ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) : phonePattern.test(value);
         if (!valid) { setError(`${fieldLabel(name, def, entity, metadata)}: ${email ? "zadejte platnou e-mailovou adresu nebo ji označte jako neplatnou" : "zkontrolujte formát telefonního čísla"}.`); setBusy(false); return; }
       }
     }
@@ -3000,7 +3007,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
       const optionDef = metadata.entityDefs?.[email ? "EmailAddress" : "PhoneNumber"]?.fields?.type;
       const maxCount = Number(def.maxCount || metadata.appParams?.[email ? "emailAddressMaxCount" : "phoneNumberMaxCount"] || 0);
       const itemMaxLength = Number(metadata.entityDefs?.[email ? "EmailAddress" : "PhoneNumber"]?.fields?.name?.maxLength || 255);
-      return <MultipleContactField key={name} label={fieldLabel(name, def, entity, metadata)} email={email} rows={rows} options={(optionDef?.options || []).map(String).filter((option) => option !== "")} disabled={Boolean(def.readOnly || def.disabled)} required={Boolean(def.required)} onlyPrimary={Boolean(def.onlyPrimary)} maxCount={maxCount} maxLength={itemMaxLength} defaultOptOut={Boolean(metadata.appParams?.[email ? "emailAddressIsOptedOutByDefault" : "phoneNumberIsOptedOutByDefault"])} onChange={(nextRows) => setValues((old) => {
+      return <MultipleContactField key={name} label={fieldLabel(name, def, entity, metadata)} email={email} rows={rows} options={(optionDef?.options || []).map(String).filter((option) => option !== "")} phonePattern={getPhoneValidationPattern(metadata)} disabled={Boolean(def.readOnly || def.disabled)} required={Boolean(def.required)} onlyPrimary={Boolean(def.onlyPrimary)} maxCount={maxCount} maxLength={itemMaxLength} defaultOptOut={Boolean(metadata.appParams?.[email ? "emailAddressIsOptedOutByDefault" : "phoneNumberIsOptedOutByDefault"])} onChange={(nextRows) => setValues((old) => {
         const key = email ? "emailAddress" : "phoneNumber";
         const normalized = nextRows.map((item: Row) => ({ ...item, [key]: String(item[key] || "").trim(), ...(email ? { lower: String(item[key] || "").trim().toLowerCase() } : {}) })).filter((item: Row) => item[key]);
         let primaryIndex = normalized.findIndex((item: Row) => item.primary);
@@ -3834,13 +3841,12 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
   </label>;
 }
 
-function MultipleContactField({ label, email, rows, options, disabled, required, onlyPrimary, maxCount, maxLength, defaultOptOut, onChange }: { label: string; email: boolean; rows: Row[]; options: string[]; disabled: boolean; required: boolean; onlyPrimary: boolean; maxCount: number; maxLength: number; defaultOptOut: boolean; onChange: (rows: Row[]) => void }) {
+function MultipleContactField({ label, email, rows, options, phonePattern, disabled, required, onlyPrimary, maxCount, maxLength, defaultOptOut, onChange }: { label: string; email: boolean; rows: Row[]; options: string[]; phonePattern: RegExp; disabled: boolean; required: boolean; onlyPrimary: boolean; maxCount: number; maxLength: number; defaultOptOut: boolean; onChange: (rows: Row[]) => void }) {
   const empty = () => ({ [email ? "emailAddress" : "phoneNumber"]: "", primary: true, optOut: defaultOptOut, invalid: false, ...(email ? { lower: "" } : { type: options[0] || "Other" }) });
   const [items, setItems] = useState<Row[]>(() => rows.length ? rows.map((item) => ({ ...item })) : [empty()]);
   const key = email ? "emailAddress" : "phoneNumber";
   const normalizedItems = items.filter((item) => String(item[key] || "").trim());
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const phonePattern = /^[+\d][\d\s().,/;*#-]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i;
   const duplicate = (index: number) => items.some((item, itemIndex) => itemIndex !== index && String(item[key] || "").trim().toLowerCase() === String(items[index]?.[key] || "").trim().toLowerCase() && String(item[key] || "").trim());
   const update = (next: Row[]) => {
     if (!next.length) next = [empty()];
