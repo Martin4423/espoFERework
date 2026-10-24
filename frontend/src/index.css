@@ -1744,6 +1744,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .template-list-items button span { font-size: 12px; }
 .template-editor { display: grid; gap: 16px; padding: 20px; min-width: 0; }
 .template-body-field textarea { min-height: 380px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.55; }
+.template-body-field .wysiwyg-canvas { min-height: 380px; max-height: min(70vh, 900px); font-family: Manrope, sans-serif; }
 @media (max-width: 760px) { .template-manager-layout { grid-template-columns: minmax(0, 1fr); } .template-list-items { max-height: 250px; } }
 
 .role-acl-editor { margin-top: 14px; }

@@ -3,9 +3,9 @@ import EspoIcon from "./EspoIcon";
 import DOMPurify from "dompurify";
 import { getAttachmentPreviewUrl, uploadAttachment } from "./api";
 
-type Props = { value: string; htmlMode: boolean; entity: string; field: string; disabled?: boolean; onChange: (value: string) => void; onRegisterInsert?: (insert: (text: string) => void) => void };
+type Props = { value: string; htmlMode: boolean; entity: string; field: string; disabled?: boolean; sanitizeHtml?: boolean; onChange: (value: string) => void; onRegisterInsert?: (insert: (text: string) => void) => void };
 
-export default function WysiwygEditor({ value, htmlMode, entity, field, disabled = false, onChange, onRegisterInsert }: Props) {
+export default function WysiwygEditor({ value, htmlMode, entity, field, disabled = false, sanitizeHtml = true, onChange, onRegisterInsert }: Props) {
   const canvas = useRef<HTMLDivElement>(null);
   const selection = useRef<Range | null>(null);
   const target = useRef<HTMLElement | null>(null);
@@ -27,7 +27,7 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
     if (!node) return;
     const needsRender = normalizeHtml(node) !== value;
     if (!needsRender) return;
-    node.innerHTML = DOMPurify.sanitize(value, { USE_PROFILES: { html: true } });
+    node.innerHTML = sanitizeHtml ? DOMPurify.sanitize(value, { USE_PROFILES: { html: true } }) : value;
     node.querySelectorAll<HTMLImageElement>("img[data-espo-attachment-id]").forEach((image) => {
       const id = image.dataset.espoAttachmentId;
       if (!id) return;
@@ -35,7 +35,7 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
         blobUrls.current.push(blobUrl); image.src = blobUrl;
       }).catch(() => {});
     });
-  }, [value]);
+  }, [value, sanitizeHtml]);
   useEffect(() => () => { blobUrls.current.forEach((url) => URL.revokeObjectURL(url)); blobUrls.current = []; }, []);
   useEffect(() => onRegisterInsert?.((text) => {
     restoreSelection();
