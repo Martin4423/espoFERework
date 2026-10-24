@@ -28,6 +28,7 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const hasUnsavedChanges = source !== initialSource;
   const entity = metadata.entityDefs[scope];
   const layoutTypeLabel = (name: string) => (metadata.labels as any)?.[scope]?.layouts?.[name] || (metadata.labels as any)?.Admin?.layouts?.[name] || defaultLayoutLabels[name] || name.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
   const realLayoutName = layoutName === "listSmall" ? "list" : layoutName === "detailSmall" ? "detail" : (metadata.clientDefs?.[scope] as any)?.additionalLayouts?.[layoutName]?.type || layoutName;
@@ -74,6 +75,13 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
   }, [metadata, scope, layoutSetId, layoutList]);
   const isFieldList = !/^detail/i.test(layoutName) && Array.isArray(value) && value.every((item: LayoutEntry) => item === false || typeof item === "string" || Boolean(item && typeof item === "object" && typeof item.name === "string"));
   const isSectionLayout = /^detail/i.test(layoutName) && Array.isArray(value) && value.every((item: any) => item && typeof item === "object" && Array.isArray(item.rows));
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedChanges]);
 
   useEffect(() => { if (!scopes.includes(scope) && scopes[0]) setScope(scopes.includes("Account") ? "Account" : scopes[0]); }, [scopes, scope]);
   useEffect(() => { if (!types.includes(layoutName) && types[0]) setLayoutName(types[0]); }, [types, layoutName]);
@@ -188,9 +196,9 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
     finally { setBusy(false); }
   }
 
-  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> {layoutSetId ? `Sada rozložení · ${layoutSetName || ""}` : "Administrace"}</button><div className="eyebrow">{layoutSetId ? "VLASTNÍ SADA ROZLOŽENÍ" : "PŘIZPŮSOBENÍ CRM"}</div><h1>{layoutSetId ? `Rozložení: ${layoutSetName || "sada"}` : "Správce rozložení"}</h1><p>{layoutSetId ? "Nastavte rozložení obrazovek pro uživatele této sady." : "Upravte pole a panely v seznamech a záznamech."}</p></div><div className="layout-heading-actions"><button className="button subtle" onClick={() => void reset()} disabled={busy || saving}><RotateCcw size={14}/>{layoutSetId ? "Převzít globální" : "Výchozí rozložení"}</button><button className="button primary" onClick={() => void save()} disabled={busy || saving || value === null}><Save size={14}/>{saving ? "Ukládám…" : "Uložit rozložení"}</button></div></div>
+  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={() => { if (!hasUnsavedChanges || window.confirm("Máte neuložené změny rozložení. Opravdu chcete odejít?")) onBack(); }}><ArrowLeft size={14}/> {layoutSetId ? `Sada rozložení · ${layoutSetName || ""}` : "Administrace"}</button><div className="eyebrow">{layoutSetId ? "VLASTNÍ SADA ROZLOŽENÍ" : "PŘIZPŮSOBENÍ CRM"}</div><h1>{layoutSetId ? `Rozložení: ${layoutSetName || "sada"}` : "Správce rozložení"}</h1><p>{layoutSetId ? "Nastavte rozložení obrazovek pro uživatele této sady." : "Upravte pole a panely v seznamech a záznamech."}</p></div><div className="layout-heading-actions">{hasUnsavedChanges && <span className="field-manager-unsaved" role="status"><span/>Neuložené změny</span>}<button className="button subtle" onClick={() => void reset()} disabled={busy || saving}><RotateCcw size={14}/>{layoutSetId ? "Převzít globální" : "Výchozí rozložení"}</button><button className="button primary" onClick={() => void save()} disabled={busy || saving || value === null} title="Uložit rozložení (Ctrl+S)"><Save size={14}/>{saving ? "Ukládám…" : "Uložit rozložení"}</button></div></div>
     {error && <div className="table-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
-    <section className="surface layout-editor"><div className="layout-selector-row"><label className="setting-field"><span>Entita</span><select value={scope} onChange={(event) => { if (source !== initialSource && !window.confirm("Zahodit neuložené změny rozložení?")) return; setScope(event.target.value); }}>{scopes.map((item) => <option key={item} value={item}>{entityLabel(metadata, item, true)}</option>)}</select></label><label className="setting-field"><span>Typ rozložení</span><select value={layoutName} onChange={(event) => { if (source !== initialSource && !window.confirm("Zahodit neuložené změny rozložení?")) return; setLayoutName(event.target.value); }}>{types.map((type) => <option key={type} value={type}>{layoutTypeLabel(type)}</option>)}</select></label></div>
+    <section className="surface layout-editor" onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "s" || event.key === "Enter")) { event.preventDefault(); event.stopPropagation(); if (!busy && !saving && value !== null) void save(); } }}><div className="layout-selector-row"><label className="setting-field"><span>Entita</span><select value={scope} onChange={(event) => { if (source !== initialSource && !window.confirm("Zahodit neuložené změny rozložení?")) return; setScope(event.target.value); }}>{scopes.map((item) => <option key={item} value={item}>{entityLabel(metadata, item, true)}</option>)}</select></label><label className="setting-field"><span>Typ rozložení</span><select value={layoutName} onChange={(event) => { if (source !== initialSource && !window.confirm("Zahodit neuložené změny rozložení?")) return; setLayoutName(event.target.value); }}>{types.map((type) => <option key={type} value={type}>{layoutTypeLabel(type)}</option>)}</select></label></div>
       {busy ? <div className="table-loading"><span className="spinner"/> Načítám rozložení…</div> : value !== null && <>
         {isFieldList && <div className="layout-field-list"><div className="layout-field-head"><strong>Pole v rozložení</strong><button className="button subtle" onClick={addItem} disabled={!fieldNames.length}>＋ Přidat pole</button></div>{value.length ? value.map((item: LayoutEntry, index: number) => {
           const field = typeof item === "string" ? item : item && typeof item === "object" ? item.name || "" : "";
