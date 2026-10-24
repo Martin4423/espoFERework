@@ -1062,6 +1062,9 @@ const systemMailFolders: MailFolder[] = [
 ];
 
 function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: Metadata; refresh: number; onCompose: () => void; onOpenRecord: (record: Row) => void }) {
+  const [emailFilters, setEmailFilters] = useState({ from: "", subject: "", dateFrom: "", dateTo: "" });
+  const [filterDraft, setFilterDraft] = useState({ from: "", subject: "", dateFrom: "", dateTo: "" });
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [folders, setFolders] = useState<MailFolder[]>([]);
   const [groupFolders, setGroupFolders] = useState<MailFolder[]>([]);
   const [folderReload, setFolderReload] = useState(0);
@@ -1090,12 +1093,17 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   }, [refresh, folderReload, metadata]);
   const load = useCallback(async () => {
     setBusy(true); setError(""); setSelected([]);
-    const params = new URLSearchParams({ maxSize: String(pageSize), offset: String(offset), orderBy: "dateSent", order: "desc", where: JSON.stringify([{ type: "inFolder", attribute: "folderId", value: folderId }]) });
+    const where: Row[] = [{ type: "inFolder", attribute: "folderId", value: folderId }];
+    if (emailFilters.from.trim()) where.push({ type: "contains", attribute: "fromAddress", value: emailFilters.from.trim() });
+    if (emailFilters.subject.trim()) where.push({ type: "contains", attribute: "subject", value: emailFilters.subject.trim() });
+    if (emailFilters.dateFrom) where.push({ type: "after", attribute: "dateSent", value: `${emailFilters.dateFrom} 00:00:00` });
+    if (emailFilters.dateTo) where.push({ type: "before", attribute: "dateSent", value: `${emailFilters.dateTo} 23:59:59` });
+    const params = new URLSearchParams({ maxSize: String(pageSize), offset: String(offset), orderBy: "dateSent", order: "desc", where: JSON.stringify(where) });
     if (search) params.set("textFilter", search);
     try { const result = await request<PageResult>(`Email?${params}`); setRows(result.list || []); setTotal(result.total > 0 ? result.total : 0); }
     catch (e) { setRows([]); setError(e instanceof Error ? e.message : "E-maily se nepodařilo načíst."); }
     finally { setBusy(false); }
-  }, [folderId, offset, search, refresh]);
+  }, [folderId, offset, search, emailFilters, refresh]);
   useEffect(() => { void load(); }, [load]);
   async function sendDraft(row: Row) {
     if (!row.id || row.status !== "Draft" || row.createdById !== getSession()?.user.id) return;
@@ -1163,7 +1171,8 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
       {(groupFolders.length > 0 || canAccessEntity(metadata, "GroupEmailFolder")) && <><div className="mail-sidebar-title custom-folders-title">SKUPINOVÉ SLOŽKY</div>{groupFolders.map((folder, index) => renderCustomFolder(folder, "GroupEmailFolder", index, groupFolders))}</>}
       <div className="mail-sidebar-foot">{folders.length} osobních · {groupFolders.length} skupinových složek</div>
       <div className="mail-folder-management">{canCreateEntity(metadata, "EmailFolder") && <button type="button" onClick={() => setFolderEditor({ entity: "EmailFolder" })}><Plus size={12}/>Nová osobní složka</button>}{canCreateEntity(metadata, "GroupEmailFolder") && <button type="button" onClick={() => setFolderEditor({ entity: "GroupEmailFolder" })}><Plus size={12}/>Nová skupinová složka</button>}</div>
-    </aside><div className="mail-main"><div className="mail-toolbar"><div className="mail-folder-title"><h2>{currentFolder?.name || "E-mail"}</h2><span>{total ? total.toLocaleString("cs-CZ") : rows.length} zpráv</span></div><form className="mail-search" onSubmit={(e) => { e.preventDefault(); setOffset(0); setSearch(query.trim()); }}><Search size={15}/><input placeholder="Hledat ve zprávách" value={query} onChange={(e) => setQuery(e.target.value)}/><button type="submit" aria-label="Hledat"><ArrowRight size={14}/></button></form>{Boolean(counts[folderId]) && <button type="button" className="mail-mark-all-read" onClick={() => void markAllAsRead()}><Check size={13}/>Označit vše jako přečtené</button>}<button className="icon-button" title="Obnovit" onClick={() => void load()}><RefreshCw size={15}/></button></div>
+    </aside><div className="mail-main"><div className="mail-toolbar"><div className="mail-folder-title"><h2>{currentFolder?.name || "E-mail"}</h2><span>{total ? total.toLocaleString("cs-CZ") : rows.length} zpráv</span></div><form className="mail-search" onSubmit={(e) => { e.preventDefault(); setOffset(0); setSearch(query.trim()); }}><Search size={15}/><input placeholder="Hledat ve zprávách" value={query} onChange={(e) => setQuery(e.target.value)}/><button type="submit" aria-label="Hledat"><ArrowRight size={14}/></button></form><button type="button" className={`mail-filter-toggle ${filtersOpen ? "active" : ""}`} onClick={() => setFiltersOpen((open) => !open)}><SlidersHorizontal size={14}/>Filtry{Object.values(emailFilters).some(Boolean) && <i/>}</button>{Boolean(counts[folderId]) && <button type="button" className="mail-mark-all-read" onClick={() => void markAllAsRead()}><Check size={13}/>Označit vše jako přečtené</button>}<button className="icon-button" title="Obnovit" onClick={() => void load()}><RefreshCw size={15}/></button></div>
+      {filtersOpen && <form className="mail-filter-panel" onSubmit={(event) => { event.preventDefault(); if (filterDraft.dateFrom && filterDraft.dateTo && filterDraft.dateFrom > filterDraft.dateTo) { setError("Datum od musí být před datem do."); return; } setError(""); setOffset(0); setEmailFilters({ ...filterDraft }); }}><label>Odesílatel<input value={filterDraft.from} onChange={(event) => setFilterDraft((current) => ({ ...current, from: event.target.value }))} placeholder="e-mailová adresa"/></label><label>Předmět<input value={filterDraft.subject} onChange={(event) => setFilterDraft((current) => ({ ...current, subject: event.target.value }))} placeholder="část předmětu"/></label><label>Od data<input type="date" value={filterDraft.dateFrom} onChange={(event) => setFilterDraft((current) => ({ ...current, dateFrom: event.target.value }))}/></label><label>Do data<input type="date" value={filterDraft.dateTo} onChange={(event) => setFilterDraft((current) => ({ ...current, dateTo: event.target.value }))}/></label><div><button type="button" className="button subtle" onClick={() => { const empty = { from: "", subject: "", dateFrom: "", dateTo: "" }; setFilterDraft(empty); setEmailFilters(empty); setOffset(0); }}>Vymazat</button><button type="submit" className="button primary">Použít filtry</button></div></form>}
       {selected.length > 0 && <div className="mail-bulkbar"><span>{selected.length} vybráno</span><button onClick={() => void bulkAction(markAsReadKind)}>{markAsReadKind === "read" ? "Označit jako přečtené" : "Označit jako nepřečtené"}</button><button onClick={() => void bulkAction(markImportantKind)}><Star size={14}/>{markImportantKind === "important" ? "Označit důležité" : "Odebrat důležitost"}</button><select aria-label="Přesunout do složky" value="" onChange={(e) => void moveSelected(e.target.value)}><option value="">Přesunout…</option><option value="archive">Archiv</option>{customFolders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select><button className="mail-trash-action" onClick={() => void bulkAction("trash")}><Trash2 size={14}/>{folderId === "trash" ? "Obnovit" : "Koš"}</button></div>}
       {error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
       <div className="mail-list-head"><label><input type="checkbox" aria-label="Vybrat všechny zprávy na stránce" checked={rows.length > 0 && selected.length === rows.length} onChange={(e) => setSelected(e.target.checked ? rows.map((row) => row.id) : [])}/></label><span>ZPRÁVA</span><span>OD / VZTAH</span><span>DATUM</span></div>
