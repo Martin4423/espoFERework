@@ -1402,6 +1402,30 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   useEffect(() => { setActiveScopes((current) => current.filter((scope) => scopes.includes(scope))); }, [scopes]);
   useEffect(() => { try { localStorage.setItem(calendarPreferenceKey, JSON.stringify({ mode: viewMode, scopes: activeScopes, users: calendarUsers, teams: calendarTeams })); } catch { /* Preferences are optional when storage is unavailable. */ } }, [calendarPreferenceKey, viewMode, activeScopes, calendarUsers, calendarTeams]);
   useEffect(() => {
+    function handleCalendarShortcut(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, button, [contenteditable='true'], [role='dialog']") || event.altKey || event.metaKey) return;
+      if (event.ctrlKey && event.code === "Space") {
+        const createScope = scopes.includes("Meeting") ? "Meeting" : scopes.includes("Call") ? "Call" : scopes.includes("Task") ? "Task" : null;
+        if (!createScope) return;
+        event.preventDefault(); setCreateEntity(createScope); return;
+      }
+      if (event.ctrlKey || event.shiftKey) return;
+      if (event.key === "Home") { event.preventDefault(); setAnchor(new Date()); return; }
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        const direction = event.key === "ArrowLeft" ? -1 : 1;
+        event.preventDefault();
+        setAnchor((current) => { const next = new Date(current); if (viewMode === "month") next.setMonth(next.getMonth() + direction); else if (viewMode === "day") next.setDate(next.getDate() + direction); else next.setDate(next.getDate() + direction * 7); return next; });
+        return;
+      }
+      const modeIndex = Number(event.key) - 1;
+      const modes = ["day", "week", "timeline", "month", "agenda"] as const;
+      if (modeIndex >= 0 && modeIndex < modes.length) { event.preventDefault(); setViewMode(modes[modeIndex]); }
+    }
+    window.addEventListener("keydown", handleCalendarShortcut);
+    return () => window.removeEventListener("keydown", handleCalendarShortcut);
+  }, [scopes, viewMode]);
+  useEffect(() => {
     if (!canManageSharedViews) return;
     let live = true;
     request<Row>(`Preferences/${encodeURIComponent(getSession()?.user.id || "")}`).then((data) => {
