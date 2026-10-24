@@ -63,6 +63,11 @@
     "actionClassName": "Espo\\Custom\\Api\\DeleteCurrentUserSession"
   },
   {
+    "route": "/UserSecurity/otherSessions",
+    "method": "post",
+    "actionClassName": "Espo\\Custom\\Api\\DeleteOtherCurrentUserSessions"
+  },
+  {
     "route": "/Portal/publicBranding",
     "method": "get",
     "actionClassName": "Espo\\Custom\\Api\\GetPortalPublicBranding",
