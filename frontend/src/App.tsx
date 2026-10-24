@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ComponentType, CSSProperties, DragEvent as ReactDragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, SyntheticEvent } from "react";
-import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, GripVertical, History, Inbox as InboxIcon, Info, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, EyeSlash, type LucideIcon } from "./Icons";
+import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, GripVertical, History, Inbox as InboxIcon, Info, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, EyeSlash, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
 import { phoneCountryLabels, phoneCountryOptions } from "./phoneCountries";
 import DOMPurify from "dompurify";
@@ -1835,8 +1835,11 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
   const [documentBusy, setDocumentBusy] = useState(false);
   const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
   const [documentDraft, setDocumentDraft] = useState<Row | null>(null);
+  const [relatedDraft, setRelatedDraft] = useState<{ entity: string; values: Row } | null>(null);
+  const [createdFromEmail, setCreatedFromEmail] = useState<Record<string, boolean>>({});
   const [moveTargets, setMoveTargets] = useState<Row[] | null>(null);
   const [moveSearch, setMoveSearch] = useState("");
+  const canCreateRelatedEmail = (entity: string) => canCreateEntity(metadata, entity) && !metadata.clientDefs?.[entity]?.createDisabled;
   useEffect(() => {
     let live = true;
     setBusy(true);
@@ -1899,6 +1902,48 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Přílohu e-mailu se nepodařilo uložit jako dokument."); }
     finally { setDocumentBusy(false); }
   }
+  function senderValues(): Row {
+    const reply = String(record.replyToString || "").split(";")[0].trim();
+    const sender = reply || String(record.fromString || record.fromName || record.from || record.fromAddress || "").trim();
+    const address = (sender.match(/<(.*)>/)?.[1] || sender).trim();
+    let name = sender.includes("<") ? sender.replace(/<(.*)>/, "").trim() : "";
+    if (name.startsWith('"') && name.endsWith('"')) name = name.slice(1, -1);
+    const [firstName = "", ...lastParts] = name.split(/\s+/).filter(Boolean);
+    return { emailAddress: address, ...(name ? { firstName, lastName: lastParts.join(" ") } : {}), originalEmailId: record.id };
+  }
+  function startRelatedCreate(entity: "Lead" | "Contact" | "Task") {
+    const values: Row = entity === "Task" ? {
+      parentId: record.parentId || null, parentName: record.parentName || null, parentType: record.parentType || null,
+      originalEmailId: record.id, name: record.subject || record.name || "",
+      description: `[E-mail: ${record.subject || record.name || ""}](#Email/view/${record.id})\n`,
+    } : senderValues();
+    setRelatedDraft({ entity, values });
+  }
+  async function startCaseCreate() {
+    const values: Row = {
+      originalEmailId: record.id, name: record.subject || record.name || "",
+      description: record.bodyPlain || "",
+    };
+    if (record.parentId) {
+      if (record.parentType === "Account") Object.assign(values, { accountId: record.parentId, accountName: record.parentName });
+      else if (record.parentType === "Contact") Object.assign(values, {
+        contactId: record.parentId, contactName: record.parentName,
+        contactsIds: [record.parentId], contactsNames: { [record.parentId]: record.parentName || "" },
+        ...(record.accountId ? { accountId: record.accountId, accountName: record.accountName || record.accountId } : {}),
+      });
+      else if (record.parentType === "Lead") Object.assign(values, { leadId: record.parentId, leadName: record.parentName });
+    }
+    if (attachmentIds.length) {
+      setDocumentBusy(true); setError("");
+      try {
+        const copied = await request<Row>(`Email/${encodeURIComponent(record.id)}/attachments/copy`, { method: "POST", body: JSON.stringify({ parentType: "Case", field: "attachments" }) });
+        values.attachmentsIds = copied.ids || [];
+        values.attachmentsNames = copied.names || {};
+      } catch (cause) { setError(cause instanceof Error ? cause.message : "Přílohy e-mailu se nepodařilo připojit k případu."); return; }
+      finally { setDocumentBusy(false); }
+    }
+    setRelatedDraft({ entity: "Case", values });
+  }
   function createCalendarEvent() {
     const eventData = record.icsEventData || {};
     const attributes: Row = { ...(eventData.valueMap || {}) };
@@ -1934,6 +1979,10 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
           <button className="button primary" onClick={() => replyDraft("reply")}><Reply size={14}/>Odpovědět</button>
           <button className="button" onClick={() => replyDraft("replyAll")}><ReplyAll size={14}/>Všem</button>
           <button className="button" onClick={() => replyDraft("forward")}><ArrowRight size={14}/>Přeposlat</button>
+          {record.status === "Archived" && !record.parentId && canCreateRelatedEmail("Lead") && !createdFromEmail.Lead && <button className="button subtle" onClick={() => startRelatedCreate("Lead")}><Plus size={14}/>Vytvořit zájemce</button>}
+          {record.status === "Archived" && !record.parentId && canCreateRelatedEmail("Contact") && !createdFromEmail.Contact && <button className="button subtle" onClick={() => startRelatedCreate("Contact")}><ContactRound size={14}/>Vytvořit kontakt</button>}
+          {record.status !== "Draft" && canCreateRelatedEmail("Task") && !createdFromEmail.Task && <button className="button subtle" onClick={() => startRelatedCreate("Task")}><ClipboardList size={14}/>Vytvořit úkol</button>}
+          {record.status !== "Draft" && record.parentType !== "Case" && canCreateRelatedEmail("Case") && !createdFromEmail.Case && <button className="button subtle" onClick={() => void startCaseCreate()} disabled={documentBusy}><BriefcaseBusiness size={14}/>{documentBusy ? "Kopíruji přílohy…" : "Vytvořit případ"}</button>}
           {canCreateDocument && attachmentIds.length > 0 && <button className="button subtle" onClick={() => attachmentIds.length === 1 ? void createDocumentFromAttachment(attachmentIds[0]) : setDocumentPickerOpen(true)} disabled={documentBusy}><FileText size={14}/>{documentBusy ? "Připravuji dokument…" : "Uložit přílohu jako dokument"}</button>}
         </div>
         <h2>{record.subject || "(bez předmětu)"}</h2>
@@ -1956,6 +2005,7 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
     {documentPickerOpen && <div className="modal-backdrop attachment-choice-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setDocumentPickerOpen(false)}><section className="record-modal attachment-choice-modal" role="dialog" aria-modal="true" aria-label="Vybrat přílohu pro dokument"><div className="modal-heading"><div><span className="eyebrow">PŘÍLOHY E-MAILU</span><h2>Vyberte soubor</h2></div><button type="button" className="icon-button" aria-label="Zavřít" onClick={() => setDocumentPickerOpen(false)}><X size={16}/></button></div><div className="attachment-choice-list">{attachmentIds.map((id) => <button key={id} type="button" onClick={() => void createDocumentFromAttachment(id)}><Paperclip size={15}/><span>{attachmentNames[id] || "Příloha"}</span><ArrowRight size={14}/></button>)}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setDocumentPickerOpen(false)}>Zrušit</button></div></section></div>}
     {eventCreateInitial && <RecordEditor key={`${record.id}-ics-event`} entity="Meeting" fields={getEditorFields(metadata, "Meeting")} metadata={metadata} initialValues={eventCreateInitial} onClose={() => setEventCreateInitial(null)} onSaved={() => { setEventCreateInitial(null); onChanged(); void request<Row>(`Email/${encodeURIComponent(record.id)}`).then(setRecord).catch((cause) => setError(cause instanceof Error ? cause.message : "E-mail se schůzkou se nepodařilo obnovit.")); }}/ >}
     {documentDraft && <RecordEditor entity="Document" fields={getEditorFields(metadata, "Document")} metadata={metadata} initialValues={documentDraft} onClose={() => setDocumentDraft(null)} onSaved={() => { setDocumentDraft(null); onChanged(); }}/ >}
+    {relatedDraft && <RecordEditor key={`${record.id}-${relatedDraft.entity}`} entity={relatedDraft.entity} fields={getEditorFields(metadata, relatedDraft.entity)} metadata={metadata} initialValues={relatedDraft.values} onClose={() => setRelatedDraft(null)} onSaved={() => { setCreatedFromEmail((old) => ({ ...old, [relatedDraft.entity]: true })); setRelatedDraft(null); onChanged(); void request<Row>(`Email/${encodeURIComponent(record.id)}`).then(setRecord).catch(() => {}); }}/ >}
   </>;
 }
 
