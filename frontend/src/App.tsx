@@ -1997,8 +1997,36 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   const rangeLabel = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).formatRange(calendarWallDateAsUtc(range.start), calendarWallDateAsUtc(new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate() - 1)));
   const eventDate = (event: ActivityEvent) => event.dateStartDate ? new Date(`${event.dateStartDate}T00:00:00`) : parseEspoCalendarDateTime(String(event.dateStart || ""));
   const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  const dayEvents = (day: Date) => events.filter((event) => !event.isWorkingRange && !event.isNonWorkingRange && !event.isBusyRange && (event.dateStartDate || dateKeyInTimeZone(eventDate(event), calendarTimeZone)) === dayKey(day)).sort((a, b) => eventDate(a).getTime() - eventDate(b).getTime());
+  const calendarDayBounds = (day: Date) => {
+    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const end = new Date(start); end.setDate(end.getDate() + 1);
+    return { start: calendarZonedDateTime(start, calendarTimeZone).getTime(), end: calendarZonedDateTime(end, calendarTimeZone).getTime() };
+  };
+  const eventSegmentForDay = (event: ActivityEvent, day: Date) => {
+    const key = dayKey(day);
+    const startDateKey = event.dateStartDate || (event.dateStart ? dateKeyInTimeZone(parseEspoCalendarDateTime(event.dateStart), calendarTimeZone) : "");
+    const endDateKey = event.dateEndDate || (event.dateEnd ? dateKeyInTimeZone(parseEspoCalendarDateTime(event.dateEnd), calendarTimeZone) : startDateKey);
+    if (event.dateStartDate || event.dateEndDate) {
+      if (!startDateKey || key < startDateKey || key > (endDateKey || startDateKey)) return null;
+      return calendarDayBounds(day);
+    }
+    const start = event.dateStart ? parseEspoCalendarDateTime(event.dateStart).getTime() : NaN;
+    if (!Number.isFinite(start)) return null;
+    const explicitEnd = event.dateEnd ? parseEspoCalendarDateTime(event.dateEnd).getTime() : NaN;
+    const end = Number.isFinite(explicitEnd) && explicitEnd > start ? explicitEnd : start + 30 * 60 * 1000;
+    const bounds = calendarDayBounds(day);
+    const visibleStart = Math.max(start, bounds.start);
+    const visibleEnd = Math.min(end, bounds.end);
+    return visibleEnd > visibleStart ? { start: visibleStart, end: visibleEnd } : null;
+  };
+  const dayEvents = (day: Date) => events.filter((event) => !event.isWorkingRange && !event.isNonWorkingRange && !event.isBusyRange && Boolean(eventSegmentForDay(event, day))).sort((a, b) => eventDate(a).getTime() - eventDate(b).getTime());
   const prettyTime = (event: ActivityEvent) => event.dateStartDate ? "Celý den" : Number.isNaN(eventDate(event).getTime()) ? "" : new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit", timeZone: calendarTimeZone }).format(eventDate(event));
+  const prettyTimeForDay = (event: ActivityEvent, day: Date) => {
+    const segment = eventSegmentForDay(event, day);
+    if (!segment || event.dateStartDate) return prettyTime(event);
+    const start = event.dateStart ? parseEspoCalendarDateTime(event.dateStart).getTime() : NaN;
+    return Number.isFinite(start) && segment.start > start ? "Pokračuje" : prettyTime(event);
+  };
   const eventTone: Record<string, string> = { Meeting: "meeting", Call: "call", Task: "task" };
   const calendarColors = useMemo(() => {
     const base = { ...((metadata.clientDefs?.Calendar as any)?.colors || {}), ...((metadata.appSettings as any)?.calendarColors || {}) } as Record<string, string>;
@@ -2080,15 +2108,20 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
       return [<div aria-hidden="true" className={`calendar-timeline-range ${type}`} key={`${dayKey(day)}-${type}-${rangeIndex}`} style={{ gridColumn: dayIndex + 2, gridRow: `${startSlot + 2} / ${endSlot + 2}` }}/>];
     }))}
     {!busy && days.flatMap((day, dayIndex) => dayEvents(day).map((event) => {
-      const date = eventDate(event);
-      const timeParts = new Intl.DateTimeFormat("en", { timeZone: calendarTimeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
-      const hour = event.dateStartDate ? timelineStartHour : Number(timeParts.find((part) => part.type === "hour")?.value || 0);
-      const minute = event.dateStartDate ? 0 : Number(timeParts.find((part) => part.type === "minute")?.value || 0);
-      const startSlot = Math.max(0, Math.min(timelineSlots - 1, Math.floor(((hour * 60 + minute) - timelineStartHour * 60) / 15)));
+      const segment = eventSegmentForDay(event, day);
+      if (!segment) return null;
+      const timelineStart = new Date(day); timelineStart.setHours(timelineStartHour, 0, 0, 0);
+      const timelineEnd = new Date(day); timelineEnd.setHours(timelineStartHour + timelineSlots / 4, 0, 0, 0);
+      const windowStart = calendarZonedDateTime(timelineStart, calendarTimeZone).getTime();
+      const windowEnd = calendarZonedDateTime(timelineEnd, calendarTimeZone).getTime();
+      const visibleStart = Math.max(segment.start, windowStart);
+      const visibleEnd = Math.min(segment.end, windowEnd);
+      if (visibleEnd <= visibleStart) return null;
+      const startSlot = Math.max(0, Math.min(timelineSlots - 1, Math.floor((visibleStart - windowStart) / 900000)));
+      const endSlot = Math.max(startSlot + 1, Math.min(timelineSlots, Math.ceil((visibleEnd - windowStart) / 900000)));
       const startMs = event.dateStart ? parseEspoCalendarDateTime(String(event.dateStart)).getTime() : NaN;
-      const endMs = event.dateEnd ? parseEspoCalendarDateTime(String(event.dateEnd)).getTime() : NaN;
-      const span = Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(1, Math.min(timelineSlots - startSlot, Math.ceil((endMs - startMs) / 900000))) : 2;
-      return <button draggable={false} className={`calendar-timeline-event ${eventTone[event.scope] || "other"}`} key={`${event.scope}-${event.recordId || event.id}`} style={{ gridColumn: dayIndex + 2, gridRow: `${startSlot + 2} / span ${span}`, ...calendarEventStyle(event) }} title={`${prettyTime(event)} ${event.title || event.name || ""}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><time>{prettyTime(event)}</time><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}</small></button>;
+      const timeLabel = event.dateStartDate ? "Celý den" : Number.isFinite(startMs) && visibleStart > startMs ? "Pokračuje" : new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit", timeZone: calendarTimeZone }).format(new Date(visibleStart));
+      return <button draggable={false} className={`calendar-timeline-event ${eventTone[event.scope] || "other"}`} key={`${event.scope}-${event.recordId || event.id}-${dayKey(day)}`} style={{ gridColumn: dayIndex + 2, gridRow: `${startSlot + 2} / ${endSlot + 2}`, ...calendarEventStyle(event) }} title={`${timeLabel} ${event.title || event.name || ""}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><time>{timeLabel}</time><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}</small></button>;
     }))}
   </div></div>;
 
@@ -2099,7 +2132,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
       <details className="calendar-shortcuts"><summary>Klávesové zkratky</summary><div className="calendar-shortcut-list"><span><kbd>←</kbd><kbd>→</kbd><span>Předchozí / další období</span></span><span><kbd>Home</kbd><span>Přejít na dnešek</span></span><span><kbd>1</kbd>–<kbd>5</kbd><span>Přepnout zobrazení</span></span>{scopes.some((scope) => ["Meeting", "Call", "Task"].includes(scope)) && <span><kbd>Ctrl</kbd> + <kbd>Space</kbd><span>Vytvořit aktivitu</span></span>}</div></details>
       <div className="calendar-filters">{scopes.map((scope) => <button key={scope} className={`calendar-filter ${activeScopes.includes(scope) ? "selected" : ""} ${eventTone[scope] || "other"}`} style={calendarColors[scope] ? ({ "--calendar-event-color": calendarColors[scope] } as CSSProperties) : undefined} onClick={() => setActiveScopes((current) => current.includes(scope) ? current.filter((item) => item !== scope) : [...current, scope])}><i/>{entityLabel(metadata, scope, true)}</button>)}</div>
       {error && <div className="table-error">{error}<button onClick={() => setAnchor(new Date(anchor))}>Zkusit znovu</button></div>}
-      {viewMode === "timeline" ? timelineGrid : <div className={`calendar-week-grid calendar-${viewMode}-grid`}>{viewMode === "month" && ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"].map((day) => <div className="calendar-month-weekday" key={day}>{day}</div>)}{days.map((day) => <section className={`calendar-day ${dayKey(day) === calendarTodayKey ? "today" : ""} ${viewMode === "month" && day.getMonth() !== anchor.getMonth() ? "outside-month" : ""} ${draggedEvent ? "calendar-drop-target" : ""}`} key={dayKey(day)} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); const moving = draggedEvent; setDraggedEvent(null); if (moving) void moveCalendarEvent(moving, day); }}><header><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: viewMode === "month" ? "short" : "long", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><b>{day.getDate()}</b></header><div className="calendar-day-events">{busy ? <div className="calendar-day-loading"/> : dayEvents(day).length ? dayEvents(day).map((event) => <button draggable={!movingEvent && canChangeEntity(metadata, event.scope, "edit")} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-event ${eventTone[event.scope] || "other"}`} style={calendarEventStyle(event)} key={`${event.scope}-${event.recordId || event.id}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><span>{prettyTime(event)}</span><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}{event.status ? ` · ${event.status}` : ""}</small></button>) : <span className="calendar-empty">—</span>}</div></section>)}</div>}
+      {viewMode === "timeline" ? timelineGrid : <div className={`calendar-week-grid calendar-${viewMode}-grid`}>{viewMode === "month" && ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"].map((day) => <div className="calendar-month-weekday" key={day}>{day}</div>)}{days.map((day) => <section className={`calendar-day ${dayKey(day) === calendarTodayKey ? "today" : ""} ${viewMode === "month" && day.getMonth() !== anchor.getMonth() ? "outside-month" : ""} ${draggedEvent ? "calendar-drop-target" : ""}`} key={dayKey(day)} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); const moving = draggedEvent; setDraggedEvent(null); if (moving) void moveCalendarEvent(moving, day); }}><header><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: viewMode === "month" ? "short" : "long", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><b>{day.getDate()}</b></header><div className="calendar-day-events">{busy ? <div className="calendar-day-loading"/> : dayEvents(day).length ? dayEvents(day).map((event) => <button draggable={!movingEvent && canChangeEntity(metadata, event.scope, "edit")} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-event ${eventTone[event.scope] || "other"}`} style={calendarEventStyle(event)} key={`${event.scope}-${event.recordId || event.id}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><span>{prettyTimeForDay(event, day)}</span><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}{event.status ? ` · ${event.status}` : ""}</small></button>) : <span className="calendar-empty">—</span>}</div></section>)}</div>}
       <div className="calendar-footer"><span>{busy ? "Načítám aktivity…" : `${calendarActivityCount} aktivit v období`}</span><span title={`Časová zóna účtu EspoCRM: ${calendarTimeZone}`}>{movingEvent ? "Přesouvám událost…" : `Událost přetáhněte na jiný den. Časy podle nastavení účtu EspoCRM · ${calendarTimeZone}.`}</span></div>
     </section>
     {createEntity && <RecordEditor entity={createEntity} fields={getEditorFields(metadata, createEntity)} metadata={metadata} initialValues={userId ? { assignedUserId: userId, assignedUserName: userName } : {}} onClose={() => setCreateEntity(null)} onSaved={() => { setCreateEntity(null); setRefreshIndex((n) => n + 1); }} />}
