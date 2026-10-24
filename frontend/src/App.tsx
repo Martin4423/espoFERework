@@ -2628,6 +2628,10 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   const [massValue, setMassValue] = useState<any>("");
   const [massCurrency, setMassCurrency] = useState("");
   const [massBusy, setMassBusy] = useState(false);
+  const [formulaScriptConfigured, setFormulaScriptConfigured] = useState(false);
+  const [formulaConfirmOpen, setFormulaConfirmOpen] = useState(false);
+  const [formulaJob, setFormulaJob] = useState<{ id: string; status: string; processedCount?: number; selectedIds: string[]; allResultsSelected: boolean; selectionQueryKey: string } | null>(null);
+  const canRecalculateFormula = currentUserIsAdmin && formulaScriptConfigured;
   const [taskActionMenuId, setTaskActionMenuId] = useState("");
   useEffect(() => { if (!taskActionMenuId) return; const closeMenu = () => setTaskActionMenuId(""); document.addEventListener("click", closeMenu); return () => document.removeEventListener("click", closeMenu); }, [taskActionMenuId]);
   const [massNotice, setMassNotice] = useState("");
@@ -2713,6 +2717,46 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     finally { setBusy(false); }
   }, [entity, offset, search, userType, appliedFilters, primaryFilter, activeBoolFilters, categorySelection, categoryField, categoryFieldType, savedPresetWhere, sortOrder, sortPreferenceKey, metadata, fixedWhere, viewMode, statusField, kanbanLayout, kanbanPageSize]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    setFormulaScriptConfigured(false);
+    if (!currentUserIsAdmin) return;
+    let active = true;
+    const query = new URLSearchParams({ key: `formula.${entity}` });
+    request<Record<string, string>>(`Metadata/action/get?${query}`).then((data) => {
+      if (active) setFormulaScriptConfigured(Boolean(String(data?.beforeSaveCustomScript || "").trim()));
+    }).catch(() => active && setFormulaScriptConfigured(false));
+    return () => { active = false; };
+  }, [entity, currentUserIsAdmin]);
+  useEffect(() => {
+    if (!formulaJob || !["Pending", "Running"].includes(formulaJob.status)) return;
+    let active = true;
+    let timer = 0;
+    const jobId = formulaJob.id;
+    const poll = async () => {
+      try {
+        const status = await request<{ status: string; processedCount?: number }>(`MassAction/${encodeURIComponent(jobId)}/status`);
+        if (!active) return;
+        setFormulaJob((current) => current?.id === jobId ? { ...current, status: status.status, processedCount: status.processedCount } : current);
+        if (["Pending", "Running"].includes(status.status)) {
+          timer = window.setTimeout(poll, 4000);
+          return;
+        }
+        if (status.status === "Success") {
+          const count = Number(status.processedCount) || 0;
+          setMassNotice(`Přepočet vzorců dokončen. Zpracováno ${count} ${count === 1 ? "záznam" : "záznamů"}.`);
+          await load();
+          if (formulaJob.selectionQueryKey === selectionQueryKey) {
+            if (formulaJob.allResultsSelected) setAllResultsSelected(true);
+            else setSelectedIds(formulaJob.selectedIds);
+          }
+        } else setError("Hromadný přepočet vzorců se nezdařil. Zkontrolujte nastavení Formula a zkuste akci znovu.");
+      } catch {
+        if (active) timer = window.setTimeout(poll, 5000);
+      }
+    };
+    timer = window.setTimeout(poll, 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [formulaJob?.id, formulaJob?.status, load, selectionQueryKey]);
 
   const createFields = useMemo(() => {
     const fields = getEditorFields(metadata, entity).filter(([name]) => canReadField(name) && !(entity === "User" && ["password", "passwordConfirm", "sendAccessInfo"].includes(name)) && (!userType || name !== "type"));
@@ -3159,6 +3203,28 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     catch (e) { setError(e instanceof Error ? e.message : "Hromadné mazání selhalo."); }
     finally { setMassBusy(false); }
   }
+  async function recalculateSelectedFormulas() {
+    if (!canRecalculateFormula || (!selectedIds.length && !allResultsSelected)) return;
+    const selectedSnapshot = [...selectedIds];
+    const allSnapshot = allResultsSelected;
+    const selectionCount = allSnapshot ? total : selectedSnapshot.length;
+    const idleThreshold = Math.max(1, Number(metadata.appSettings?.massActionIdleCountThreshold) || 100);
+    setFormulaConfirmOpen(false); setMassBusy(true); setError(""); setMassNotice("");
+    try {
+      const result = await request<Row>("MassAction", { method: "POST", body: JSON.stringify({ entityType: entity, action: "recalculateFormula", params: massSelectionParams, idle: selectionCount >= idleThreshold }) });
+      if (result?.id) {
+        setFormulaJob({ id: String(result.id), status: "Pending", processedCount: 0, selectedIds: selectedSnapshot, allResultsSelected: allSnapshot, selectionQueryKey });
+        setMassNotice("Přepočet vzorců byl zařazen do fronty.");
+      } else {
+        const count = Number(result?.count ?? result?.processedCount) || selectionCount;
+        setMassNotice(`Přepočet vzorců dokončen. Zpracováno ${count} ${count === 1 ? "záznam" : "záznamů"}.`);
+        await load();
+        if (allSnapshot) setAllResultsSelected(true);
+        else setSelectedIds(selectedSnapshot);
+      }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Hromadný přepočet vzorců se nezdařil."); }
+    finally { setMassBusy(false); }
+  }
   async function printSelectedPdf(template: Row) {
     setPdfTemplateOpen(false);
     setMassBusy(true); setError("");
@@ -3286,8 +3352,9 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
           <button type="button" className="icon-button danger-ghost" aria-label="Odebrat podmínku" onClick={() => setDraftFilters((current) => current.filter((_, i) => i !== index))}><X size={15}/></button>
         </div>;
       })}<div className="advanced-filter-actions"><button type="button" className="button subtle" onClick={() => { setDraftFilters([]); setAppliedFilters([]); setSelectedPresetId(""); setSavedPresetWhere([]); setPrimaryFilter(""); setActiveBoolFilters([]); setOffset(0); }}>Vymazat vše</button><button type="button" className="button primary" onClick={() => { applyFilters(); setSelectedPresetId(""); setSavedPresetWhere([]); }}>Použít filtry</button></div><div className="save-filter-row"><input aria-label="Název uloženého filtru" value={presetNameInput} onChange={(event) => setPresetNameInput(event.target.value)} placeholder="Pojmenujte aktuální filtr…"/><button type="button" className="button subtle" disabled={presetSaving || !presetNameInput.trim() || (!appliedFilters.length && !primaryFilter)} onClick={() => void saveCurrentPreset()}><Save size={13}/>{presetSaving ? "Ukládám…" : "Uložit filtr"}</button></div></div>}
-      {viewMode === "list" && (selectedIds.length > 0 || allResultsSelected || canExport && userType !== "api") && <div className="entity-bulkbar">{(selectedIds.length > 0 || allResultsSelected) && <b>{allResultsSelected ? `${total} výsledků vybráno` : `${selectedIds.length} vybráno`}</b>}{!inboundEmailList && !emailAccountList && !allResultsSelected && rows.length > 0 && total > rows.length && rows.every((row) => selectedIds.includes(row.id)) && <button className="bulk-clear" onClick={() => { setAllResultsSelected(true); setSelectedIds([]); }}>Vybrat všech {total} výsledků</button>}{allResultsSelected && <button className="bulk-clear" onClick={() => { setAllResultsSelected(false); setSelectedIds([]); }}>Zrušit výběr</button>}{canMassUpdate && userType !== "api" && (selectedIds.length > 0 || allResultsSelected) && <button onClick={() => { setMassField(""); setMassValue(""); setMassEdit(true); }} disabled={massBusy}>Hromadně upravit</button>}{canMerge && selectedIds.length > 0 && !allResultsSelected && <button onClick={startMerge} disabled={massBusy || selectedIds.length < 2} title={selectedIds.length > 4 ? "Sloučit lze nejvýše čtyři záznamy" : undefined}>Sloučit</button>}{canMassConvertCurrency && selectedIds.length > 0 && !allResultsSelected && <button onClick={() => setCurrencyConvertOpen(true)} disabled={massBusy}><ArrowRightLeft size={13}/> Převést měnu</button>}{canExport && userType !== "api" && <button onClick={() => setExportOpen(true)} disabled={massBusy}><FileInput size={13}/> Exportovat…</button>}{canPrintPdf && selectedIds.length > 0 && !allResultsSelected && <button onClick={() => setPdfTemplateOpen(true)} disabled={massBusy}><FileText size={13}/> Tisknout PDF…</button>}{(canMassFollow && selectedIds.length > 0 || canMassFollowAllResults && allResultsSelected) && <button onClick={() => void massFollow("follow")} disabled={massBusy}><Users size={13}/> Sledovat</button>}{(canMassFollow && selectedIds.length > 0 || canMassUnfollowAllResults && allResultsSelected) && <button onClick={() => void massFollow("unfollow")} disabled={massBusy}><Users size={13}/> Přestat sledovat</button>}{(canMassRemove && selectedIds.length > 0 || canMassRemoveAllResults && allResultsSelected) && <button className="bulk-danger" onClick={() => void bulkDelete()} disabled={massBusy}><Trash2 size={13}/> Smazat</button>}{selectedIds.length > 0 && !allResultsSelected && <button className="bulk-clear" onClick={() => { setSelectedIds([]); setAllResultsSelected(false); }}>Zrušit výběr</button>}</div>}
+      {viewMode === "list" && (selectedIds.length > 0 || allResultsSelected || canExport && userType !== "api") && <div className="entity-bulkbar">{(selectedIds.length > 0 || allResultsSelected) && <b>{allResultsSelected ? `${total} výsledků vybráno` : `${selectedIds.length} vybráno`}</b>}{!inboundEmailList && !emailAccountList && !allResultsSelected && rows.length > 0 && total > rows.length && rows.every((row) => selectedIds.includes(row.id)) && <button className="bulk-clear" onClick={() => { setAllResultsSelected(true); setSelectedIds([]); }}>Vybrat všech {total} výsledků</button>}{allResultsSelected && <button className="bulk-clear" onClick={() => { setAllResultsSelected(false); setSelectedIds([]); }}>Zrušit výběr</button>}{canMassUpdate && userType !== "api" && (selectedIds.length > 0 || allResultsSelected) && <button onClick={() => { setMassField(""); setMassValue(""); setMassEdit(true); }} disabled={massBusy}>Hromadně upravit</button>}{canMerge && selectedIds.length > 0 && !allResultsSelected && <button onClick={startMerge} disabled={massBusy || selectedIds.length < 2} title={selectedIds.length > 4 ? "Sloučit lze nejvýše čtyři záznamy" : undefined}>Sloučit</button>}{canMassConvertCurrency && selectedIds.length > 0 && !allResultsSelected && <button onClick={() => setCurrencyConvertOpen(true)} disabled={massBusy}><ArrowRightLeft size={13}/> Převést měnu</button>}{canExport && userType !== "api" && <button onClick={() => setExportOpen(true)} disabled={massBusy}><FileInput size={13}/> Exportovat…</button>}{canPrintPdf && selectedIds.length > 0 && !allResultsSelected && <button onClick={() => setPdfTemplateOpen(true)} disabled={massBusy}><FileText size={13}/> Tisknout PDF…</button>}{canRecalculateFormula && (selectedIds.length > 0 || allResultsSelected) && <button type="button" onClick={() => setFormulaConfirmOpen(true)} disabled={massBusy || Boolean(formulaJob && ["Pending", "Running"].includes(formulaJob.status))}><RefreshCw size={13}/> Přepočítat vzorce</button>}{(canMassFollow && selectedIds.length > 0 || canMassFollowAllResults && allResultsSelected) && <button onClick={() => void massFollow("follow")} disabled={massBusy}><Users size={13}/> Sledovat</button>}{(canMassFollow && selectedIds.length > 0 || canMassUnfollowAllResults && allResultsSelected) && <button onClick={() => void massFollow("unfollow")} disabled={massBusy}><Users size={13}/> Přestat sledovat</button>}{(canMassRemove && selectedIds.length > 0 || canMassRemoveAllResults && allResultsSelected) && <button className="bulk-danger" onClick={() => void bulkDelete()} disabled={massBusy}><Trash2 size={13}/> Smazat</button>}{selectedIds.length > 0 && !allResultsSelected && <button className="bulk-clear" onClick={() => { setSelectedIds([]); setAllResultsSelected(false); }}>Zrušit výběr</button>}</div>}
       {massNotice && <div className="save-confirm"><Check size={14}/>{massNotice}</div>}
+      {formulaJob && <div className="formula-mass-action-status" role="status" aria-live="polite" aria-busy={["Pending", "Running"].includes(formulaJob.status)}>{["Pending", "Running"].includes(formulaJob.status) ? <span className="spinner" aria-hidden="true"/> : formulaJob.status === "Success" ? <Check size={15} aria-hidden="true"/> : <X size={15} aria-hidden="true"/>}<div><strong>{formulaJob.status === "Pending" ? "Přepočet čeká ve frontě" : formulaJob.status === "Running" ? "Přepočítávají se vzorce" : formulaJob.status === "Success" ? "Přepočet dokončen" : "Přepočet se nezdařil"}</strong><span>{formulaJob.processedCount ? `Zpracováno ${formulaJob.processedCount} záznamů.` : "Změny zpracovává EspoCRM na pozadí."}</span></div>{!["Pending", "Running"].includes(formulaJob.status) && <button type="button" className="icon-button" aria-label="Zavřít stav přepočtu" onClick={() => setFormulaJob(null)}><X size={14}/></button>}</div>}
       {error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
       {viewMode === "kanban" ? <KanbanBoard entity={entity} metadata={metadata} statusField={statusField} groups={kanbanGroups} layout={kanbanLayout} loading={busy || kanbanBusyId.startsWith("more:")} canCreate={canCreateKanban} canMove={canMoveKanban} canReorder={canReorderKanban} canEdit={canEdit} canDelete={canDelete} busyId={kanbanBusyId} onOpenRecord={onOpenRecord} onEditRecord={(row) => setEditor({ record: row })} onCreateInGroup={(status) => setEditor({ initialValues: { [statusField]: status } })} onChangeStatus={(row, status) => void changeKanbanStatus(row, status)} onRemove={(row) => void removeKanbanRecord(row)} onShowMore={(group) => void loadMoreKanban(group)} onReorder={(group, ids) => void saveKanbanOrder(group, ids)}/> : <><div className="table-wrap"><table className={`records-table ${columnResizeEnabled ? "column-resize-enabled" : ""}`}><thead><tr><th className="select-col"><input type="checkbox" aria-label="Vybrat všechny záznamy na stránce" checked={allResultsSelected || rows.length > 0 && rows.every((r) => selectedIds.includes(r.id))} onChange={(e) => { setAllResultsSelected(false); setSelectedIds((old) => e.target.checked ? [...new Set([...old, ...rows.map((r) => r.id)])] : old.filter((id) => !rows.some((r) => r.id === id))); }} /></th>{columns.map((column) => { const sortable = !notSortableColumns.includes(column) && !fieldDefs[column]?.notSortable && !metadata.fields?.[column]?.orderDisabled; const width = getColumnWidth(column); return <th key={column} style={width ? { width: `${width.value}${width.unit}` } : undefined} className={columnResizeEnabled ? "column-width-enabled" : undefined} aria-sort={sortable && activeOrderBy === column ? activeOrder === "asc" ? "ascending" : "descending" : undefined}>{sortable ? <button type="button" className={`list-sort-button ${activeOrderBy === column ? "sorted" : ""}`} onClick={() => sortBy(column)}>{fieldLabel(column, fieldDefs[column], entity, metadata)}{activeOrderBy === column ? <span aria-hidden="true">{activeOrder === "asc" ? "↑" : "↓"}</span> : <ArrowUpDown size={12} aria-hidden="true"/>}</button> : fieldLabel(column, fieldDefs[column], entity, metadata)}{columnResizeEnabled && columns.length > 1 && <span className="column-resizer" role="separator" aria-orientation="vertical" aria-label={`Změnit šířku sloupce ${fieldLabel(column, fieldDefs[column], entity, metadata)}`} onPointerDown={(event) => startColumnResize(event, column)}/>}</th>; })}<th className="actions-col"/></tr></thead>
         <tbody>{busy ? <tr><td colSpan={columns.length + 2}><div className="table-loading"><span className="spinner"/> Načítám záznamy…</div></td></tr> : rows.length ? rows.map((row, rowIndex) => <tr key={row.id} onClick={() => { if (!isAuthLogRecord && !isEmailQueueItem) onOpenRecord(row); }}>
@@ -3304,6 +3371,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     {pdfTemplateOpen && <SelectRecordsDialog entity="Template" metadata={metadata} multiple={false} selectedIds={[]} selectedRows={[]} fixedWhere={[{ type: "equals", attribute: "entityType", value: entity }]} onCreate={canCreateEntity(metadata, "Template") && !metadata.clientDefs?.Template?.createDisabled ? () => { setPdfTemplateOpen(false); setPdfTemplateCreateOpen(true); } : undefined} onClose={() => setPdfTemplateOpen(false)} onSelect={(templates) => { const template = templates[0]; if (template) void printSelectedPdf(template); }}/>} {pdfTemplateCreateOpen && <RecordEditor entity="Template" fields={getFormFields(metadata, "Template")} metadata={metadata} initialValues={{ entityType: entity }} onClose={() => setPdfTemplateCreateOpen(false)} onSaved={(template) => { setPdfTemplateCreateOpen(false); void printSelectedPdf(template); }}/>}
     {currencyConvertOpen && <CurrencyConversionDialog entity={entity} metadata={metadata} fields={currencyFields} ids={selectedIds} onClose={() => setCurrencyConvertOpen(false)} onComplete={() => { setCurrencyConvertOpen(false); setSelectedIds([]); void load(); }}/>}
     {mergeOpen && <MergeRecordsDialog entity={entity} ids={selectedIds} metadata={metadata} onClose={() => setMergeOpen(false)} onComplete={(id) => { setMergeOpen(false); setSelectedIds([]); void load(); void request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(id)}`).then(onOpenRecord).catch(() => {}); }}/ >}
+    {formulaConfirmOpen && <div className="modal-backdrop formula-recalculate-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !massBusy && setFormulaConfirmOpen(false)}><section className="record-modal formula-recalculate-modal" role="alertdialog" aria-modal="true" aria-labelledby="formula-recalculate-title" aria-describedby="formula-recalculate-description" onKeyDown={(event) => event.key === "Escape" && !massBusy && setFormulaConfirmOpen(false)}><div className="modal-heading"><div><span className="eyebrow">HROMADNÁ AKCE · FORMULA</span><h2 id="formula-recalculate-title">Přepočítat vzorce</h2></div><button type="button" className="icon-button" onClick={() => setFormulaConfirmOpen(false)} disabled={massBusy} aria-label="Zavřít"><X size={17}/></button></div><p id="formula-recalculate-description">Spustí aktuální skript Formula před uložením pro {allResultsSelected ? `všech ${total} záznamů odpovídajících filtrům` : `${selectedIds.length} vybraných záznamů`}.</p><div className="formula-recalculate-callout"><RefreshCw size={15}/><span>Vzorec může změnit hodnoty záznamů. Při větším výběru bude přepočet pokračovat na pozadí a průběh zůstane viditelný zde.</span></div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setFormulaConfirmOpen(false)} disabled={massBusy}>Zrušit</button><button type="button" className="button primary" onClick={() => void recalculateSelectedFormulas()} disabled={massBusy}>{massBusy ? "Spouštím…" : <><RefreshCw size={14}/> Přepočítat</>}</button></div></section></div>}
     {massEdit && <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setMassEdit(false)}><form className="record-modal mass-edit-modal" onSubmit={bulkUpdate}><div className="modal-heading"><div><span className="eyebrow">HROMADNÁ AKCE · {allResultsSelected ? total : selectedIds.length} ZÁZNAMŮ</span><h2>Upravit vybrané záznamy</h2></div><button type="button" className="icon-button" onClick={() => setMassEdit(false)} aria-label="Zavřít"><X size={17}/></button></div><label className="field-input"><span>Pole k úpravě</span><select value={massField} required onChange={(e) => { setMassField(e.target.value); setMassValue(""); setMassCurrency(""); }}><option value="">Vyberte pole…</option>{editableFields.map(([name, def]) => <option key={name} value={name}>{fieldLabel(name, def, entity, metadata)}</option>)}</select></label>{massField && <FieldInput entity={entity} metadata={metadata} name={massField} def={fieldDefs[massField]} value={massValue} currencyValue={massCurrency} onCurrencyChange={setMassCurrency} onChange={setMassValue}/>}<div className="modal-footer"><button type="button" className="button subtle" onClick={() => setMassEdit(false)}>Zrušit</button><button className="button primary" disabled={massBusy || !massField}>{massBusy ? "Ukládám…" : "Použít změnu"}</button></div></form></div>}
     {composeEmail && <EmailComposer metadata={metadata} onClose={() => setComposeEmail(false)} onSaved={() => { setComposeEmail(false); void load(); }} />}
     {filterPicker && draftFilters[filterPicker.index] && (() => {
