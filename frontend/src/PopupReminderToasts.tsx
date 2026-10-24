@@ -27,18 +27,22 @@ export default function PopupReminderToasts({ metadata, isPortalUser, onOpenReco
     if (!eventEnabled) return;
     try {
       const grouped = await request<Record<string, PopupItem[]>>("PopupNotification/action/grouped");
-      const next = (grouped.event || []).filter((item) => {
+      const incoming = grouped.event || [];
+      const updates = new Map(incoming.filter((item): item is PopupItem & { id: string } => Boolean(item.id)).map((item) => [item.id, item]));
+      const next = incoming.filter((item): item is PopupItem & { id: string } => {
         if (!item.id || seen.current.has(item.id)) return false;
         seen.current.add(item.id);
         return true;
       });
       if (!firstCheck.current && next.length && !metadata.appSettings?.notificationSoundsDisabled) {
-        const audio = new Audio("/client/sounds/pop_cork.mp3");
+        const configuredSound = String(metadata.appSettings?.notificationSound || "/client/sounds/pop_cork").trim();
+        const soundPath = configuredSound.startsWith("/") ? configuredSound : `/${configuredSound}`;
+        const audio = new Audio(/\.(mp3|ogg|wav)(\?.*)?$/i.test(soundPath) ? soundPath : `${soundPath}.mp3`);
         audio.volume = 0.3;
         void audio.play().catch(() => {});
       }
       firstCheck.current = false;
-      if (next.length) setItems((old) => [...old, ...next].slice(-5));
+      if (next.length || updates.size) setItems((old) => [...old.map((item) => updates.get(String(item.id)) || item), ...next].slice(-5));
     } catch {
       // Reminders remain available from the native Notifications/Activities endpoints.
     }
