@@ -4777,7 +4777,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const label = fieldLabel(name, def, entity, metadata);
   const resolvedOptions = nativeFieldOptions(metadata, entity, name, def);
   if (entity === "Portal" && ["tabList", "quickCreateList"].includes(name)) return <PortalScopeListEditor name={name} label={label} value={value} metadata={metadata} disabled={fieldDisabled} onChange={onChange}/>;
-  const optionLabel = (option: string | number) => ((["language", "formLanguage"].includes(name) ? (metadata.labels as any)?.Global?.options?.language?.[String(option)] : undefined) || (name === "theme" ? (metadata.labels as any)?.Global?.themes?.[String(option)] : undefined) || (entity === "Settings" && name === "fiscalYearShift" ? (metadata.labels as any)?.Global?.lists?.monthNames?.[Number(option)] : undefined) || resolvedOptions.labels[String(option)] || String(option));
+  const optionLabel = (option: string | number) => ((String(def.view || "").includes("entity-type") ? entityLabel(metadata, String(option)) : undefined) || (["language", "formLanguage"].includes(name) ? (metadata.labels as any)?.Global?.options?.language?.[String(option)] : undefined) || (name === "theme" ? (metadata.labels as any)?.Global?.themes?.[String(option)] : undefined) || (entity === "Settings" && name === "fiscalYearShift" ? (metadata.labels as any)?.Global?.lists?.monthNames?.[Number(option)] : undefined) || resolvedOptions.labels[String(option)] || String(option));
   const currencySettings = metadata.appSettings || {};
   const currencyList = (currencySettings.currencyList || (metadata.app as any)?.currency?.list || []) as string[];
   const defaultCurrency = String(currencySettings.defaultCurrency || currencyList[0] || "USD");
@@ -4823,6 +4823,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     if (entity === "Settings" && name === "auth2FAMethodList") return Object.entries((metadata.app as any)?.authentication2FAMethods || {}).filter(([, method]: [string, any]) => method?.settings?.isAvailable).map(([method]) => method);
     const scopes = metadata.scopes as Record<string, any>;
     const view = String(def.view || "");
+    if (view.includes("entity-type-list")) return Object.keys(scopes).filter((scope) => Boolean(scopes[scope]?.entity && scopes[scope]?.object)).sort((a, b) => entityLabel(metadata, a).localeCompare(entityLabel(metadata, b), "cs"));
     return Object.keys(scopes).filter((scope) => {
       const item = scopes[scope];
       if (item.disabled) return false;
@@ -4840,6 +4841,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   }, [resolvedOptions.options, metadata, entity, name, type, def.view, def.translation]);
   const fieldOptions = useMemo(() => {
     if (resolvedOptions.options.length) return resolvedOptions.options;
+    if (type === "enum" && String(def.view || "").includes("entity-type")) return Object.keys(metadata.scopes || {}).filter((scope) => Boolean(metadata.scopes?.[scope]?.entity && metadata.scopes?.[scope]?.object)).sort((a, b) => entityLabel(metadata, a).localeCompare(entityLabel(metadata, b), "cs"));
     if (entity === "Settings" && name === "dateFormat") return ((metadata.app as any)?.dateTime?.dateFormatList || []) as string[];
     if (entity === "Settings" && name === "timeFormat") return ((metadata.app as any)?.dateTime?.timeFormatList || []) as string[];
     if (entity === "Settings" && name === "fiscalYearShift") return ((metadata.labels as any)?.Global?.lists?.monthNames || []).map((_: string, index: number) => index) as number[];
@@ -4849,7 +4851,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     if (entity === "Settings" && name === "authenticationMethod") return Object.entries((metadata as any).authenticationMethods || {}).filter(([, method]: [string, any]) => method?.settings?.isAvailable).map(([method]) => method);
     if (entity === "Settings" && ["defaultCurrency", "baseCurrency"].includes(name)) return currencyList;
     return [];
-  }, [currencyList, resolvedOptions.options, entity, metadata, name]);
+  }, [currencyList, resolvedOptions.options, entity, metadata, name, def.view, type]);
   const attachmentSourceList = type === "attachmentMultiple"
     ? [...new Set([...(Array.isArray(def.sourceList) ? def.sourceList : []), ...(((metadata.clientDefs?.Attachment as any)?.generalSourceList || []) as string[])])].filter((scope: string) => metadata.scopes?.[scope]?.entity && canAccessEntity(metadata, scope) && canAccessAttachmentSource(metadata, scope))
     : [];
