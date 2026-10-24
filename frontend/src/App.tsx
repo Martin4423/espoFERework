@@ -46,6 +46,7 @@ const OAuthAuthorizationParams = lazyWithFallback(() => import("./OAuthAuthoriza
 const AdminTabListEditor = lazyWithFallback(() => import("./AdminTabListEditor"));
 const AdminUserLoginHistory = lazyWithFallback(() => import("./AdminUserLoginHistory"));
 const MergeRecordsDialog = lazyWithFallback(() => import("./MergeRecordsDialog"));
+const CssCodeEditor = lazyWithFallback(() => import("./CssCodeEditor"));
 const PersonalDataDialog = lazyWithFallback(() => import("./PersonalDataDialog"));
 const FollowersDialog = lazyWithFallback(() => import("./FollowersDialog"));
 const MeetingScheduler = lazyWithFallback(() => import("./MeetingScheduler"));
@@ -5406,7 +5407,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   }
 
   if (entity === "OAuthProvider" && name === "authorizationParams") return <OAuthAuthorizationParams value={value} label={label} onChange={onChange}/>;
-  if (entity === "Template" && name === "style") return <label className={`field-input template-style-input ${def.required ? "required" : ""}`} htmlFor={`field-${name}`}>{inputLabel}<textarea {...controlProps} rows={9} spellCheck={false} aria-label={`${label} CSS`} className="template-style-editor" value={typeof value === "string" ? value : value == null ? "" : String(value)} placeholder="body { font-size: 12px; }"/><small>Vlastní CSS pro vykreslení PDF. Písmo a jeho velikost lze nastavit také samostatnými poli šablony.</small></label>;
+  if (entity === "Template" && name === "style") return <div className={`field-input template-style-input ${def.required ? "required" : ""}`}><span>{inputLabel}</span><Suspense fallback={<div className="template-code-editor-loading" role="status"><span className="spinner"/> Načítám CSS editor…</div>}><CssCodeEditor value={typeof value === "string" ? value : value == null ? "" : String(value)} onChange={onChange} disabled={fieldDisabled} label={label}/></Suspense><small id="template-css-editor-help">Vlastní CSS pro vykreslení PDF. Písmo a jeho velikost lze nastavit také samostatnými poli šablony.</small></div>;
   if (type === "text") return <><label className={`field-input text-field-input ${def.required ? "required" : ""}`} htmlFor={`field-${name}`}>{inputLabel}<textarea {...controlProps} rows={3} value={typeof value === "string" ? value : value == null ? "" : String(value)} onKeyDown={(event) => {
     if (event.key !== "Enter") return;
     const target = event.currentTarget; const before = target.value.slice(0, target.selectionStart); const after = target.value.slice(target.selectionEnd);
