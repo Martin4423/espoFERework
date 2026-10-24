@@ -43,25 +43,79 @@ function taskDeadlineSummary(row: Data, timeZone: string): { kind: "overdue" | "
   return { kind, label: `${dateLabel}${kind === "overdue" ? " · Po termínu" : kind === "today" ? " · Dnes" : ""}` };
 }
 
+function dashletRelatedItems(row: Data, entity: string, name: string, metadata: Metadata): Array<{ scope: string; id: string; name: string }> {
+  const field = metadata.entityDefs?.[entity]?.fields?.[name] || {};
+  const link = metadata.entityDefs?.[entity]?.links?.[name] || {};
+  if (field.type === "linkMultiple") {
+    const ids: string[] = row[`${name}Ids`] || (Array.isArray(row[name]) ? row[name] : []);
+    const names = row[`${name}Names`] || {};
+    return ids.map((id) => ({ scope: String(link.entity || ""), id: String(id), name: String(names[id] || id) })).filter((item) => item.scope && item.id);
+  }
+  if (field.type === "linkParent" || link.type === "belongsToParent") {
+    const type = String(row[`${name}Type`] || row[name]?.type || "");
+    const id = String(row[`${name}Id`] || row[name]?.id || "");
+    const label = String(row[`${name}Name`] || row[name]?.name || id);
+    return type && id ? [{ scope: type, id, name: label }] : [];
+  }
+  if (link.entity || field.type === "link" || field.type === "linkOne") {
+    const id = String(row[`${name}Id`] || row[name]?.id || "");
+    const label = String(row[`${name}Name`] || row[name]?.name || row[name] || id);
+    const scope = String(link.entity || field.entity || "");
+    return scope && id ? [{ scope, id, name: label }] : [];
+  }
+  return [];
+}
+
+function dashletNumber(value: unknown, field: Data, metadata: Metadata): string {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return String(value);
+  const isFloat = field.type === "float";
+  const configuredPlaces = field.decimalPlaces;
+  const decimalPlaces = isFloat ? configuredPlaces === undefined ? 10 : configuredPlaces === null ? null : Math.max(0, Math.min(10, Number(configuredPlaces))) : 0;
+  const rounded = decimalPlaces == null ? number : decimalPlaces ? Math.round(number * 10 ** decimalPlaces) / 10 ** decimalPlaces : Math.round(number);
+  const parts = (decimalPlaces ? rounded.toFixed(decimalPlaces) : String(rounded)).split(".");
+  let thousandSeparator = String(metadata.appSettings?.thousandSeparator ?? ",");
+  const decimalMark = String(metadata.appSettings?.decimalMark || ".");
+  if (thousandSeparator === decimalMark) thousandSeparator = "";
+  if (thousandSeparator) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+  return parts.join(decimalMark);
+}
+
 function dashletFieldValue(row: Data, entity: string, item: Data, metadata: Metadata, timeZone: string): string {
   const name = String(item.name || "");
   const field = metadata.entityDefs?.[entity]?.fields?.[name] || {};
-  const raw = (metadata.entityDefs?.[entity]?.links?.[name] || field.type === "link") ? row[`${name}Name`] || row[name] || row[`${name}Id`] : row[name];
+  const related = dashletRelatedItems(row, entity, name, metadata);
+  const raw = field.type === "linkMultiple" ? related.map((item) => item.name).join(", ") : related[0]?.name ?? row[name];
   if (raw === null || raw === undefined || raw === "") return "—";
-  if (typeof raw === "boolean") return raw ? "Ano" : "Ne";
-  if (Array.isArray(raw)) return raw.map((value) => typeof value === "object" ? value.name || value.id || "" : String(value)).filter(Boolean).join(", ");
-  if (typeof raw === "object") return raw.name || raw.value || JSON.stringify(raw);
-  if (["date", "datetime", "datetimeOptional"].includes(field.type || "") && !Number.isNaN(Date.parse(String(raw)))) {
-    return formatEspoDateTime(String(raw), timeZone);
+  if (field.type === "bool" || typeof raw === "boolean") return raw ? "Ano" : "Ne";
+  if (field.type?.startsWith("enum") || field.type === "multiEnum" || field.type === "array" || field.type === "checklist") {
+    const formatOption = (option: unknown) => (metadata.labels as any)?.[entity]?.options?.[name]?.[String(option)] || String(option);
+    return (Array.isArray(raw) ? raw : [raw]).map(formatOption).join(", ");
   }
+  if (field.type === "currency" && Number.isFinite(Number(raw))) {
+    const currency = String(row[`${name}Currency`] || metadata.appSettings?.defaultCurrency || (metadata.app as any)?.currency?.list?.[0] || "USD");
+    try { return new Intl.NumberFormat("cs-CZ", { style: "currency", currency, maximumFractionDigits: Number(metadata.appSettings?.currencyDecimalPlaces ?? 2) }).format(Number(raw)); }
+    catch { return `${dashletNumber(raw, { type: "float", decimalPlaces: 2 }, metadata)} ${currency}`; }
+  }
+  if (field.type === "currencyConverted" && Number.isFinite(Number(raw))) {
+    const currency = String(metadata.appSettings?.defaultCurrency || (metadata.app as any)?.currency?.list?.[0] || "USD");
+    const symbol = (metadata.app as any)?.currency?.symbolMap?.[currency] || currency;
+    return `${dashletNumber(raw, { type: "float", decimalPlaces: metadata.appSettings?.currencyDecimalPlaces ?? 2 }, metadata)} ${symbol}`;
+  }
+  if (["int", "float"].includes(field.type || "")) return field.disableFormatting ? String(raw) : dashletNumber(raw, field, metadata);
+  if (["date", "datetime", "datetimeOptional"].includes(field.type || "") && !Number.isNaN(Date.parse(String(raw)))) return formatEspoDateTime(String(raw), timeZone);
+  if (Array.isArray(raw)) return raw.map((value) => typeof value === "object" ? value.name || value.id || "" : String(value)).filter(Boolean).join(", ");
+  if (typeof raw === "object" && raw) { const object = raw as Data; return object.name || object.value || JSON.stringify(object); }
   return String(raw);
 }
 
-function dashletExpandedValue(row: Data, entity: string, item: Data, metadata: Metadata, timeZone: string): ReactNode | null {
+function dashletExpandedValue(row: Data, entity: string, item: Data, metadata: Metadata, timeZone: string, onOpenRecord: (scope: string, record: Data) => void): ReactNode | null {
   const name = String(item.name || "");
   const field = metadata.entityDefs?.[entity]?.fields?.[name] || {};
   const value = dashletFieldValue(row, entity, item, metadata, timeZone);
   if (value === "—" && name !== "name") return null;
+  const related = dashletRelatedItems(row, entity, name, metadata);
+  if (related.length) return <span className="dashlet-link-list">{related.map((item) => canAccessEntity(metadata, item.scope) ? <button type="button" className="dashlet-link-button" key={`${item.scope}-${item.id}`} onClick={(event) => { event.stopPropagation(); onOpenRecord(item.scope, { id: item.id, name: item.name }); }}>{item.name}</button> : <span key={`${item.scope}-${item.id}`}>{item.name}</span>)}</span>;
   if (field.type?.startsWith("enum") && row[name] != null) {
     const raw = String(row[name]);
     const style = String(field.style?.[raw] || "default");
@@ -70,6 +124,17 @@ function dashletExpandedValue(row: Data, entity: string, item: Data, metadata: M
     const tone = ["warning", "danger", "success", "info", "primary"].includes(style) ? style : "default";
     return <span className={`dashlet-enum-label ${tone}`}>{label}</span>;
   }
+  if (["url", "urlMultiple"].includes(field.type || "")) {
+    const urls = Array.isArray(row[name]) ? row[name] : [row[name]];
+    return <span className="dashlet-link-list">{urls.filter(Boolean).map((value: string, index: number) => {
+      const href = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+      try { if (!["http:", "https:", "mailto:", "tel:"].includes(new URL(href, window.location.origin).protocol)) return <span key={`${value}-${index}`}>{value}</span>; }
+      catch { return <span key={`${value}-${index}`}>{value}</span>; }
+      return <a key={`${value}-${index}`} href={href} target="_blank" rel="noreferrer">{value}</a>;
+    })}</span>;
+  }
+  if (field.type === "email" || field.type === "emailAddress") return <a href={`mailto:${encodeURIComponent(String(row[name] || value))}`}>{value}</a>;
+  if (field.type === "phone") return <a href={`tel:${encodeURIComponent(String(row[name] || value))}`}>{value}</a>;
   return <span>{value}</span>;
 }
 
@@ -180,7 +245,10 @@ function DashletCard({ item, user, metadata, options, appSettings, timeZone, ref
           const attributes = Array.from(new Set(["name", ...expandedItems.flatMap((item: Data) => {
             const fieldName = String(item.name);
             const field = metadata.entityDefs[entity]?.fields?.[fieldName] || {};
-            return field.type === "link" || metadata.entityDefs[entity]?.links?.[fieldName] ? [fieldName, `${fieldName}Id`, `${fieldName}Name`, `${fieldName}Type`] : [fieldName];
+            if (field.type === "linkMultiple") return [`${fieldName}Ids`, `${fieldName}Names`, ...(field.columns ? [`${fieldName}Columns`] : []), ...(field.primaryLink ? [`${field.primaryLink}Id`, `${field.primaryLink}Name`] : [])];
+            if (field.type === "linkParent") return [`${fieldName}Type`, `${fieldName}Id`, `${fieldName}Name`];
+            if (field.type === "currency") return [fieldName, `${fieldName}Currency`];
+            return field.type === "link" || field.type === "linkOne" || metadata.entityDefs[entity]?.links?.[fieldName] ? [fieldName, `${fieldName}Id`, `${fieldName}Name`, `${fieldName}Type`] : [fieldName];
           })]));
           if (expandedItems.length) params.set("select", attributes.join(","));
           const data = await request<{ list: Data[] }>(`${encodeURIComponent(entity)}?${params}`);
@@ -254,7 +322,7 @@ function DashletCard({ item, user, metadata, options, appSettings, timeZone, ref
   let iframeSandbox: string | undefined = "allow-scripts";
   if (safeIframeUrl) { try { if ((appSettings.iframeSandboxExcludeDomainList || []).includes(new URL(safeIframeUrl).hostname)) iframeSandbox = undefined; } catch { /* Keep the restrictive default. */ } }
   return <section className="surface personal-dashlet"><header><span className="personal-dashlet-icon"><Icon size={16}/></span><h2>{title}</h2>{item.name === "Stream" && <button className="icon-button" aria-label="Napsat příspěvek" title="Napsat příspěvek" onClick={() => setPostOpen(true)}><Plus size={14}/></button>}{item.name === "Emails" && canCreateEntity(metadata, "Email") && <button className="icon-button" aria-label="Napsat e-mail" title="Napsat e-mail" onClick={onComposeEmail}><Plus size={14}/></button>}{createScopes.length === 1 && <button className="icon-button" aria-label={`Vytvořit ${entityLabel(metadata, createScopes[0])}`} title={`Vytvořit ${entityLabel(metadata, createScopes[0])}`} onClick={() => onCreateRecord(createScopes[0])}><Plus size={14}/></button>}{createScopes.length > 1 && <div className="dashlet-create-menu"><button className="icon-button" aria-label="Vytvořit aktivitu" title="Vytvořit aktivitu" aria-expanded={createMenuOpen} onClick={() => setCreateMenuOpen((value) => !value)}><Plus size={14}/></button>{createMenuOpen && <div className="dashlet-create-popover">{createScopes.map((scope: string) => <button type="button" key={scope} onClick={() => { setCreateMenuOpen(false); onCreateRecord(scope); }}>Vytvořit {entityLabel(metadata, scope)}</button>)}</div>}</div>}<button className="icon-button" aria-label="Obnovit panel" onClick={() => setRefreshIndex((value) => value + 1)}><RefreshCw size={13}/></button></header>
-    {item.name === "Memo" ? <div className="personal-memo">{options.text || "Poznámka je prázdná. Upravte nastavení panelu."}</div> : item.name === "Iframe" ? safeIframeUrl ? <iframe className="personal-dashlet-iframe" title={title} src={safeIframeUrl} sandbox={iframeSandbox}/> : <div className="personal-dashlet-empty">Nastavte platnou adresu http nebo https.</div> : busy ? <div className="table-loading"><span className="spinner"/>Načítám…</div> : error && item.name !== "Stream" ? <div className="dashlet-error">{error}</div> : rows.length ? isChart ? <DashletChart name={item.name} rows={rows} currency={String(appSettings.defaultCurrency || "CZK")}/> : <div className="personal-dashlet-list">{rows.map((row, index) => { const scope = row.scope || row.entityType || entity || ""; const id = row.recordId || row.id; const text = item.name === "Emails" ? row.subject || "(bez předmětu)" : row.name || row.title || row.subject || row.message || row.nameValue || "Aktivita"; const taskDue = scope === "Task" ? taskDeadlineSummary(row, timeZone) : null; const hasExpandedTaskDeadline = scope === "Task" && expandedItems.some((field: Data) => field.name === "dateEnd"); const subtitle = item.name === "Emails" ? [row.personStringData || row.fromString || row.fromName || row.fromAddress, row.dateSent ? formatEspoDateTime(String(row.dateSent), timeZone) : ""].filter(Boolean).join(" · ") : `${scope ? entityLabel(metadata, scope) : row.createdByName || row.createdAt || ""}${taskDue?.label && !hasExpandedTaskDeadline ? ` · ${taskDue.label}` : row.dateStart ? ` · ${formatEspoDateTime(String(row.dateStart), timeZone)}` : ""}`; const isEmail = item.name === "Emails"; const rowBusy = emailActionBusy.startsWith(`${row.id}:`); const activityBusy = activityActionBusy.startsWith(`${row.id || row.recordId}:`); const trash = Boolean(row.inTrash); const canEditActivity = Boolean(scope) && canChangeEntity(metadata, String(scope), "edit"); const canRemoveActivity = Boolean(scope) && canChangeEntity(metadata, String(scope), item.name === "Activities" || item.name === "Calendar" ? "edit" : "delete"); const isTask = scope === "Task"; const isEvent = scope === "Meeting" || scope === "Call"; const canChangeStatus = canEditActivity && metadata.userAcl?.fieldTable?.[String(scope)]?.status?.edit !== "no"; return <div key={`${id}-${index}`} className={`personal-dashlet-row${isEmail ? " personal-dashlet-email-row" : ""}`}><button className={`personal-dashlet-open${isEmail && !row.isRead ? " dashlet-email-unread" : ""}`} onClick={() => scope && metadata.entityDefs?.[scope]?.fields && onOpenRecord(scope, { ...row, id })}><span><strong>{text}</strong><small>{subtitle}</small>{isTask && taskDue?.kind === "overdue" && <span className="dashlet-task-overdue"><Clock3 size={11}/>Po termínu</span>}{isTask && taskDue?.kind === "today" && <span className="dashlet-task-today"><Clock3 size={11}/>Dnes</span>}{["Records", "Tasks"].includes(item.name) && expandedItems.map((field: Data, fieldIndex: number) => { const rendered = dashletExpandedValue(row, String(entity || ""), field, metadata, timeZone); if (rendered == null) return null; const label = field.label || (metadata.labels as any)?.[entity || ""]?.fields?.[field.name] || field.name; return <small className={`dashlet-expanded-field${field.soft ? " soft" : ""}${field.small ? " small" : ""}`} key={`${field.name}-${fieldIndex}`}><span>{label}</span> {rendered}</small>; })}</span><ChevronDown size={13}/></button>{isEmail && <div className="personal-dashlet-row-actions">{row.isUsers && <button className={`icon-button${row.isImportant ? " is-active" : ""}`} aria-label={row.isImportant ? "Odebrat důležitost" : "Označit jako důležitý"} title={row.isImportant ? "Odebrat důležitost" : "Označit jako důležitý"} disabled={rowBusy} onClick={() => void runEmailAction(row, "important")}><Star size={13} fill={row.isImportant ? "currentColor" : "none"}/></button>}{row.isUsers && row.status !== "Draft" && <button className="icon-button" aria-label={trash ? "Obnovit z koše" : "Přesunout do koše"} title={trash ? "Obnovit z koše" : "Přesunout do koše"} disabled={rowBusy} onClick={() => void runEmailAction(row, trash ? "retrieve" : "trash")}>{trash ? <RotateCcw size={13}/> : <Trash2 size={13}/>}</button>}{canChangeEntity(metadata, "Email", "delete") && <button className="icon-button" aria-label="Odstranit e-mail" title="Odstranit e-mail" disabled={rowBusy} onClick={() => void runEmailAction(row, "remove")}><Trash2 size={13}/></button>}</div>}{!isEmail && (isTask || isEvent || item.name === "Activities" || item.name === "Calendar") && <div className="personal-dashlet-row-actions">{isTask && canChangeStatus && !["Completed", "Canceled"].includes(row.status) && <button className="icon-button" aria-label="Dokončit úkol" title="Dokončit úkol" disabled={activityBusy} onClick={() => void runActivityAction(row, "complete")}><Check size={13}/></button>}{isEvent && canChangeStatus && !["Held", "Not Held"].includes(row.status) && <><button className="icon-button" aria-label="Označit jako proběhlé" title="Označit jako proběhlé" disabled={activityBusy} onClick={() => void runActivityAction(row, "held")}><Check size={13}/></button><button className="icon-button" aria-label="Označit jako neproběhlé" title="Označit jako neproběhlé" disabled={activityBusy} onClick={() => void runActivityAction(row, "notHeld")}><X size={13}/></button></>}{canRemoveActivity && <button className="icon-button" aria-label="Odstranit aktivitu" title="Odstranit aktivitu" disabled={activityBusy} onClick={() => void runActivityAction(row, "remove")}><Trash2 size={13}/></button>}</div>}</div>; })}</div> : <div className="personal-dashlet-empty" role="status"><span className="personal-dashlet-empty-icon" aria-hidden="true"><Icon size={17}/></span><strong>{emptyTitle}</strong><p>{emptyHint}</p>{createScopes.length > 0 && <small>Pro přidání klikněte na + v záhlaví panelu.</small>}</div>}
+    {item.name === "Memo" ? <div className="personal-memo">{options.text || "Poznámka je prázdná. Upravte nastavení panelu."}</div> : item.name === "Iframe" ? safeIframeUrl ? <iframe className="personal-dashlet-iframe" title={title} src={safeIframeUrl} sandbox={iframeSandbox}/> : <div className="personal-dashlet-empty">Nastavte platnou adresu http nebo https.</div> : busy ? <div className="table-loading"><span className="spinner"/>Načítám…</div> : error && item.name !== "Stream" ? <div className="dashlet-error">{error}</div> : rows.length ? isChart ? <DashletChart name={item.name} rows={rows} currency={String(appSettings.defaultCurrency || "CZK")}/> : <div className="personal-dashlet-list">{rows.map((row, index) => { const scope = row.scope || row.entityType || entity || ""; const id = row.recordId || row.id; const text = item.name === "Emails" ? row.subject || "(bez předmětu)" : row.name || row.title || row.subject || row.message || row.nameValue || "Aktivita"; const taskDue = scope === "Task" ? taskDeadlineSummary(row, timeZone) : null; const hasExpandedTaskDeadline = scope === "Task" && expandedItems.some((field: Data) => field.name === "dateEnd"); const subtitle = item.name === "Emails" ? [row.personStringData || row.fromString || row.fromName || row.fromAddress, row.dateSent ? formatEspoDateTime(String(row.dateSent), timeZone) : ""].filter(Boolean).join(" · ") : `${scope ? entityLabel(metadata, scope) : row.createdByName || row.createdAt || ""}${taskDue?.label && !hasExpandedTaskDeadline ? ` · ${taskDue.label}` : row.dateStart ? ` · ${formatEspoDateTime(String(row.dateStart), timeZone)}` : ""}`; const isEmail = item.name === "Emails"; const rowBusy = emailActionBusy.startsWith(`${row.id}:`); const activityBusy = activityActionBusy.startsWith(`${row.id || row.recordId}:`); const trash = Boolean(row.inTrash); const canEditActivity = Boolean(scope) && canChangeEntity(metadata, String(scope), "edit"); const canRemoveActivity = Boolean(scope) && canChangeEntity(metadata, String(scope), item.name === "Activities" || item.name === "Calendar" ? "edit" : "delete"); const isTask = scope === "Task"; const isEvent = scope === "Meeting" || scope === "Call"; const canChangeStatus = canEditActivity && metadata.userAcl?.fieldTable?.[String(scope)]?.status?.edit !== "no"; return <div key={`${id}-${index}`} className={`personal-dashlet-row${isEmail ? " personal-dashlet-email-row" : ""}`}><div className="personal-dashlet-main"><button className={`personal-dashlet-open${isEmail && !row.isRead ? " dashlet-email-unread" : ""}`} onClick={() => scope && metadata.entityDefs?.[scope]?.fields && onOpenRecord(scope, { ...row, id })}><span><strong>{text}</strong><small>{subtitle}</small>{isTask && taskDue?.kind === "overdue" && <span className="dashlet-task-overdue"><Clock3 size={11}/>Po termínu</span>}{isTask && taskDue?.kind === "today" && <span className="dashlet-task-today"><Clock3 size={11}/>Dnes</span>}</span><ChevronDown size={13}/></button>{["Records", "Tasks"].includes(item.name) && expandedItems.length > 0 && <div className="personal-dashlet-expanded-fields">{expandedItems.map((field: Data, fieldIndex: number) => { const rendered = dashletExpandedValue(row, String(entity || ""), field, metadata, timeZone, onOpenRecord); if (rendered == null) return null; const label = field.label || (metadata.labels as any)?.[entity || ""]?.fields?.[field.name] || field.name; return <div className={`dashlet-expanded-field${field.soft ? " soft" : ""}${field.small ? " small" : ""}`} key={`${field.name}-${fieldIndex}`}><span>{label}</span> {rendered}</div>; })}</div>}</div>{isEmail && <div className="personal-dashlet-row-actions">{row.isUsers && <button className={`icon-button${row.isImportant ? " is-active" : ""}`} aria-label={row.isImportant ? "Odebrat důležitost" : "Označit jako důležitý"} title={row.isImportant ? "Odebrat důležitost" : "Označit jako důležitý"} disabled={rowBusy} onClick={() => void runEmailAction(row, "important")}><Star size={13} fill={row.isImportant ? "currentColor" : "none"}/></button>}{row.isUsers && row.status !== "Draft" && <button className="icon-button" aria-label={trash ? "Obnovit z koše" : "Přesunout do koše"} title={trash ? "Obnovit z koše" : "Přesunout do koše"} disabled={rowBusy} onClick={() => void runEmailAction(row, trash ? "retrieve" : "trash")}>{trash ? <RotateCcw size={13}/> : <Trash2 size={13}/>}</button>}{canChangeEntity(metadata, "Email", "delete") && <button className="icon-button" aria-label="Odstranit e-mail" title="Odstranit e-mail" disabled={rowBusy} onClick={() => void runEmailAction(row, "remove")}><Trash2 size={13}/></button>}</div>}{!isEmail && (isTask || isEvent || item.name === "Activities" || item.name === "Calendar") && <div className="personal-dashlet-row-actions">{isTask && canChangeStatus && !["Completed", "Canceled"].includes(row.status) && <button className="icon-button" aria-label="Dokončit úkol" title="Dokončit úkol" disabled={activityBusy} onClick={() => void runActivityAction(row, "complete")}><Check size={13}/></button>}{isEvent && canChangeStatus && !["Held", "Not Held"].includes(row.status) && <><button className="icon-button" aria-label="Označit jako proběhlé" title="Označit jako proběhlé" disabled={activityBusy} onClick={() => void runActivityAction(row, "held")}><Check size={13}/></button><button className="icon-button" aria-label="Označit jako neproběhlé" title="Označit jako neproběhlé" disabled={activityBusy} onClick={() => void runActivityAction(row, "notHeld")}><X size={13}/></button></>}{canRemoveActivity && <button className="icon-button" aria-label="Odstranit aktivitu" title="Odstranit aktivitu" disabled={activityBusy} onClick={() => void runActivityAction(row, "remove")}><Trash2 size={13}/></button>}</div>}</div>; })}</div> : <div className="personal-dashlet-empty" role="status"><span className="personal-dashlet-empty-icon" aria-hidden="true"><Icon size={17}/></span><strong>{emptyTitle}</strong><p>{emptyHint}</p>{createScopes.length > 0 && <small>Pro přidání klikněte na + v záhlaví panelu.</small>}</div>}
     {error && item.name === "Stream" && <div className="dashlet-error">{error}</div>}{postOpen && <div className="dashlet-post-form"><textarea rows={3} placeholder="Co chcete sdílet?" value={postText} onChange={(event) => setPostText(event.target.value)}/><div><button className="button subtle" onClick={() => setPostOpen(false)}>Zrušit</button><button className="button primary" onClick={() => void createPost()} disabled={posting || !postText.trim()}><Send size={13}/>{posting ? "Odesílám…" : "Publikovat"}</button></div></div>}
   </section>;
 }
