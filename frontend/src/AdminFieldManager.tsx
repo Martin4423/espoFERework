@@ -199,7 +199,13 @@ export default function AdminFieldManager({ metadata, onBack }: { metadata: Meta
           choices.push(`${entity}.${name}`);
         }
       }
-      return choices.sort((a, b) => a.localeCompare(b, "cs"));
+      return choices.sort((a, b) => {
+        const [entityA, fieldA] = a.split(".");
+        const [entityB, fieldB] = b.split(".");
+        const labelA = `${entityLabel(liveMetadata, entityA)} · ${fieldLabel(fieldA, liveMetadata.entityDefs?.[entityA]?.fields?.[fieldA], entityA, liveMetadata)}`;
+        const labelB = `${entityLabel(liveMetadata, entityB)} · ${fieldLabel(fieldB, liveMetadata.entityDefs?.[entityB]?.fields?.[fieldB], entityB, liveMetadata)}`;
+        return labelA.localeCompare(labelB, "cs");
+      });
     }
     return [];
   }
