@@ -81,6 +81,8 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
   const iconMatches = availableIconClasses.filter((item) => item.toLocaleLowerCase("cs").includes(normalizedIconQuery));
   const filteredModuleIcons = normalizedIconQuery ? iconMatches.slice(0, 160) : featuredIconClasses.filter((item) => availableIconClasses.includes(item));
   const currentTextFilterFields = liveMetadata.entityDefs[scope]?.collection?.textFilterFields as string[] | undefined;
+  const primaryFilters = !creating && scope ? (liveMetadata.clientDefs?.[scope]?.filterList || []).map((item: any) => typeof item === "object" && item.name ? item.name : String(item)) : [];
+  if (!creating && scope && liveMetadata.scopes[scope]?.stars) primaryFilters.unshift("starred");
 
   useEffect(() => {
     if (!creating && scope) {
@@ -114,6 +116,10 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
 
   function startCreate() { if (!confirmDiscardChanges()) return; setScope(""); setCreating(true); setError(""); setNotice(""); const initial = { name: "", labelSingular: "", labelPlural: "", type: templates[0] || "Base", stream: false, disabled: false }; setData(initial); setOriginalData(initial); }
   function update(key: string, value: any) { setData((old) => ({ ...old, [key]: value })); }
+  async function copyPrimaryFilter(name: string) {
+    try { await navigator.clipboard.writeText(`#${scope}/list/primaryFilter=${name}`); setNotice(`Odkaz na filtr „${(liveMetadata.labels as any)?.[scope]?.presetFilters?.[name] || name}“ byl zkopírován.`); }
+    catch { setError("Odkaz se nepodařilo zkopírovat. Zkontrolujte oprávnění schránky v prohlížeči."); }
+  }
   async function save() {
     if (!creating) {
       for (const [name, definition] of Object.entries(managerParamDefs)) {
@@ -235,6 +241,7 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
     {error && <div className="table-error">{error}<button onClick={() => setError("")}>Zavřít</button></div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
     <div className="entity-manager-layout"><aside className="surface entity-manager-sidebar"><div className="entity-manager-search"><Search size={14} aria-hidden="true"/><input type="search" value={scopeSearch} onChange={(event) => setScopeSearch(event.target.value)} placeholder="Hledat entity…" aria-label="Hledat entity podle názvu"/>{scopeSearch && <button type="button" className="icon-button" onClick={() => setScopeSearch("")} aria-label="Vymazat hledání entit"><X size={13}/></button>}</div>{renderList(visibleCustomScopes, "VLASTNÍ ENTITY")}{renderList(visibleStandardScopes, "SYSTÉMOVÉ ENTITY")}{normalizedScopeSearch && !visibleCustomScopes.length && !visibleStandardScopes.length && <div className="entity-manager-search-empty">Žádná entita neodpovídá „{scopeSearch.trim()}“.</div>}</aside>
       <section className="surface entity-manager-editor">{creating || scope ? <><div className="settings-card-head"><h2>{creating ? "Vytvořit vlastní entitu" : data.labelSingular || entityLabel(liveMetadata, scope)}</h2><p>{creating ? "Zvolte šablonu a vlastnosti nového modulu." : `${scope} · ${selectedScope.isCustom ? "vlastní entita" : "systémová entita"}${editable ? "" : " · pouze pro čtení"}`}</p></div>
+        {!creating && <div className="entity-filter-fields entity-manager-primary-filters"><strong>Výchozí filtry entity</strong>{primaryFilters.length ? <div>{primaryFilters.map((name: string) => <div className="entity-manager-primary-filter" key={name}><span><b>{(liveMetadata.labels as any)?.[scope]?.presetFilters?.[name] || (name === "starred" ? "Oblíbené" : name)}</b><small>{name}</small></span><button type="button" className="button subtle" onClick={() => void copyPrimaryFilter(name)}><Copy size={13}/> Kopírovat odkaz</button></div>)}</div> : <p>Pro tuto entitu nejsou definované žádné výchozí filtry.</p>}</div>}
         <div className="settings-fields entity-manager-fields"><label className="setting-field"><span>Interní název</span><input value={data.name || ""} disabled={!creating || busy} required pattern="[A-Za-z][A-Za-z0-9]*" onChange={(event) => update("name", event.target.value)} placeholder="Projekt"/><small>{creating ? "EspoCRM doplní prefix vlastní entity podle konfigurace instalace." : "Technický název entity."}</small></label>
           {creating && <label className="setting-field"><span>Šablona entity</span><select value={data.type || ""} onChange={(event) => update("type", event.target.value)}>{templates.map((type: string) => <option key={type} value={type}>{type}</option>)}</select></label>}
           <label className="setting-field"><span>Jednotné číslo</span><input value={data.labelSingular || ""} disabled={!editable || busy} required onChange={(event) => update("labelSingular", event.target.value)}/></label><label className="setting-field"><span>Množné číslo</span><input value={data.labelPlural || ""} disabled={!editable || busy} required onChange={(event) => update("labelPlural", event.target.value)}/></label>
