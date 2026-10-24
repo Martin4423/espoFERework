@@ -244,10 +244,23 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
   }
 
   function quoteReply(note: Note) {
-    const quote = "> " + String(note.post || "").split(/\r?\n/).join("\n> ");
-    setPost((old) => `${old}${old ? "\n" : ""}${quote}\n\n`);
-    postInput.current?.focus();
-    postInput.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    let contents = String(note.post || "");
+    const selection = window.getSelection();
+    const row = Array.from(document.querySelectorAll<HTMLElement>(".stream-item[data-note-id]")).find((item) => item.dataset.noteId === note.id);
+    const postElement = row?.querySelector(".stream-post-text");
+    if (selection?.rangeCount && postElement && selection.toString().trim()) {
+      const { anchorNode, focusNode } = selection;
+      if (anchorNode && focusNode && postElement.contains(anchorNode) && postElement.contains(focusNode)) contents = selection.toString().trim();
+    }
+    const quote = "> " + contents.replace(/\r/g, "").split("\n").join("\n> ");
+    const current = postInput.current?.value ?? post;
+    const next = `${current}${current ? "\n" : ""}${quote}\n\n`;
+    setPost(next);
+    requestAnimationFrame(() => {
+      postInput.current?.focus();
+      postInput.current?.setSelectionRange(next.length, next.length);
+      postInput.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
   function handlePostChange(value: string, cursor: number) {
@@ -371,14 +384,14 @@ export function StreamItem({ note, metadata, reactions, currentUserId, busy, onR
   const myReactions: string[] = note.myReactions || [];
   const reactionDefinitions = (((metadata.app as any)?.reactions?.list || []) as Array<{ type: string; iconClass?: string }>);
   const reactionLabels = (metadata.labels as any)?.Global?.reactions || {};
-  return <article className={`stream-item ${pinned ? "is-pinned" : ""}`}>
+  return <article className={`stream-item ${pinned ? "is-pinned" : ""}`} data-note-id={note.id}>
     <StreamAvatar id={note.createdById} name={author} disabled={avatarsDisabled}/><div className="stream-item-body"><div className="stream-item-head"><div><strong>{author}</strong><span>{type === "Post" ? "přidal/a příspěvek" : systemText[type] || "provedl/a změnu"}</span><time>{relativeTime(note.createdAt)}</time></div>{note.isInternal && <span className="stream-internal">Interní</span>}</div>
       {editing ? <form className="stream-edit-form" onSubmit={(event) => { event.preventDefault(); setEditError(""); void onEdit(note, draft).then(() => setEditing(false)).catch((e) => setEditError(e instanceof Error ? e.message : "Uložení selhalo.")); }}><textarea value={draft} onChange={(event) => setDraft(event.target.value)}/>{editError && <small>{editError}</small>}<div><button type="button" className="stream-item-action" onClick={() => { setDraft(note.post || ""); setEditing(false); }}>Zrušit</button><button className="stream-item-action is-on" disabled={busy || !draft.trim()}>Uložit změny</button></div></form> : note.post ? <p className="stream-post-text">{note.post}</p> : note.data ? <SystemChange data={note.data}/> : null}
       {attachmentIds.length > 0 && <div className="stream-attachments">{attachmentIds.map((id) => { const imageAt = imageAttachments.findIndex((item) => item.id === id); const name = attachmentNames[id] || "Příloha"; return imageAt >= 0 ? <StreamImageAttachment key={id} id={id} name={name} onOpen={() => setImageIndex(imageAt)}/> : <button key={id} onClick={() => void downloadAttachment(id, name)}>{name}</button>; })}</div>}
       <div className="stream-item-footer">{type === "Post" && reactions.map((reaction) => { const definition = reactionDefinitions.find((item) => item.type === reaction); const count = Number(counts[reaction] || 0); const active = myReactions.includes(reaction); const label = reactionLabels[reaction] || reaction; return <button key={reaction} className={`stream-reaction ${active ? "is-active" : ""}`} onClick={() => onReact(note, reaction)} disabled={busy} title={label} aria-label={`${label}${count ? ` · ${count}` : ""}`} aria-pressed={active}><EspoIcon className={definition?.iconClass || "fas fa-face-smile"} size={13}/>{count > 0 ? count : ""}</button>; })}
         {onOpen && <button className="stream-item-action" onClick={() => onOpen(note)} title="Otevřít samostatný záznam poznámky"><ExternalLink size={13}/> Otevřít</button>}
         {onOpenParent && (note.parentId || note.entityId) && <button className="stream-item-action" onClick={() => onOpenParent(note)} title="Otevřít související záznam"><ExternalLink size={13}/> {note.parentName || "Související záznam"}</button>}
-        {allowQuote && type === "Post" && note.post && <button className="stream-item-action" onClick={() => onQuote(note)} title="Citovat v odpovědi"><MessageSquare size={13}/> Odpovědět citací</button>}
+        {allowQuote && type === "Post" && note.post && <button className="stream-item-action" onMouseDown={(event) => { if (window.getSelection()?.toString()) event.preventDefault(); }} onClick={() => onQuote(note)} title="Citovat vybraný text nebo celý příspěvek"><MessageSquare size={13}/> Odpovědět citací</button>}
         {canEditPost && <button className="stream-item-action" onClick={() => { setDraft(note.post || ""); setEditError(""); setEditing(true); }} disabled={busy}>Upravit</button>}
         {canEditPost && <button className="stream-item-action danger" onClick={() => onRemove(note)} disabled={busy} title="Odstranit příspěvek"><Trash2 size={13}/></button>}
         {allowPin && type === "Post" && <button className={`stream-item-action ${pinned ? "is-on" : ""}`} onClick={() => onPin(note)} disabled={busy} title={pinned ? "Odepnout" : "Připnout"}><Pin size={13}/>{pinned ? "Připnuto" : "Připnout"}</button>}
