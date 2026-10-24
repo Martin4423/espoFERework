@@ -8,7 +8,7 @@ type Row = Record<string, any>;
 type Result = { list?: Row[]; total?: number };
 
 /** Server paged replacement for EspoCRM select-records modal. */
-export default function SelectRecordsDialog({ entity, metadata, multiple, selectedIds, selectedRows, primaryFilter, boolFilterList = [], fixedWhere = [], mandatorySelectAttributeList = [], massRelateEnabled = false, onMassSelect, onCreate, onClose, onSelect, onSkip, skipLabel = "Pokračovat bez záznamu" }: { entity: string; metadata: Metadata; multiple: boolean; selectedIds: string[]; selectedRows: Row[]; primaryFilter?: string; boolFilterList?: string[]; fixedWhere?: Row[]; mandatorySelectAttributeList?: string[]; massRelateEnabled?: boolean; onMassSelect?: (selection: { massRelate: true; where: Row[]; searchParams: Record<string, unknown> }) => void; onCreate?: () => void; onClose: () => void; onSelect: (rows: Row[]) => void; onSkip?: () => void; skipLabel?: string }) {
+export default function SelectRecordsDialog({ entity, metadata, multiple, selectedIds, selectedRows, primaryFilter, boolFilterList = [], filterList = [], fixedWhere = [], mandatorySelectAttributeList = [], massRelateEnabled = false, onMassSelect, onCreate, onClose, onSelect, onSkip, skipLabel = "Pokračovat bez záznamu" }: { entity: string; metadata: Metadata; multiple: boolean; selectedIds: string[]; selectedRows: Row[]; primaryFilter?: string; boolFilterList?: string[]; filterList?: string[]; fixedWhere?: Row[]; mandatorySelectAttributeList?: string[]; massRelateEnabled?: boolean; onMassSelect?: (selection: { massRelate: true; where: Row[]; searchParams: Record<string, unknown> }) => void; onCreate?: () => void; onClose: () => void; onSelect: (rows: Row[]) => void; onSkip?: () => void; skipLabel?: string }) {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
@@ -51,6 +51,7 @@ export default function SelectRecordsDialog({ entity, metadata, multiple, select
     else if (categorySelection) where.push({ type: "inCategory", attribute: categoryField, value: categorySelection.id });
     if (primaryFilter) params.set("primaryFilter", primaryFilter);
     boolFilterList.forEach((name) => params.append("boolFilterList[]", name));
+    filterList.forEach((name) => params.append("filterList[]", name));
     if (where.length) params.set("whereGroup", JSON.stringify(where));
     request<Result>(`${encodeURIComponent(entity)}?${params}`).then((result) => {
       if (!live) return;
@@ -58,7 +59,7 @@ export default function SelectRecordsDialog({ entity, metadata, multiple, select
       setSelected((current) => { const next = new Map(current); (result.list || []).forEach((row) => { if (next.has(row.id)) next.set(row.id, row); }); return next; });
     }).catch((cause) => live && setError(cause instanceof Error ? cause.message : "Záznamy se nepodařilo načíst.")).finally(() => live && setBusy(false));
     return () => { live = false; };
-  }, [entity, offset, search, primaryFilter, boolFilterList.join(","), fixedWhereKey, mandatorySelectKey, columns.join(","), categorySelection, categoryField, categoryFieldType]);
+  }, [entity, offset, search, primaryFilter, boolFilterList.join(","), filterList.join(","), fixedWhereKey, mandatorySelectKey, columns.join(","), categorySelection, categoryField, categoryFieldType]);
   useEffect(() => {
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close);
