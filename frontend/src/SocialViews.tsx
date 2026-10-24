@@ -95,17 +95,35 @@ function openNotification(item: NotificationItem, onOpenRecord: (scope: string, 
 
 export function NotificationPanel({ metadata, onClose, onOpenList, onOpenRecord, onUnreadChange }: { metadata: Metadata; onClose: () => void; onOpenList: () => void; onOpenRecord: (scope: string, id: string) => void; onUnreadChange: () => void }) {
   const timeZone = useEspoTimeZone();
+  const maxItems = Math.max(1, Number(metadata.appParams?.notificationsMaxSize) || 5);
+  const panelRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [busy, setBusy] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     setBusy(true); setError("");
-    try { const result = await request<Page<NotificationItem>>(`Notification?maxSize=8&offset=0`); setItems(result.list || []); onUnreadChange(); }
+    try { const result = await request<Page<NotificationItem>>(`Notification?maxSize=${maxItems}&offset=0`); setItems(result.list || []); onUnreadChange(); }
     catch (e) { setError(e instanceof Error ? e.message : "Oznámení se nepodařilo načíst."); }
     finally { setBusy(false); }
-  }, [onUnreadChange]);
+  }, [maxItems, onUnreadChange]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    panelRef.current?.focus();
+    return () => returnFocusRef.current?.focus();
+  }, []);
+  function handlePanelKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+    if (event.key !== "Tab" || !panelRef.current) return;
+    const focusable = Array.from(panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    if (!focusable.length) { event.preventDefault(); panelRef.current.focus(); return; }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
   async function markAllRead() {
     setWorking(true); setError("");
     try { await request("Notification/action/markAllRead", { method: "POST", body: JSON.stringify({}) }); setItems((old) => old.map((item) => ({ ...item, read: true }))); onUnreadChange(); }
@@ -118,7 +136,7 @@ export function NotificationPanel({ metadata, onClose, onOpenList, onOpenRecord,
     catch (e) { setError(e instanceof Error ? e.message : "Oznámení se nepodařilo odstranit."); }
     finally { setWorking(false); }
   }
-  return <div className="notification-popover-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="notification-popover surface" role="dialog" aria-modal="true" aria-label="Oznámení" onMouseDown={(event) => event.stopPropagation()}>
+  return <div className="notification-popover-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={panelRef} tabIndex={-1} className="notification-popover surface" role="dialog" aria-modal="true" aria-label="Oznámení" aria-busy={busy} onKeyDown={handlePanelKeyDown} onMouseDown={(event) => event.stopPropagation()}>
     <header><div><strong>Oznámení</strong><small>Poslední upozornění na vašem účtu</small></div><button type="button" className="button subtle" onClick={() => void markAllRead()} disabled={working}><Check size={13}/>Označit vše</button></header>
     {error && <div className="table-error">{error}<button type="button" onClick={() => void load()}>Zkusit znovu</button></div>}
     <div className="notification-popover-list">{busy ? <div className="table-loading"><span className="spinner"/>Načítám oznámení…</div> : items.length ? items.map((item) => <article className={`notification-row ${item.read ? "is-read" : "is-unread"}`} key={item.id}><button className="notification-main" onClick={() => { openNotification(item, onOpenRecord); onClose(); }}><span className="notification-icon"><NotificationTypeIcon type={item.type}/></span><span className="notification-copy"><strong>{notificationTitle(item, metadata)}</strong><span>{notificationDetail(item, metadata)}</span><time>{item.createdAt ? formatEspoDateTime(item.createdAt, timeZone) : ""}</time></span>{!item.read && <i className="notification-unread-dot"/>}</button><button type="button" className="notification-remove" aria-label="Odstranit oznámení" disabled={working} onClick={() => void remove(item)}><Trash2 size={13}/></button></article>) : <div className="stream-empty"><Bell size={20}/><span>Nemáte žádná oznámení.</span></div>}</div>
@@ -323,6 +341,7 @@ export function GlobalStreamView({ user, metadata, onBack, onOpenRecord }: { use
 
 export function NotificationCenter({ metadata, onBack, onOpenRecord, onUnreadChange }: { metadata: Metadata; onBack: () => void; onOpenRecord: (scope: string, id: string) => void; onUnreadChange: () => void }) {
   const timeZone = useEspoTimeZone();
+  const pageSize = Math.max(1, Number(metadata.appSettings?.recordsPerPage) || 20);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [busy, setBusy] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -335,14 +354,14 @@ export function NotificationCenter({ metadata, onBack, onOpenRecord, onUnreadCha
     if (!offset) setBusy(true); else setLoadingMore(true);
     setError("");
     try {
-      const result = await request<Page<NotificationItem>>(`Notification?maxSize=${PAGE_SIZE}&offset=${offset}`);
+      const result = await request<Page<NotificationItem>>(`Notification?maxSize=${pageSize}&offset=${offset}`);
       const page: NotificationItem[] = result.list || [];
       if (!offset) setItems(page); else setItems((old) => [...old, ...page.filter((item) => !old.some((previous) => previous.id === item.id))]);
-      setHasMore(page.length === PAGE_SIZE);
+      setHasMore(page.length === pageSize);
       onUnreadChange();
     } catch (e) { setError(e instanceof Error ? e.message : "Oznámení se nepodařilo načíst."); }
     finally { setBusy(false); setLoadingMore(false); }
-  }, [onUnreadChange]);
+  }, [onUnreadChange, pageSize]);
   useEffect(() => { void load(); }, [load, refreshKey]);
 
   async function markAllRead() {
