@@ -44,6 +44,7 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
     return () => window.removeEventListener("beforeunload", warn);
   }, [hasUnsavedChanges]);
   const selectedScope = liveMetadata.scopes[scope] || {};
+  const hasColorField = !Boolean(liveMetadata.appSettings?.scopeColorsDisabled);
   const customScopes = scopes.filter((name) => liveMetadata.scopes[name].isCustom);
   const standardScopes = scopes.filter((name) => !liveMetadata.scopes[name].isCustom);
   const entityFields = liveMetadata.entityDefs[scope]?.fields || {};
@@ -98,12 +99,12 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
         fullTextSearch: Boolean(entityDefs.collection?.fullTextSearch), countDisabled: Boolean(entityDefs.collection?.countDisabled),
         kanbanViewMode: Boolean(liveMetadata.clientDefs?.[scope]?.kanbanViewMode),
         statusField: scopeData.statusField || "", kanbanStatusIgnoreList: scopeData.kanbanStatusIgnoreList || [],
-        color: liveMetadata.clientDefs?.[scope]?.color || "", iconClass: liveMetadata.clientDefs?.[scope]?.iconClass || "",
+        ...(hasColorField ? { color: liveMetadata.clientDefs?.[scope]?.color || "" } : {}), iconClass: liveMetadata.clientDefs?.[scope]?.iconClass || "",
         textFilterFields: currentTextFilterFields || ["name"], ...additionalData,
       };
       setData(currentData); setOriginalData(currentData);
     }
-  }, [scope, creating, liveMetadata, currentTextFilterFields]);
+  }, [scope, creating, liveMetadata, currentTextFilterFields, hasColorField]);
 
   function startCreate() { if (!confirmDiscardChanges()) return; setScope(""); setCreating(true); setError(""); setNotice(""); const initial = { name: "", labelSingular: "", labelPlural: "", type: templates[0] || "Base", stream: false, disabled: false }; setData(initial); setOriginalData(initial); }
   function update(key: string, value: any) { setData((old) => ({ ...old, [key]: value })); }
@@ -229,7 +230,7 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
           {creating && <label className="setting-field"><span>Šablona entity</span><select value={data.type || ""} onChange={(event) => update("type", event.target.value)}>{templates.map((type: string) => <option key={type} value={type}>{type}</option>)}</select></label>}
           <label className="setting-field"><span>Jednotné číslo</span><input value={data.labelSingular || ""} disabled={!editable || busy} required onChange={(event) => update("labelSingular", event.target.value)}/></label><label className="setting-field"><span>Množné číslo</span><input value={data.labelPlural || ""} disabled={!editable || busy} required onChange={(event) => update("labelPlural", event.target.value)}/></label>
           <div className="setting-field manager-icon-setting"><span>Ikona modulu</span><button type="button" className="manager-icon-current" onClick={() => setIconPickerOpen((value) => !value)} disabled={!editable || busy}><span><EspoIcon className={data.iconClass || "fas fa-building"} size={19}/></span><b>{data.iconClass || "fas fa-building"}</b><small>{iconPickerOpen ? "Zavřít výběr" : "Vybrat ikonu"}</small></button>{iconPickerOpen && <div className="manager-icon-picker"><input aria-label="Hledat ikonu" placeholder="Hledejte ikonu podle názvu…" value={iconQuery} onChange={(event) => setIconQuery(event.target.value)}/><small className="manager-icon-count">{normalizedIconQuery ? `${Math.min(iconMatches.length, 160)} z ${iconMatches.length} odpovídajících ikon` : `Doporučené ikony · ${availableIconClasses.length} ikon dostupných`}</small><div>{filteredModuleIcons.map((iconClass) => { const label = iconClass.replace(/^(fas|far|fab) fa-/, ""); const active = data.iconClass === iconClass; return <button type="button" key={iconClass} className={active ? "active" : ""} title={iconClass} aria-label={iconClass} onClick={() => { update("iconClass", iconClass); setIconPickerOpen(false); setIconQuery(""); }}><EspoIcon className={iconClass} size={18}/><small>{label}</small></button>; })}</div>{normalizedIconQuery && iconMatches.length > 160 && <small className="manager-icon-count">Zpřesněte hledání pro zobrazení dalších výsledků.</small>}</div>}<input className="manager-icon-class" value={data.iconClass || ""} disabled={!editable || busy} onChange={(event) => update("iconClass", event.target.value)} placeholder="Font Awesome třída dle EspoCRM (např. fas fa-building)"/><small>Náhled používá stejnou ikonu jako EspoCRM; lze zadat libovolnou Font Awesome třídu podporovanou instalací.</small></div>
-          <label className="setting-field"><span>Barva modulu</span><input type="color" disabled={!editable || busy} value={data.color || "#675fce"} onChange={(event) => update("color", event.target.value)}/></label>
+          {hasColorField && <label className="setting-field"><span>Barva modulu</span><input type="color" disabled={!editable || busy} value={data.color || "#675fce"} onChange={(event) => update("color", event.target.value)}/></label>}
           {!creating && <><label className="setting-field"><span>Výchozí řazení</span><select disabled={!editable || busy} value={data.sortBy || "createdAt"} onChange={(event) => update("sortBy", event.target.value)}>{sortableFields.map((field) => <option key={field} value={field}>{fieldLabel(field, entityFields[field], scope, liveMetadata)}</option>)}</select></label><label className="setting-field"><span>Směr řazení</span><select disabled={!editable || busy} value={data.sortDirection || "asc"} onChange={(event) => update("sortDirection", event.target.value)}><option value="asc">Vzestupně</option><option value="desc">Sestupně</option></select></label>
             <label className="setting-field"><span>Statusové pole</span><select disabled={!editable || busy || selectedScope.statusFieldLocked} value={data.statusField || ""} onChange={(event) => { update("statusField", event.target.value); update("kanbanStatusIgnoreList", []); }}><option value="">Bez stavového pole</option>{enumFields.map((field) => <option key={field} value={field}>{fieldLabel(field, entityFields[field], scope, liveMetadata)}</option>)}</select></label></>}
         </div>
