@@ -161,8 +161,14 @@ function DashletCard({ item, user, metadata, options, appSettings, refreshKey, o
           if (live) setRows(data.list || []);
         } else if (entity && metadata.entityDefs?.[entity]?.fields && canAccessEntity(metadata, entity)) {
           const params = new URLSearchParams({ maxSize: String(Number(options.displayRecords || 8)), offset: "0", orderBy: options.sortBy || options.orderBy || metadata.entityDefs[entity]?.collection?.orderBy || "modifiedAt", order: options.sortDirection || options.order || metadata.entityDefs[entity]?.collection?.order || "desc" });
-          if (options.primaryFilter && options.primaryFilter !== "all") params.set("primaryFilter", options.primaryFilter);
-          if (Array.isArray(options.boolFilterList)) options.boolFilterList.forEach((filter: string) => params.append("boolFilterList[]", filter));
+          const searchData = options.searchData && typeof options.searchData === "object" ? options.searchData : {};
+          const primaryFilter = options.primaryFilter || searchData.primary;
+          if (primaryFilter && primaryFilter !== "all") params.set("primaryFilter", primaryFilter);
+          const savedBoolFilters = searchData.bool && typeof searchData.bool === "object"
+            ? Object.entries(searchData.bool).filter(([, enabled]) => Boolean(enabled)).map(([name]) => name)
+            : [];
+          const boolFilters = [...new Set([...(Array.isArray(options.boolFilterList) ? options.boolFilterList : []), ...savedBoolFilters])];
+          boolFilters.forEach((filter) => params.append("boolFilterList[]", filter));
           if (options.includeShared && (metadata.scopes?.[entity] as Data | undefined)?.collaborators) params.set("includeShared", "true");
           const expandedItems = (options.expandedLayout?.rows || []).flatMap((row: any[]) => Array.isArray(row) ? row : []).filter((item: Data) => item?.name && metadata.entityDefs[entity]?.fields?.[item.name] && (metadata.userAcl?.fieldTable?.[entity]?.[item.name] as Data | undefined)?.read !== "no");
           const attributes = Array.from(new Set(["name", ...expandedItems.flatMap((item: Data) => {
@@ -190,7 +196,7 @@ function DashletCard({ item, user, metadata, options, appSettings, refreshKey, o
     }
     void load();
     return () => { live = false; };
-  }, [item.name, item.id, user.id, entity, options.folder, options.displayRecords, options.enabledScopeList, options.futureDays, options.includeShared, options.orderBy, options.sortBy, options.sortDirection, options.order, options.primaryFilter, options.boolFilterList?.join(","), options.dateFilter, options.dateFrom, options.dateTo, options.useLastStage, options.teamId, options.teamsIds, options.usersIds, metadata, refreshIndex, refreshKey]);
+  }, [item.name, item.id, user.id, entity, options.folder, options.displayRecords, options.enabledScopeList, options.futureDays, options.includeShared, options.orderBy, options.sortBy, options.sortDirection, options.order, options.primaryFilter, options.boolFilterList?.join(","), JSON.stringify(options.searchData || {}), options.dateFilter, options.dateFrom, options.dateTo, options.useLastStage, options.teamId, options.teamsIds, options.usersIds, metadata, refreshIndex, refreshKey]);
   const title = options.title || (metadata as any).labels?.dashlets?.[item.name] || item.name;
   const expandedItems: Data[] = Array.isArray(options.expandedLayout?.rows) ? options.expandedLayout.rows.flatMap((row: any[]) => Array.isArray(row) ? row : []).filter((field: Data) => field?.name) : [];
   const createScopes = (item.name === "Activities" ? options.enabledScopeList || ["Meeting", "Call", "Task"] : entity ? [entity] : []).filter((scope: string) => canAccessEntity(metadata, scope) && canCreateEntity(metadata, scope) && Boolean(metadata.scopes?.[scope]?.entity) && !metadata.scopes?.[scope]?.disabled && !metadata.clientDefs?.[scope]?.createDisabled);
