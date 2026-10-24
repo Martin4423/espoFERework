@@ -26,12 +26,13 @@ export default function LinkMultipleDisplay({ entity, name, record, def, metadat
   const orderedIds = primaryId && ids.includes(primaryId) ? [primaryId, ...ids.filter((id) => id !== primaryId)] : ids;
 
   function relationColumns() {
-    return Object.entries((def as any).columns || {}).flatMap(([key, rawField]) => {
+    const configuredColumns = (def as any).columns || (entity === "Settings" && name === "oidcTeams" ? { group: "group" } : {});
+    return Object.entries(configuredColumns).flatMap(([key, rawField]) => {
       const field = String(rawField);
       const localScope = ["Meeting", "Call"].includes(entity) && key === "status" ? entity : "";
       const scope = localScope || (metadata.entityDefs?.[relatedEntity]?.fields?.[field] ? relatedEntity : entity);
       const fieldName = localScope ? "acceptanceStatus" : field;
-      const fieldDef = metadata.entityDefs?.[scope]?.fields?.[fieldName] || {};
+      const fieldDef = metadata.entityDefs?.[scope]?.fields?.[fieldName] || (entity === "Settings" && name === "oidcTeams" && key === "group" ? { type: "varchar", label: "IdP Group" } : {});
       if (!["enum", "enumInt", "enumFloat", "varchar"].includes(String(fieldDef.type || ""))) return [];
       return [{ key, field: fieldName, scope, def: fieldDef }];
     });

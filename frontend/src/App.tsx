@@ -1026,6 +1026,16 @@ function buildSettingsPatch(changes: Row, metadata: Metadata): Row {
   const payload: Row = {};
   for (const [name, value] of Object.entries(changes)) {
     const def: FieldDef = definitions[name] || {};
+    if (def.type === "linkMultiple") {
+      payload[`${name}Ids`] = Array.isArray(value) ? value : [];
+      const columnsKey = `${name}Columns`;
+      if (columnsKey in changes) payload[columnsKey] = changes[columnsKey];
+      continue;
+    }
+    if (name.endsWith("Columns") && definitions[name.slice(0, -7)]?.type === "linkMultiple") {
+      payload[name] = value;
+      continue;
+    }
     if (["jsonObject", "jsonArray"].includes(def.type || "") && typeof value === "string") {
       try { payload[name] = JSON.parse(value); }
       catch { throw new Error(`Pole „${fieldLabel(name, def, "Settings", metadata)}“ obsahuje neplatný JSON.`); }
@@ -1041,6 +1051,23 @@ function buildSettingsPatch(changes: Row, metadata: Metadata): Row {
   return payload;
 }
 
+function normalizeSettingsForEditor(data: Row, metadata: Metadata): Row {
+  const result = { ...data };
+  for (const [name, def] of Object.entries(metadata.entityDefs.Settings?.fields || {})) {
+    if (def.type !== "linkMultiple") continue;
+    const ids = data[`${name}Ids`];
+    result[name] = Array.isArray(ids) ? ids : Array.isArray(data[name]) ? data[name] : [];
+    const columns = data[`${name}Columns`];
+    if (columns && typeof columns === "object") result[`${name}Columns`] = columns;
+  }
+  return result;
+}
+
+function linkMultipleColumns(entity: string, name: string, def: FieldDef): Record<string, string> {
+  if (def.columns && typeof def.columns === "object") return def.columns;
+  return entity === "Settings" && name === "oidcTeams" ? { group: "group" } : {};
+}
+
 function AdminSettings({ metadata, onBack, focus = "all" }: { metadata: Metadata; onBack: () => void; focus?: "all" | "userInterface" | "authentication" | "notifications" | "outboundEmails" | "inboundEmails" | "jobsSettings" | "currency" | "sms" }) {
   const [settings, setSettings] = useState<Row>({});
   const [original, setOriginal] = useState<Row>({});
@@ -1050,7 +1077,7 @@ function AdminSettings({ metadata, onBack, focus = "all" }: { metadata: Metadata
   const [saved, setSaved] = useState(false);
   const [query, setQuery] = useState("");
   const [settingsLayout, setSettingsLayout] = useState<DetailLayoutPanel[]>([]);
-  useEffect(() => { let live = true; const layoutName = focus === "all" ? "settings" : ["userInterface", "outboundEmails", "inboundEmails", "jobsSettings", "currency", "sms"].includes(focus) ? focus : ""; Promise.all([request<Row>("Settings"), layoutName ? fetchLayout<DetailLayoutPanel[]>("Settings", layoutName).catch(() => []) : Promise.resolve([])]).then(([data, layout]) => { if (live) { const seeded = { ...data }; const names = [...(layout || []).flatMap((panel) => (panel.rows || []).flat()).map((item) => item && typeof item === "object" ? item.name : undefined), ...(focus === "outboundEmails" ? ["smtpServer", "smtpPort", "smtpSecurity", "smtpAuth", "smtpUsername", "smtpPassword", "smtpAuthMechanism"] : [])]; for (const name of names) { const def = name ? metadata.entityDefs.Settings.fields?.[name] : undefined; if (name && def && !(name in seeded)) seeded[name] = def.default ?? (def.type === "multiEnum" ? [] : def.type === "bool" ? false : def.type === "base" ? {} : ""); } setSettings(seeded); setOriginal(seeded); setSettingsLayout(layout); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Nastavení se nepodařilo načíst.")).finally(() => live && setBusy(false)); return () => { live = false; }; }, [focus, metadata]);
+  useEffect(() => { let live = true; const layoutName = focus === "all" ? "settings" : ["userInterface", "outboundEmails", "inboundEmails", "jobsSettings", "currency", "sms"].includes(focus) ? focus : ""; Promise.all([request<Row>("Settings"), layoutName ? fetchLayout<DetailLayoutPanel[]>("Settings", layoutName).catch(() => []) : Promise.resolve([])]).then(([data, layout]) => { if (live) { const seeded = normalizeSettingsForEditor(data, metadata); const names = [...(layout || []).flatMap((panel) => (panel.rows || []).flat()).map((item) => item && typeof item === "object" ? item.name : undefined), ...(focus === "outboundEmails" ? ["smtpServer", "smtpPort", "smtpSecurity", "smtpAuth", "smtpUsername", "smtpPassword", "smtpAuthMechanism"] : [])]; for (const name of names) { const def = name ? metadata.entityDefs.Settings.fields?.[name] : undefined; if (name && def && !(name in seeded)) seeded[name] = def.default ?? (def.type === "multiEnum" ? [] : def.type === "bool" ? false : def.type === "base" ? {} : ""); } setSettings(seeded); setOriginal(seeded); setSettingsLayout(layout); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Nastavení se nepodařilo načíst.")).finally(() => live && setBusy(false)); return () => { live = false; }; }, [focus, metadata]);
   const changed = Object.fromEntries(Object.entries(settings).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(original[key])));
   const leave = useUnsavedChangesGuard(Boolean(Object.keys(changed).length), onBack, "Máte neuložené změny nastavení. Opravdu chcete odejít?");
   const layoutFieldNames = settingsLayout.flatMap((panel) => (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name ? [item.name] : []));
@@ -1096,17 +1123,17 @@ function AdminSettings({ metadata, onBack, focus = "all" }: { metadata: Metadata
       if (value && !emailAddressPattern.test(value)) { setError(`${fieldLabel(name, metadata.entityDefs.Settings.fields?.[name], "Settings", metadata)}: zadejte platnou e-mailovou adresu.`); return; }
     }
     let payload: Row;
-    try { payload = buildSettingsPatch(Object.fromEntries(fields.filter(([name]) => name in changed).map(([name]) => [name, changed[name]])), metadata); }
+    try { payload = buildSettingsPatch(changed, metadata); }
     catch (e) { setError(e instanceof Error ? e.message : "Nastavení obsahuje neplatnou hodnotu."); return; }
     setSaving(true); setError(""); setSaved(false);
-    try { await request("Settings", { method: "PATCH", body: JSON.stringify(payload) }); const fresh = await request<Row>("Settings"); setSettings(fresh); setOriginal(fresh); setSaved(true); if (focus === "userInterface" && ("theme" in changed || JSON.stringify(original.themeParams?.navbar) !== JSON.stringify(fresh.themeParams?.navbar))) window.location.reload(); }
+    try { await request("Settings", { method: "PATCH", body: JSON.stringify(payload) }); const fresh = normalizeSettingsForEditor(await request<Row>("Settings"), metadata); setSettings(fresh); setOriginal(fresh); setSaved(true); if (focus === "userInterface" && ("theme" in changed || JSON.stringify(original.themeParams?.navbar) !== JSON.stringify(fresh.themeParams?.navbar))) window.location.reload(); }
     catch (e) { setError(e instanceof Error ? e.message : "Nastavení se nepodařilo uložit."); }
     finally { setSaving(false); }
   }
   return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={leave}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">KONFIGURACE</div><h1>{pageTitle}</h1><p>{focus === "all" ? "Změňte výchozí chování a formáty CRM." : focus === "outboundEmails" || focus === "inboundEmails" ? "Nastavení vychází z nativního rozložení EspoCRM 9.1.7." : "Upravitelná nastavení načtená z instalace EspoCRM."}</p></div><button className="button primary" onClick={() => void save()} disabled={busy || saving || !Object.keys(changed).length}><Save size={15}/>{saving ? "Ukládám…" : "Uložit změny"}</button></div>
-    {error && <div className="table-error">{error}<button onClick={() => { setBusy(true); request<Row>("Settings").then((data) => { setSettings(data); setOriginal(data); }).catch(() => {}).finally(() => setBusy(false)); }}>Zkusit znovu</button></div>}{saved && <div className="save-confirm"><Check size={15}/> Nastavení bylo uloženo.</div>}
+    {error && <div className="table-error">{error}<button onClick={() => { setBusy(true); request<Row>("Settings").then((data) => { const fresh = normalizeSettingsForEditor(data, metadata); setSettings(fresh); setOriginal(fresh); }).catch(() => {}).finally(() => setBusy(false)); }}>Zkusit znovu</button></div>}{saved && <div className="save-confirm"><Check size={15}/> Nastavení bylo uloženo.</div>}
     {!busy && <label className="admin-settings-search"><Search size={15}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filtrovat nastavení podle názvu…"/><span>{visibleFields.length} / {fields.length}</span></label>}
-    {busy ? <div className="surface table-loading"><span className="spinner"/> Načítám nastavení…</div> : <div className="settings-sections">{settingsGroups.map(({ title, group }) => <section className="surface settings-card" key={title}><div className="settings-card-head"><h2>{title}</h2><p>{group.length} položek nastavení</p></div><div className="settings-fields">{group.map(([name, def]) => name === "currencyRates" ? <CurrencyRatesEditor key={name} metadata={metadata} currencies={settings.currencyList || []} baseCurrency={settings.baseCurrency} value={settings.currencyRates} onChange={(value) => setSettings((old) => ({ ...old, currencyRates: value }))}/> : name === "addressPreview" ? <AddressFormatPreview key={name} format={settings.addressFormat}/> : name === "dashboardLayout" ? <div className="field-input dashboard-layout-field" key={name}><span>{fieldLabel(name, def, "Settings", metadata)}</span><DashboardLayoutEditor value={settings.dashboardLayout} options={settings.dashletsOptions || {}} metadata={metadata} onChange={(dashboardLayout) => setSettings((old) => ({ ...old, dashboardLayout }))} onOptionsChange={(dashletsOptions) => setSettings((old) => ({ ...old, dashletsOptions }))}/></div> : focus === "userInterface" && name === "tabList" ? <div className="field-input admin-tab-list-field" key={name}><span>{fieldLabel(name, def, "Settings", metadata)}</span><AdminTabListEditor value={Array.isArray(settings.tabList) ? settings.tabList : []} metadata={metadata} onChange={(tabList) => setSettings((old) => ({ ...old, tabList }))}/></div> : focus === "outboundEmails" && ["outboundEmailFromAddress", "outboundEmailBccAddress"].includes(name) ? <SettingsEmailAddressField key={name} name={name} metadata={metadata} value={settings[name] || ""} suggestInbound={name === "outboundEmailFromAddress"} onChange={(value) => setSettings((old) => ({ ...old, [name]: value }))}/> : <FieldInput key={name} entity="Settings" metadata={metadata} name={name} def={settingsFieldDef(name, focus === "currency" && ["defaultCurrency", "baseCurrency"].includes(name) ? { ...def, options: settings.currencyList || [] } : focus === "sms" && name === "smsProvider" ? { ...def, options: [...new Set([...(Object.keys((metadata.app as any)?.smsProviders || {})), settings.smsProvider].filter(Boolean))] } : focus === "outboundEmails" && name === "smtpPort" && settings.smtpServer ? { ...def, required: true } : focus === "outboundEmails" && name === "smtpUsername" && settings.smtpServer && settings.smtpAuth ? { ...def, required: true } : def)} value={settings[name]} themeParamsValue={settings.themeParams} onThemeParamsChange={(themeParams) => setSettings((old) => ({ ...old, themeParams }))} onChange={(value) => setSettings((old) => focus === "outboundEmails" && name === "smtpSecurity" ? { ...old, smtpSecurity: value, smtpPort: value === "SSL" ? 465 : value === "TLS" ? 587 : 25 } : { ...old, [name]: value })}/>)}</div></section>)}{!visibleFields.length && <div className="surface table-loading">Žádné nastavení neodpovídá filtru.</div>}</div>}
+    {busy ? <div className="surface table-loading"><span className="spinner"/> Načítám nastavení…</div> : <div className="settings-sections">{settingsGroups.map(({ title, group }) => <section className="surface settings-card" key={title}><div className="settings-card-head"><h2>{title}</h2><p>{group.length} položek nastavení</p></div><div className="settings-fields">{group.map(([name, def]) => name === "currencyRates" ? <CurrencyRatesEditor key={name} metadata={metadata} currencies={settings.currencyList || []} baseCurrency={settings.baseCurrency} value={settings.currencyRates} onChange={(value) => setSettings((old) => ({ ...old, currencyRates: value }))}/> : name === "addressPreview" ? <AddressFormatPreview key={name} format={settings.addressFormat}/> : name === "dashboardLayout" ? <div className="field-input dashboard-layout-field" key={name}><span>{fieldLabel(name, def, "Settings", metadata)}</span><DashboardLayoutEditor value={settings.dashboardLayout} options={settings.dashletsOptions || {}} metadata={metadata} onChange={(dashboardLayout) => setSettings((old) => ({ ...old, dashboardLayout }))} onOptionsChange={(dashletsOptions) => setSettings((old) => ({ ...old, dashletsOptions }))}/></div> : focus === "userInterface" && name === "tabList" ? <div className="field-input admin-tab-list-field" key={name}><span>{fieldLabel(name, def, "Settings", metadata)}</span><AdminTabListEditor value={Array.isArray(settings.tabList) ? settings.tabList : []} metadata={metadata} onChange={(tabList) => setSettings((old) => ({ ...old, tabList }))}/></div> : focus === "outboundEmails" && ["outboundEmailFromAddress", "outboundEmailBccAddress"].includes(name) ? <SettingsEmailAddressField key={name} name={name} metadata={metadata} value={settings[name] || ""} suggestInbound={name === "outboundEmailFromAddress"} onChange={(value) => setSettings((old) => ({ ...old, [name]: value }))}/> : <FieldInput key={name} entity="Settings" metadata={metadata} name={name} def={settingsFieldDef(name, focus === "currency" && ["defaultCurrency", "baseCurrency"].includes(name) ? { ...def, options: settings.currencyList || [] } : focus === "sms" && name === "smsProvider" ? { ...def, options: [...new Set([...(Object.keys((metadata.app as any)?.smsProviders || {})), settings.smsProvider].filter(Boolean))] } : focus === "outboundEmails" && name === "smtpPort" && settings.smtpServer ? { ...def, required: true } : focus === "outboundEmails" && name === "smtpUsername" && settings.smtpServer && settings.smtpAuth ? { ...def, required: true } : def)} value={settings[name]} columns={settings[`${name}Columns`] || {}} onColumnsChange={def.type === "linkMultiple" ? (columns) => setSettings((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} themeParamsValue={settings.themeParams} onThemeParamsChange={(themeParams) => setSettings((old) => ({ ...old, themeParams }))} onChange={(value) => setSettings((old) => focus === "outboundEmails" && name === "smtpSecurity" ? { ...old, smtpSecurity: value, smtpPort: value === "SSL" ? 465 : value === "TLS" ? 587 : 25 } : { ...old, [name]: value })}/>)}</div></section>)}{!visibleFields.length && <div className="surface table-loading">Žádné nastavení neodpovídá filtru.</div>}</div>}
   </div>;
 }
 
@@ -1124,7 +1151,7 @@ function AdminAuthentication({ metadata, onBack }: { metadata: Metadata; onBack:
   const methods = Object.entries(authMethods).filter(([, method]: [string, any]) => method?.settings?.isAvailable && method.settings.fieldList?.length) as Array<[string, any]>;
   const selectedAuthMethod = String(settings.authenticationMethod || "Espo");
   const selectedMethods = methods.filter(([name]) => name === selectedAuthMethod);
-  useEffect(() => { let live = true; Promise.all([request<Row>("Settings"), fetchLayout<DetailLayoutPanel[]>("Settings", "authentication")]).then(([data, layout]) => { if (live) { setSettings(data); setOriginal(data); setAuthLayout(layout || []); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Nastavení nelze načíst.")).finally(() => live && setBusy(false)); return () => { live = false; }; }, []);
+  useEffect(() => { let live = true; Promise.all([request<Row>("Settings"), fetchLayout<DetailLayoutPanel[]>("Settings", "authentication")]).then(([data, layout]) => { if (live) { const normalized = normalizeSettingsForEditor(data, metadata); setSettings(normalized); setOriginal(normalized); setAuthLayout(layout || []); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Nastavení nelze načíst.")).finally(() => live && setBusy(false)); return () => { live = false; }; }, [metadata]);
   useEffect(() => { if (active !== "general" && active !== selectedAuthMethod) setActive("general"); }, [active, selectedAuthMethod]);
   const allGeneralFields = useMemo(() => getFormFields(metadata, "Settings").filter(([name]) => /^(authenticationMethod|auth|password|login|apiKey|token)/i.test(name) && name in settings), [metadata, settings]);
   const generalFields = useMemo(() => { const byName = new Map(allGeneralFields.map((item) => [item[0], item] as [string, [string, FieldDef]])); const ordered = authLayout.flatMap((panel) => (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name && byName.has(item.name) ? [byName.get(item.name)!] : [])); return ordered.length ? ordered : allGeneralFields; }, [allGeneralFields, authLayout]);
@@ -1154,7 +1181,7 @@ function AdminAuthentication({ metadata, onBack }: { metadata: Metadata; onBack:
     try { payload = buildSettingsPatch(changed, metadata); }
     catch (e) { setError(e instanceof Error ? e.message : "Nastavení obsahuje neplatnou hodnotu."); return; }
     setSaving(true); setError(""); setNotice("");
-    try { await request("Settings", { method: "PATCH", body: JSON.stringify(payload) }); const fresh = await request<Row>("Settings"); setSettings(fresh); setOriginal(fresh); setNotice("Nastavení autentizace bylo uloženo."); }
+    try { await request("Settings", { method: "PATCH", body: JSON.stringify(payload) }); const fresh = normalizeSettingsForEditor(await request<Row>("Settings"), metadata); setSettings(fresh); setOriginal(fresh); setNotice("Nastavení autentizace bylo uloženo."); }
     catch (e) { setError(e instanceof Error ? e.message : "Nastavení nelze uložit."); } finally { setSaving(false); }
   }
   async function testLdap() {
@@ -1169,7 +1196,7 @@ function AdminAuthentication({ metadata, onBack }: { metadata: Metadata; onBack:
   }).filter((group) => group.fields.length) : [{ id: active, title: active === "Espo" ? "EspoCRM" : active, fields }];
   function renderAuthField([name, def]: [string, FieldDef]) {
     if (name === "testConnection" && active === "LDAP") return <div className="field-input auth-test-connection" key={name}><span /><button type="button" className="button subtle" onClick={() => void testLdap()} disabled={testing}><Network size={14}/>{testing ? "Testuji…" : "Test připojení"}</button></div>;
-    return <FieldInput key={name} entity="Settings" metadata={metadata} name={name} def={def} value={settings[name]} onChange={(value) => setSettings((old) => ({ ...old, [name]: value }))}/>;
+    return <FieldInput key={name} entity="Settings" metadata={metadata} name={name} def={def} value={settings[name]} columns={settings[`${name}Columns`] || {}} onColumnsChange={def.type === "linkMultiple" ? (columns) => setSettings((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} onChange={(value) => setSettings((old) => ({ ...old, [name]: value }))}/>;
   }
   return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={leave}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">PŘÍSTUP A ZABEZPEČENÍ</div><h1>Autentizace</h1><p>Nastavení přihlášení, metod ověření a zásad hesel podle konfigurace EspoCRM.</p></div><button className="button primary" onClick={() => void save()} disabled={busy || saving || !Object.keys(changed).length}><Save size={15}/>{saving ? "Ukládám…" : "Uložit změny"}</button></div>
     {error && <div className="table-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
@@ -4468,7 +4495,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     ? [{ type: "equals", attribute: "accountId", value: String(relatedContext.parentId) }]
     : [];
   const dynamicOptionLabels = Object.fromEntries(dynamicEnumOptions.map((option) => [String(option), type === "multiEnum" && metadata.scopes?.[String(option)] ? entityLabel(metadata, String(option), def.translation?.includes("Plural") ?? true) : optionLabel(option)]));
-  const relationEntity = metadata.entityDefs?.[entity]?.links?.[name]?.entity;
+  const relationEntity = metadata.entityDefs?.[entity]?.links?.[name]?.entity || (["link", "linkOne", "linkMultiple"].includes(type) ? def.entity : undefined);
   const parentCandidates: string[] = entity === "Note" && name === "parent" ? Object.keys(metadata.scopes || {}) : def.entityList || (metadata.entityDefs?.[entity]?.links?.[name] as any)?.entityList || Object.keys(metadata.scopes || {}).filter((scope) => metadata.scopes[scope].entity);
   const attachmentParentExcluded = new Set(["Preferences", "ExternalAccount", "Notification", "Note", "ArrayValue", "Attachment"]);
   const parentEntityList = parentCandidates.filter((scope) => Boolean(metadata.scopes[scope]?.entity) && canAccessEntity(metadata, scope) && !(entity === "Note" && name === "parent") || entity === "Note" && name === "parent" && Boolean(metadata.scopes[scope]?.entity && metadata.scopes[scope]?.object && metadata.scopes[scope]?.stream) && canAccessEntity(metadata, scope) && aclLevel(metadata, scope, "stream") !== "no").filter((scope) => !(entity === "Attachment" && attachmentParentExcluded.has(scope))).sort((a, b) => entityLabel(metadata, a, true).localeCompare(entityLabel(metadata, b, true), "cs"));
@@ -4619,7 +4646,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     const rowName = (row: Row) => row.name || [row.firstName, row.lastName].filter(Boolean).join(" ") || row.userName || row.emailAddress || row.id;
     const selectedRows = multi ? currentValue.map((id: string) => options.find((row) => row.id === id) || { id, name: id }) : [];
     const availableRows = multi ? options.filter((row) => !currentValue.includes(row.id)) : options;
-    const columnDefs = Object.entries(def.columns || {}).map(([key, foreignField]) => {
+    const columnDefs = Object.entries(linkMultipleColumns(entity, name, def)).map(([key, foreignField]) => {
       const field = String(foreignField);
       const foreignDef = metadata.entityDefs?.[relationEntity]?.fields?.[field];
       const localDef = metadata.entityDefs?.[entity]?.fields?.[field];
@@ -4627,7 +4654,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
       const attendeeStatus = ["Meeting", "Call"].includes(entity) && key === "status";
       return attendeeStatus
         ? { key, field, scope: entity, def: { ...(metadata.entityDefs?.[entity]?.fields?.acceptanceStatus || {}), label: "acceptanceStatus" } }
-        : { key, field, scope: columnScope, def: foreignDef || localDef || {} };
+        : { key, field, scope: columnScope, def: foreignDef || localDef || (entity === "Settings" && name === "oidcTeams" && key === "group" ? { type: "varchar", label: "IdP Group", maxLength: 255, placeholder: "IdP Group" } : {}) };
     });
     const primaryField = def.primaryLink || (entity === "Contact" && name === "accounts" ? "account" : "");
     const primaryValue = primaryId || (primaryField ? currentValue[0] || "" : "");
@@ -4687,7 +4714,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
         {selectedRows.map((row: Row) => <div className="relationship-selected-row" key={row.id}>
           <div className="relationship-selected-head"><strong>{rowName(row)}</strong><div>{primaryField && <button type="button" disabled={fieldDisabled} className={`relationship-primary-toggle ${primaryValue === row.id ? "active" : ""}`} title={primaryValue === row.id ? "Primární záznam" : "Nastavit jako primární"} aria-label={primaryValue === row.id ? `${rowName(row)} je primární` : `Nastavit ${rowName(row)} jako primární`} onClick={() => onPrimaryChange?.(row.id, rowName(row))}>{primaryValue === row.id ? "★" : "☆"}</button>}<button type="button" disabled={fieldDisabled} className="relationship-remove" onClick={() => removeSelected(row.id)} aria-label={`Odebrat ${rowName(row)}`}>×</button></div></div>
           {columnDefs.length > 0 && <div className="relationship-column-values">{columnDefs.map((column) => {
-            const columnLabel = fieldLabel(column.field, column.def, column.scope, metadata);
+            const columnLabel = entity === "Settings" && name === "oidcTeams" && column.key === "group" ? "IdP Group" : fieldLabel(column.field, column.def, column.scope, metadata);
             const current = columns[row.id]?.[column.key];
             const onValue = (next: any) => setColumnValue(row.id, column.key, next);
             if (entity === "User" && name === "teams" && column.key === "role") {
@@ -4699,7 +4726,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
             }
             if (column.def.type === "bool") return <label className="relationship-column-bool" key={column.key}><input type="checkbox" checked={Boolean(current)} disabled={Boolean(column.def.readOnly || column.def.disabled)} onChange={(event) => onValue(event.target.checked)}/><span>{columnLabel}</span></label>;
             if (["enum", "enumInt", "enumFloat"].includes(column.def.type || "")) return <label className="relationship-column-control" key={column.key}><span>{columnLabel}</span><select value={current == null ? "" : String(current)} disabled={Boolean(column.def.readOnly || column.def.disabled)} onChange={(event) => onValue(column.def.type === "enumFloat" && event.target.value !== "" ? Number(event.target.value) : event.target.value)}><option value="">—</option>{columnOptions(column, row.id).map((option) => <option key={String(option)} value={String(option)}>{(metadata.labels as any)?.[column.scope]?.options?.[column.field]?.[String(option)] || String(option)}</option>)}</select></label>;
-            return <label className="relationship-column-control" key={column.key}><span>{columnLabel}</span><input type={["int", "float", "currency"].includes(column.def.type || "") ? "number" : column.def.type === "date" ? "date" : "text"} value={current == null ? "" : String(current)} disabled={Boolean(column.def.readOnly || column.def.disabled)} onChange={(event) => onValue(["int", "float", "currency"].includes(column.def.type || "") && event.target.value !== "" ? Number(event.target.value) : event.target.value)}/></label>;
+            return <label className="relationship-column-control" key={column.key}><span>{columnLabel}</span><input type={["int", "float", "currency"].includes(column.def.type || "") ? "number" : column.def.type === "date" ? "date" : "text"} value={current == null ? "" : String(current)} disabled={Boolean(column.def.readOnly || column.def.disabled)} maxLength={column.def.maxLength} placeholder={column.def.placeholder || (entity === "Settings" && name === "oidcTeams" && column.key === "group" ? "IdP Group" : undefined)} onChange={(event) => onValue(["int", "float", "currency"].includes(column.def.type || "") && event.target.value !== "" ? Number(event.target.value) : event.target.value)}/></label>;
           })}</div>}
         </div>)}
         {!selectedRows.length && <small>Zatím nejsou vybrány žádné záznamy.</small>}
