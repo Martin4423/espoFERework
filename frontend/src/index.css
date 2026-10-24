@@ -683,6 +683,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .stream-toggle.is-on, .stream-item-action.is-on { border-color: #dddafa; background: #f3f2ff; color: #665fc2; }
 .stream-starred { color: #b4873f !important; }
 .stream-composer { margin-bottom: 17px; padding: 11px; border: 1px solid #e9eaf1; border-radius: 9px; background: #fff; }
+.stream-composer.is-internal { border-color: #ead6aa; background: #fffdf8; }
+.stream-internal-notice { display: flex; align-items: flex-start; gap: 8px; margin: 3px 0 7px; padding: 8px 9px; border: 1px solid #f0e4c8; border-radius: 7px; background: #fff7e7; color: #8b6b31; }
+.stream-internal-notice > svg { flex: 0 0 auto; margin-top: 1px; }
+.stream-internal-notice > span { display: grid; gap: 2px; }
+.stream-internal-notice strong { font-size: 10px; }
+.stream-internal-notice small { color: #927b51; font-size: 9px; }
+.stream-internal-toggle { display: inline-flex; align-items: center; gap: 5px; min-height: 27px; padding: 0 8px; border: 1px solid #e7e9f0; border-radius: 6px; background: #fff; color: #727d91; cursor: pointer; font: inherit; font-size: 9px; white-space: nowrap; }
+.stream-internal-toggle:hover { border-color: #d6c08f; color: #84652b; }
+.stream-internal-toggle.active { border-color: #dfc58f; background: #fff3dd; color: #84652b; }
 .stream-composer textarea { display: block; width: 100%; min-height: 58px; resize: vertical; padding: 3px; border: 0; outline: 0; color: #39455e; font: inherit; font-size: 11px; }
 .stream-composer textarea::placeholder { color: #a1a9b7; }
 .stream-composer > div:not(.stream-composer-input) { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 8px; border-top: 1px solid #f0f1f5; }

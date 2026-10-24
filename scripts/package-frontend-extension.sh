@@ -2,7 +2,7 @@
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-VERSION="2.0.116"
+VERSION="2.0.117"
 OUTPUT="$ROOT/packages/ViaCRM-Frontend-$VERSION.zip"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT HUP INT TERM
