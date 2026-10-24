@@ -53,10 +53,58 @@ import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, 
 import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, PendingSecondStep, Session, User } from "./api";
 
 type Row = Record<string, any>;
+type AddressParts = { street?: string; city?: string; state?: string; postalCode?: string; country?: string };
 type PageResult = { list: Row[]; total: number };
 type FilterCondition = { field: string; operator: string; value: string | string[]; valueTo?: string; valueNames?: Record<string, string> };
 type SaveConflictField = { name: string; label: string; current: unknown; actual: unknown; original: unknown };
 type PortalBranding = { name?: string; applicationName?: string; companyLogoId?: string; theme?: string; themeParams?: { navbar?: string } };
+
+let googleMapsApiPromise: Promise<void> | null = null;
+function loadGoogleMapsApi(apiKey: string): Promise<void> {
+  const google = (window as any).google;
+  if (google?.maps?.Geocoder) return Promise.resolve();
+  if (googleMapsApiPromise) return googleMapsApiPromise;
+  googleMapsApiPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    const params = new URLSearchParams({ callback: "__viaGoogleMapsLoaded", loading: "async", v: "weekly", libraries: "marker" });
+    if (apiKey) params.set("key", apiKey);
+    (window as any).__viaGoogleMapsLoaded = () => resolve();
+    script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
+    script.async = true; script.onerror = () => reject(new Error("Google Maps se nepodařilo načíst."));
+    document.head.appendChild(script);
+  }).catch((error) => { googleMapsApiPromise = null; throw error; });
+  return googleMapsApiPromise;
+}
+
+function addressText(address: AddressParts): string {
+  return [address.street, address.city, address.state, address.postalCode, address.country].map((part) => String(part || "").trim()).filter(Boolean).join(", ");
+}
+
+function GoogleAddressMap({ address, apiKey, mapId }: { address: AddressParts; apiKey: string; mapId: string }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [status, setStatus] = useState("Načítám mapu…");
+  useEffect(() => {
+    let cancelled = false;
+    let marker: any;
+    setStatus("Načítám mapu…");
+    loadGoogleMapsApi(apiKey).then(() => {
+      if (cancelled || !containerRef.current) return;
+      const maps = (window as any).google.maps;
+      const map = new maps.Map(containerRef.current, { zoom: 15, center: { lat: 0, lng: 0 }, scrollwheel: false, mapId: mapId || "DEMO_MAP_ID" });
+      const geocoder = new maps.Geocoder();
+      geocoder.geocode({ address: addressText(address) }, (results: any[], resultStatus: string) => {
+        if (cancelled) return;
+        if (resultStatus !== "OK" || !results?.[0]?.geometry?.location) { setStatus("Adresu se nepodařilo na mapě najít."); return; }
+        const location = results[0].geometry.location;
+        map.setCenter(location);
+        marker = maps.marker?.AdvancedMarkerElement ? new maps.marker.AdvancedMarkerElement({ map, position: location }) : new maps.Marker({ map, position: location });
+        setStatus("");
+      });
+    }).catch((error) => { if (!cancelled) setStatus(error instanceof Error ? error.message : "Mapu se nepodařilo otevřít."); });
+    return () => { cancelled = true; if (marker?.setMap) marker.setMap(null); else if (marker) marker.map = null; };
+  }, [address, apiKey, mapId]);
+  return <div className="address-map-frame"><div className="address-map-canvas" ref={containerRef}/>{status && <div className="address-map-status"><span>{status}</span></div>}</div>;
+}
 
 const portalThemeColors: Record<string, Record<string, string>> = {
   Dark: { primary: "#486581", primaryDark: "#38516a", nav: "#23262a", canvas: "#18191d", surface: "#23262a", ink: "#dbdbdb", line: "#383b40" },
@@ -2417,7 +2465,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   const [editor, setEditor] = useState(false);
   const [layoutSetEditorOpen, setLayoutSetEditorOpen] = useState(false);
   const [dashboardDeployOpen, setDashboardDeployOpen] = useState(false);
-  const [mapAddress, setMapAddress] = useState("");
+  const [mapAddress, setMapAddress] = useState<AddressParts | null>(null);
   const [busy, setBusy] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [currencyConvertOpen, setCurrencyConvertOpen] = useState(false);
@@ -2584,7 +2632,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     {!record.deleted && entity === "EmailTemplate" && <EmailTemplatePlaceholdersPanel metadata={metadata}/>}
     {!record.deleted && entity === "LeadCapture" && <LeadCaptureInfoPanel record={record}/>}
     {!record.deleted && entity === "Lead" && <LeadConversionResultPanel record={record} metadata={metadata} onOpenRecord={onOpenRelated}/>}
-    {panels.map((panel, panelIndex) => { const entries = (panel.rows || []).flat().filter((item): item is Exclude<LayoutItem, false> => Boolean(item) && typeof item === "object" && Boolean(item.name) && readableFieldPermissions[item.name!]?.read !== "no"); return entries.length ? <section className="detail-panel" key={`${panel.label || "panel"}-${panelIndex}`}><div className="drawer-section-title">{panel.label || "INFORMACE O ZÁZNAMU"}</div><div className="detail-grid">{entries.map(({ name }) => { const def = fields[name!]; const isAddress = def?.type === "address"; const addressParts = isAddress ? [["street", "Street"], ["city", "City"], ["state", "State"], ["postalCode", "PostalCode"], ["country", "Country"]].map(([, suffix]) => record[`${name}${suffix}`]).filter(Boolean) : []; const isSecret = entity === "AppSecret" && name === "value"; const value = isSecret ? "**********" : isAddress ? addressParts.join(", ") : entity === "CampaignLogRecord" && name === "data" ? (record.data ?? record.stringData ?? record.action) : getValue(name!); return value == null || value === "" ? null : <div className="detail-field" key={name}><span>{fieldLabel(name!, def, entity, metadata)}</span>{entity === "CampaignLogRecord" && name === "data" ? <CampaignLogDataView record={record} onOpenRecord={onOpenRelated}/> : entity === "OAuthProvider" && name === "authorizationParams" ? <OAuthAuthorizationParams value={value} label={fieldLabel(name, def, entity, metadata)} readOnly/> : ["url", "urlMultiple"].includes(String(def?.type)) ? <UrlFieldDisplay value={value} multiple={def?.type === "urlMultiple"} copyToClipboard={Boolean(def?.copyToClipboard)}/> : ["email", "emailAddress", "phone"].includes(String(def?.type)) ? <ContactFieldDisplay value={value} type={String(def?.type)}/> : def?.type?.startsWith("enum") ? <EnumValue value={value} def={def} metadata={metadata} entity={entity} name={name}/> : <strong>{isSecret ? "**********" : def?.type === "currency" ? formatCurrency(value, record[`${name}Currency`], metadata) : def?.type === "currencyConverted" ? formatCurrency(value, metadata.appSettings?.defaultCurrency, metadata) : displayValue(value, def) || "—"}</strong>}{isAddress && (record[`${name}City`] || record[`${name}PostalCode`]) && <button type="button" className="address-map-button" onClick={() => setMapAddress(addressParts.join(", "))}><MapPin size={13}/> Zobrazit mapu</button>}</div>; })}</div></section> : null; })}
+    {panels.map((panel, panelIndex) => { const entries = (panel.rows || []).flat().filter((item): item is Exclude<LayoutItem, false> => Boolean(item) && typeof item === "object" && Boolean(item.name) && readableFieldPermissions[item.name!]?.read !== "no"); return entries.length ? <section className="detail-panel" key={`${panel.label || "panel"}-${panelIndex}`}><div className="drawer-section-title">{panel.label || "INFORMACE O ZÁZNAMU"}</div><div className="detail-grid">{entries.map(({ name }) => { const def = fields[name!]; const isAddress = def?.type === "address"; const addressParts = isAddress ? [["street", "Street"], ["city", "City"], ["state", "State"], ["postalCode", "PostalCode"], ["country", "Country"]].map(([, suffix]) => record[`${name}${suffix}`]).filter(Boolean) : []; const isSecret = entity === "AppSecret" && name === "value"; const value = isSecret ? "**********" : isAddress ? addressParts.join(", ") : entity === "CampaignLogRecord" && name === "data" ? (record.data ?? record.stringData ?? record.action) : getValue(name!); return value == null || value === "" ? null : <div className="detail-field" key={name}><span>{fieldLabel(name!, def, entity, metadata)}</span>{entity === "CampaignLogRecord" && name === "data" ? <CampaignLogDataView record={record} onOpenRecord={onOpenRelated}/> : entity === "OAuthProvider" && name === "authorizationParams" ? <OAuthAuthorizationParams value={value} label={fieldLabel(name, def, entity, metadata)} readOnly/> : ["url", "urlMultiple"].includes(String(def?.type)) ? <UrlFieldDisplay value={value} multiple={def?.type === "urlMultiple"} copyToClipboard={Boolean(def?.copyToClipboard)}/> : ["email", "emailAddress", "phone"].includes(String(def?.type)) ? <ContactFieldDisplay value={value} type={String(def?.type)}/> : def?.type?.startsWith("enum") ? <EnumValue value={value} def={def} metadata={metadata} entity={entity} name={name}/> : <strong>{isSecret ? "**********" : def?.type === "currency" ? formatCurrency(value, record[`${name}Currency`], metadata) : def?.type === "currencyConverted" ? formatCurrency(value, metadata.appSettings?.defaultCurrency, metadata) : displayValue(value, def) || "—"}</strong>}{isAddress && (record[`${name}Street`] || record[`${name}City`] || record[`${name}State`] || record[`${name}PostalCode`] || record[`${name}Country`]) && <button type="button" className="address-map-button" onClick={() => setMapAddress({ street: record[`${name}Street`], city: record[`${name}City`], state: record[`${name}State`], postalCode: record[`${name}PostalCode`], country: record[`${name}Country`] })}><MapPin size={13}/> Zobrazit mapu</button>}</div>; })}</div></section> : null; })}
     {!record.deleted && entity === "User" && record.type === "api" && <section className="detail-panel"><div className="drawer-section-title">API PŘÍSTUP</div><div className="user-api-credentials">{[["Metoda ověření", record.authMethod || "ApiKey"], ["API klíč", record.apiKey], ...(record.authMethod === "Hmac" ? [["Tajný klíč", record.secretKey]] : [])].filter(([, value]) => Boolean(value)).map(([label, value]) => <div key={String(label)}><span><small>{label}</small><code>{String(value)}</code></span><button className="button subtle" onClick={() => void navigator.clipboard.writeText(String(value))}>Kopírovat</button></div>)}</div></section>}
     {!record.deleted && entity === "User" && isAdminViewer && <AdminUserLoginHistory userId={record.id}/>}
     {!record.deleted && <RecordRelationships entity={entity} record={record} metadata={metadata} onOpenRecord={onOpenRelated} onComposeEmail={onComposeEmail} renderActivityEditor={(scope, initialValues, onActivitySaved, onActivityClose) => <RecordEditor key={`${scope}-${initialValues.id || "new"}`} entity={scope} fields={getEditorFields(metadata, scope)} metadata={metadata} record={initialValues.id ? initialValues : undefined} initialValues={initialValues} onClose={onActivityClose} onSaved={onActivitySaved}/>}/>}
@@ -2592,7 +2640,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     {!record.deleted && aclLevel(metadata, entity, "stream") !== "no" && <RecordStream entity={entity} record={record} metadata={metadata} onOpenNote={(note) => { void request<Row>(`Note/${encodeURIComponent(note.id)}`).then((fresh) => onOpenRelated("Note", fresh)).catch(() => onOpenRelated("Note", note)); }}/>}
     <div className="drawer-meta"><span>Vytvořeno</span><b>{formatDate(record.createdAt)}</b><span>Naposledy upraveno</span><b>{formatDate(record.modifiedAt)}</b></div>
   </aside>
-  {mapAddress && <div className="modal-backdrop address-map-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMapAddress("")}><section className="record-modal address-map-modal"><div className="modal-heading"><div><span className="eyebrow">MAPA ADRESY</span><h2>{mapAddress}</h2></div><button className="icon-button" onClick={() => setMapAddress("")} aria-label="Zavřít"><X size={17}/></button></div><iframe title={`Mapa: ${mapAddress}`} src={`https://maps.google.com/maps?q=${encodeURIComponent(mapAddress)}&output=embed`} loading="lazy"/><a className="button subtle" href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(mapAddress)}`} target="_blank" rel="noreferrer">Otevřít větší mapu <ArrowRight size={14}/></a></section></div>}
+  {mapAddress && <div className="modal-backdrop address-map-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMapAddress(null)}><section className="record-modal address-map-modal"><div className="modal-heading"><div><span className="eyebrow">MAPA ADRESY</span><h2>{addressText(mapAddress)}</h2></div><button className="icon-button" onClick={() => setMapAddress(null)} aria-label="Zavřít"><X size={17}/></button></div><GoogleAddressMap address={mapAddress} apiKey={String(metadata.appSettings?.googleMapsApiKey || "")} mapId={String(metadata.appSettings?.googleMapsMapId || "")}/><a className="button subtle" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText(mapAddress))}`} target="_blank" rel="noreferrer">Otevřít větší mapu <ArrowRight size={14}/></a></section></div>}
   {massTestOpen && <div className="modal-backdrop"><section className="record-modal" role="dialog" aria-modal="true"><div className="modal-heading"><div><span className="eyebrow">HROMADNÝ E-MAIL · TEST</span><h2>Odeslat testovací e-mail</h2><p>Vyberte příjemce testovací zprávy.</p></div><button type="button" className="icon-button" onClick={() => setMassTestOpen(false)} disabled={massTestBusy} aria-label="Zavřít"><X size={17}/></button></div><div className="campaign-test-recipient-list">{(["User", "Contact", "Lead", "Account"] as const).filter((scope) => canAccessEntity(metadata, scope)).map((scope) => <div key={scope}><span><strong>{entityLabel(metadata, scope, true)}</strong><small>{massTestRecipients[scope].map((item) => item.name || item.userName || item.id).join(", ") || "Nikdo nevybrán"}</small></span><button type="button" className="button subtle" onClick={() => setMassTestPicker(scope)}><Plus size={13}/> Vybrat</button></div>)}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setMassTestOpen(false)} disabled={massTestBusy}>Zrušit</button><button type="button" className="button primary" onClick={() => void sendMassEmailTest()} disabled={massTestBusy || !Object.values(massTestRecipients).some((items) => items.length)}>{massTestBusy ? "Odesílám…" : "Odeslat test"}<Send size={14}/></button></div></section></div>}
   {massTestPicker && <SelectRecordsDialog entity={massTestPicker} metadata={metadata} multiple selectedIds={massTestRecipients[massTestPicker].map((item) => item.id)} selectedRows={massTestRecipients[massTestPicker]} onClose={() => setMassTestPicker("")} onSelect={(items) => { setMassTestRecipients((old) => ({ ...old, [massTestPicker]: items })); setMassTestPicker(""); }}/>}
   {targetAcl && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setTargetAcl(null)}><section className="record-modal user-access-modal"><div className="modal-heading"><div><span className="eyebrow">PŘÍSTUPOVÁ PRÁVA</span><h2>{record.name || record.userName}</h2></div><button className="icon-button" onClick={() => setTargetAcl(null)} aria-label="Zavřít"><X size={17}/></button></div><div className="user-access-table"><div className="user-access-row header"><b>Modul</b><b>Čtení</b><b>Vytvořit</b><b>Upravit</b><b>Smazat</b><b>Stream</b></div>{Object.entries(targetAcl.table || {}).filter(([, acl]) => acl && typeof acl === "object").sort(([a], [b]) => entityLabel(metadata, a).localeCompare(entityLabel(metadata, b), "cs")).map(([scope, raw]) => { const permission = raw as Row; return <div className="user-access-row" key={scope}><strong>{entityLabel(metadata, scope, true)}</strong>{["read", "create", "edit", "delete", "stream"].map((key) => <span key={key} className={`user-access-state ${permission[key] === "no" ? "denied" : permission[key] ? "granted" : "unknown"}`}>{permission[key] === "no" ? "Ne" : permission[key] ? permission[key] === "all" ? "Vše" : "Ano" : "—"}</span>)}</div>; })}</div><div className="modal-footer"><button className="button subtle" onClick={() => setTargetAcl(null)}>Zavřít</button></div></section></div>}
