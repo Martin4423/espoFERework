@@ -119,7 +119,9 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
   const [testBusy, setTestBusy] = useState(false);
   const [taskEditorInitial, setTaskEditorInitial] = useState<Row | null>(null);
   const perPage = 8;
-  const layoutName = typeof panel.layout === "string" ? panel.layout : "listSmall";
+  const jobWithTargetList = ((metadata.clientDefs?.ScheduledJob as any)?.jobWithTargetList || []) as string[];
+  const scheduledJobTargetLog = entity === "ScheduledJob" && relatedEntity === "ScheduledJobLogRecord" && jobWithTargetList.includes(String(record.job || ""));
+  const layoutName = scheduledJobTargetLog ? "listSmallWithTarget" : typeof panel.layout === "string" ? panel.layout : "listSmall";
   const [relatedLayout, setRelatedLayout] = useState<LayoutItem[]>(Array.isArray(panel.layout) ? panel.layout : []);
   useEffect(() => {
     if (Array.isArray(panel.layout)) { setRelatedLayout(panel.layout); return; }
