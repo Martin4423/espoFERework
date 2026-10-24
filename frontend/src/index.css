@@ -1258,6 +1258,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .personal-dashlet-open { display: flex; min-width: 0; flex: 1; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 2px; border: 0; background: transparent; color: #8490a2; text-align: left; cursor: pointer; }
 .personal-dashlet-open:hover strong { color: #5148c8; }
 .personal-dashlet-open > span { display: grid; min-width: 0; gap: 4px; }
+.dashlet-expanded-field { display: flex; gap: 5px; color: #64748b; font-size: 11px; }
+.dashlet-expanded-field > span { color: #97a1b1; }
+.dashlet-expanded-field.soft { opacity: .72; }
+.dashlet-expanded-field.small { font-size: 10px; }
 .personal-dashlet-row-actions { display: flex; flex: 0 0 auto; gap: 1px; opacity: .55; }
 .personal-dashlet-email-row:hover .personal-dashlet-row-actions, .personal-dashlet-row-actions:focus-within { opacity: 1; }
 .personal-dashlet-row-actions .icon-button { width: 25px; height: 25px; }
