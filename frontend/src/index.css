@@ -2224,6 +2224,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .address-input-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .address-input-grid label { display: grid; gap: 5px; color: #68748a; font-size: 10px; font-weight: 600; }
 .address-input-grid .address-street { grid-column: 1 / -1; }
+.address-copy-billing { justify-self: start; margin-top: 9px; }
 .address-map-button { display: inline-flex; align-items: center; gap: 5px; justify-self: start; border: 0; background: none; padding: 2px 0; color: var(--accent, #625bd7); font: inherit; font-size: 10px; cursor: pointer; }
 .address-map-modal { width: min(760px, calc(100vw - 32px)); }
 .address-map-frame { position: relative; width: 100%; height: min(58vh, 480px); margin: 14px 0; overflow: hidden; border-radius: 10px; background: #f3f5f9; }
