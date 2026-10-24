@@ -236,8 +236,12 @@ export default function AdminFieldManager({ metadata, onBack }: { metadata: Meta
     if (param.hidden) return null;
     const name = param.name as string;
     const type = param.type || "varchar";
-    const options = param.name === "default" && (param.view?.includes("options/default") || nativeFieldDefs.customizationDefaultView === "views/admin/field-manager/fields/currency-default") ? optionsForDefault(param) : paramOptionList(param);
     const value = data[name] ?? param.default ?? (["array", "arrayInt", "multiEnum"].includes(type) ? [] : "");
+    const options = (() => {
+      const list = param.name === "default" && (param.view?.includes("options/default") || nativeFieldDefs.customizationDefaultView === "views/admin/field-manager/fields/currency-default") ? optionsForDefault(param) : paramOptionList(param);
+      // Native enum views retain an existing value even when it is no longer in the option list.
+      return param.name === "default" && value != null && value !== "" && !list.includes(String(value)) ? [...list, String(value)] : list;
+    })();
     const label = fieldLabel(name, undefined);
     const setValue = (next: unknown) => setData((old) => ({ ...old, [name]: next }));
     if (param.view === "views/admin/field-manager/fields/options" || param.view === "views/admin/field-manager/fields/options-with-style") {
