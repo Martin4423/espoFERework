@@ -1768,12 +1768,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Extension and core upgrade workflows. */
 .package-admin-view { display: grid; gap: 13px; }
 .package-upload, .package-ready, .upgrade-ready { display: flex; align-items: center; gap: 14px; padding: 17px 19px; }
+.package-upload { position: relative; border: 1px dashed #d9deea; transition: border-color .16s ease, background .16s ease, box-shadow .16s ease; }
+.package-upload.drag-over { border-color: #6258d6; background: #f7f6ff; box-shadow: 0 0 0 3px rgb(98 88 214 / 9%); }
+.package-upload.upload-disabled { cursor: progress; }
 .package-upload-icon, .package-ready-icon { display: grid; flex: 0 0 auto; width: 42px; height: 42px; place-items: center; border-radius: 11px; background: #f0efff; color: #5a51cb; }
 .package-upload > div:nth-child(2), .package-ready-copy { flex: 1; min-width: 0; }
 .package-upload strong, .package-ready-copy > strong { display: block; color: #334159; font-size: 12px; }
 .package-upload p, .package-ready-copy p, .upgrade-ready p { margin: 5px 0 0; color: #8691a2; font-size: 10px; line-height: 1.55; }
 .package-upload label { position: relative; cursor: pointer; }
+.package-upload label:focus-within { outline: 3px solid rgb(98 88 214 / 28%); outline-offset: 3px; }
 .package-upload input[type=file] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.package-drop-hint { display: block; margin-top: 4px; color: #929baa; font-size: 9px; }
+.package-drop-overlay { position: absolute; z-index: 2; inset: 5px; display: grid; place-items: center; border: 1px solid #6258d6; border-radius: 10px; background: rgb(247 246 255 / 94%); color: #5148bd; font-size: 12px; font-weight: 650; pointer-events: none; }
 .package-ready { border-color: #d8d5fa; background: #fbfaff; }
 .package-ready-copy { display: grid; gap: 5px; }
 .package-ready-copy .eyebrow { color: #6159c9; }
