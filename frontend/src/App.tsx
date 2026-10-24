@@ -1627,7 +1627,7 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   const [groupFolders, setGroupFolders] = useState<MailFolder[]>([]);
   const [folderReload, setFolderReload] = useState(0);
   const [folderEditor, setFolderEditor] = useState<{ entity: "EmailFolder" | "GroupEmailFolder"; record?: Row } | null>(null);
-  const [folderPicker, setFolderPicker] = useState<{ ids: string[]; groupOnly: boolean; allowArchive: boolean } | null>(null);
+  const [folderPicker, setFolderPicker] = useState<{ ids: string[]; groupOnly: boolean; allowArchive: boolean; allResults?: boolean; total?: number } | null>(null);
   const [folderPickerSearch, setFolderPickerSearch] = useState("");
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [folderId, setFolderId] = useState("inbox");
@@ -1635,13 +1635,31 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
+  const [allResultsSelected, setAllResultsSelected] = useState(false);
   const [draggingIds, setDraggingIds] = useState<string[]>([]);
   const [dropTarget, setDropTarget] = useState("");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const pageSize = 30;
+  const selectionQueryKey = JSON.stringify([folderId, search, emailFilters]);
+  const previousSelectionQueryKey = useRef(selectionQueryKey);
+  useEffect(() => {
+    if (previousSelectionQueryKey.current !== selectionQueryKey) {
+      previousSelectionQueryKey.current = selectionQueryKey;
+      setSelected([]); setAllResultsSelected(false);
+    }
+  }, [selectionQueryKey]);
+  const buildInboxWhere = useCallback((): Row[] => {
+    const where: Row[] = [{ type: "inFolder", attribute: "folderId", value: folderId }];
+    if (emailFilters.from.trim()) where.push({ type: "contains", attribute: "fromAddress", value: emailFilters.from.trim() });
+    if (emailFilters.subject.trim()) where.push({ type: "contains", attribute: "subject", value: emailFilters.subject.trim() });
+    if (emailFilters.dateFrom) where.push({ type: "after", attribute: "dateSent", value: `${emailFilters.dateFrom} 00:00:00` });
+    if (emailFilters.dateTo) where.push({ type: "before", attribute: "dateSent", value: `${emailFilters.dateTo} 23:59:59` });
+    return where;
+  }, [folderId, emailFilters]);
   useEffect(() => {
     let live = true;
     const groupFolderRequest = canAccessEntity(metadata, "GroupEmailFolder") ? request<PageResult>("GroupEmailFolder?maxSize=200&offset=0&orderBy=order&order=asc").catch(() => ({ list: [], total: 0 })) : Promise.resolve({ list: [], total: 0 });
@@ -1654,18 +1672,14 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     return () => { live = false; };
   }, [refresh, folderReload, metadata]);
   const load = useCallback(async () => {
-    setBusy(true); setError(""); setSelected([]);
-    const where: Row[] = [{ type: "inFolder", attribute: "folderId", value: folderId }];
-    if (emailFilters.from.trim()) where.push({ type: "contains", attribute: "fromAddress", value: emailFilters.from.trim() });
-    if (emailFilters.subject.trim()) where.push({ type: "contains", attribute: "subject", value: emailFilters.subject.trim() });
-    if (emailFilters.dateFrom) where.push({ type: "after", attribute: "dateSent", value: `${emailFilters.dateFrom} 00:00:00` });
-    if (emailFilters.dateTo) where.push({ type: "before", attribute: "dateSent", value: `${emailFilters.dateTo} 23:59:59` });
+    setBusy(true); setError("");
+    const where = buildInboxWhere();
     const params = new URLSearchParams({ maxSize: String(pageSize), offset: String(offset), orderBy: "dateSent", order: "desc", where: JSON.stringify(where) });
     if (search) params.set("textFilter", search);
     try { const result = await request<PageResult>(`Email?${params}`); setRows(result.list || []); setTotal(result.total > 0 ? result.total : 0); }
     catch (e) { setRows([]); setError(e instanceof Error ? e.message : "E-maily se nepodařilo načíst."); }
     finally { setBusy(false); }
-  }, [folderId, offset, search, emailFilters, refresh]);
+  }, [folderId, offset, search, emailFilters, refresh, allResultsSelected, buildInboxWhere]);
   useEffect(() => { void load(); }, [load]);
   async function sendDraft(row: Row) {
     if (!row.id || row.status !== "Draft" || row.createdById !== getSession()?.user.id) return;
@@ -1680,10 +1694,10 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     catch (cause) { setError(cause instanceof Error ? cause.message : "E-mail se nepodařilo odstranit."); }
   }
   async function bulkAction(kind: "read" | "unread" | "important" | "unimportant" | "trash" | "archive") {
-    if (!selected.length) return;
+    if (!selected.length || allResultsSelected) return;
     const endpoint = kind === "read" || kind === "unread" ? "Email/inbox/read" : kind === "important" || kind === "unimportant" ? "Email/inbox/important" : kind === "trash" ? "Email/inbox/inTrash" : "Email/inbox/folders/archive";
     const method = ["unread", "unimportant"].includes(kind) || kind === "trash" && selectedRows.length > 0 && selectedRows.every(isEmailInTrash) ? "DELETE" : "POST";
-    try { await request(endpoint, { method, body: JSON.stringify({ ids: selected }) }); await load(); request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {}); }
+    try { await request(endpoint, { method, body: JSON.stringify({ ids: selected }) }); setSelected([]); await load(); request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {}); }
     catch (e) { setError(e instanceof Error ? e.message : "Hromadnou akci se nepodařilo provést."); }
   }
   async function rowAction(row: Row, kind: "read" | "unread" | "trash" | "retrieve" | "archive" | "move", destination = "") {
@@ -1699,15 +1713,25 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   }
   async function markAllAsRead() {
     if (!window.confirm("Označit všechny e-mailové zprávy jako přečtené?")) return;
-    try { await request("Email/inbox/read", { method: "POST", body: JSON.stringify({ all: true }) }); await load(); request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {}); }
+    try { await request("Email/inbox/read", { method: "POST", body: JSON.stringify({ all: true }) }); setSelected([]); setAllResultsSelected(false); await load(); request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {}); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Zprávy se nepodařilo označit jako přečtené."); }
   }
-  async function moveMessages(ids: string[], destination: string) {
-    if (!destination || !ids.length) return;
+  async function moveMessages(ids: string[], destination: string, allResults = false) {
+    if (!destination || (!ids.length && !allResults)) return;
+    if (allResults && !window.confirm(`Přesunout všech ${total} e-mailů odpovídajících aktuální složce a filtrům?`)) return;
+    setError(""); setNotice("");
     try {
-      if (folderId === "trash") await request("Email/inbox/inTrash", { method: "DELETE", body: JSON.stringify({ ids }) });
-      await request(`Email/inbox/folders/${encodeURIComponent(destination)}`, { method: "POST", body: JSON.stringify({ ids }) });
-      setFolderPicker(null); setFolderPickerSearch("");
+      if (allResults) {
+        const result = await request<Row>("MassAction", { method: "POST", body: JSON.stringify({ entityType: "Email", action: "moveToFolder", params: { where: buildInboxWhere(), searchParams: { textFilter: search || undefined, orderBy: "dateSent", order: "desc" } }, data: { folderId: destination } }) });
+        const count = typeof result?.count === "number" && Number.isFinite(result.count) ? result.count : total;
+        const targetName = [...systemMailFolders, ...folders, ...groupFolders].find((folder) => folder.id === destination)?.name || "cílové složky";
+        setNotice(`${count} ${count === 1 ? "zpráva přesunuta" : "zpráv přesunuto"} do složky „${targetName}“.`);
+      } else {
+        if (folderId === "trash") await request("Email/inbox/inTrash", { method: "DELETE", body: JSON.stringify({ ids }) });
+        await request(`Email/inbox/folders/${encodeURIComponent(destination)}`, { method: "POST", body: JSON.stringify({ ids }) });
+        setNotice(`${ids.length} ${ids.length === 1 ? "zpráva přesunuta" : "zprávy přesunuty"}.`);
+      }
+      setFolderPicker(null); setFolderPickerSearch(""); setSelected([]); setAllResultsSelected(false);
       await load();
       request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {});
     } catch (e) { setError(e instanceof Error ? e.message : "Zprávy se nepodařilo přesunout."); }
@@ -1773,9 +1797,10 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   const markImportantKind = selectedRows.length && selectedRows.every((row) => row.isImportant) ? "unimportant" : "important";
   const isEmailInTrash = (row: Row) => row.groupFolderId ? row.groupStatusFolder === "Trash" : Boolean(row.inTrash);
   const isEmailInArchive = (row: Row) => row.groupFolderId ? row.groupStatusFolder === "Archive" : Boolean(row.inArchive);
-  const canBulkMarkRead = selectedRows.length > 0 && selectedRows.every((row) => row.isUsers) && (folderId !== "all" || markAsReadKind === "read");
-  const canBulkMarkImportant = selectedRows.length > 0 && selectedRows.every((row) => row.isUsers) && (!['all', 'important'].includes(folderId) || markImportantKind === "unimportant");
-  const canBulkTrash = selectedRows.length > 0 && folderId !== "all" && selectedRows.every((row) => row.isUsers || row.groupFolderId);
+  const allSelectedRowsLoaded = selectedRows.length === selected.length;
+  const canBulkMarkRead = allSelectedRowsLoaded && selectedRows.length > 0 && selectedRows.every((row) => row.isUsers) && (folderId !== "all" || markAsReadKind === "read");
+  const canBulkMarkImportant = allSelectedRowsLoaded && selectedRows.length > 0 && selectedRows.every((row) => row.isUsers) && (!['all', 'important'].includes(folderId) || markImportantKind === "unimportant");
+  const canBulkTrash = allSelectedRowsLoaded && selectedRows.length > 0 && folderId !== "all" && selectedRows.every((row) => row.isUsers || row.groupFolderId);
   const canMoveEmailFolder = (row: Row) => Boolean(row.isUsers || row.groupFolderId || row.status === "Archived") && !(row.groupFolderId && isEmailInTrash(row));
   const renderCustomFolder = (folder: MailFolder, entityName: "EmailFolder" | "GroupEmailFolder", index: number, list: MailFolder[]) => {
     const canEdit = canChangeEntity(metadata, entityName, "edit");
@@ -1792,12 +1817,12 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
       <div className="mail-folder-management">{canCreateEntity(metadata, "EmailFolder") && <button type="button" onClick={() => setFolderEditor({ entity: "EmailFolder" })}><Plus size={12}/>Nová osobní složka</button>}{canCreateEntity(metadata, "GroupEmailFolder") && <button type="button" onClick={() => setFolderEditor({ entity: "GroupEmailFolder" })}><Plus size={12}/>Nová skupinová složka</button>}</div>
     </aside><div className="mail-main"><div className="mail-toolbar"><div className="mail-folder-title"><h2>{currentFolder?.name || "E-mail"}</h2><span>{total ? total.toLocaleString("cs-CZ") : rows.length} zpráv</span></div><form className="mail-search" onSubmit={(e) => { e.preventDefault(); setOffset(0); setSearch(query.trim()); }}><Search size={15}/><input placeholder="Hledat ve zprávách" value={query} onChange={(e) => setQuery(e.target.value)}/><button type="submit" aria-label="Hledat"><ArrowRight size={14}/></button></form><button type="button" className={`mail-filter-toggle ${filtersOpen ? "active" : ""}`} onClick={() => setFiltersOpen((open) => !open)}><SlidersHorizontal size={14}/>Filtry{Object.values(emailFilters).some(Boolean) && <i/>}</button>{Boolean(counts[folderId]) && <button type="button" className="mail-mark-all-read" onClick={() => void markAllAsRead()}><Check size={13}/>Označit vše jako přečtené</button>}<button className="icon-button" title="Obnovit" onClick={() => void load()}><RefreshCw size={15}/></button></div>
       {filtersOpen && <form className="mail-filter-panel" onSubmit={(event) => { event.preventDefault(); if (filterDraft.dateFrom && filterDraft.dateTo && filterDraft.dateFrom > filterDraft.dateTo) { setError("Datum od musí být před datem do."); return; } setError(""); setOffset(0); setEmailFilters({ ...filterDraft }); }}><label>Odesílatel<input value={filterDraft.from} onChange={(event) => setFilterDraft((current) => ({ ...current, from: event.target.value }))} placeholder="e-mailová adresa"/></label><label>Předmět<input value={filterDraft.subject} onChange={(event) => setFilterDraft((current) => ({ ...current, subject: event.target.value }))} placeholder="část předmětu"/></label><label>Od data<input type="date" value={filterDraft.dateFrom} onChange={(event) => setFilterDraft((current) => ({ ...current, dateFrom: event.target.value }))}/></label><label>Do data<input type="date" value={filterDraft.dateTo} onChange={(event) => setFilterDraft((current) => ({ ...current, dateTo: event.target.value }))}/></label><div><button type="button" className="button subtle" onClick={() => { const empty = { from: "", subject: "", dateFrom: "", dateTo: "" }; setFilterDraft(empty); setEmailFilters(empty); setOffset(0); }}>Vymazat</button><button type="submit" className="button primary">Použít filtry</button></div></form>}
-      {selected.length > 0 && <div className="mail-bulkbar"><span>{selected.length} vybráno</span>{canChangeEntity(metadata, "Email", "edit") && <>{canBulkMarkRead && <button onClick={() => void bulkAction(markAsReadKind)}>{markAsReadKind === "read" ? "Označit jako přečtené" : "Označit jako nepřečtené"}</button>}{canBulkMarkImportant && <button onClick={() => void bulkAction(markImportantKind)}><Star size={14}/>{markImportantKind === "important" ? "Označit důležité" : "Odebrat důležitost"}</button>}</>}{canChangeEntity(metadata, "Email", "edit") && <>{selectedRows.every(canMoveEmailFolder) && <button type="button" onClick={() => { setFolderPicker({ ids: selected, groupOnly: folderId.startsWith("group:") || folderId === "all", allowArchive: folderId !== "all" }); setFolderPickerSearch(""); }}><Folder size={14}/>Přesunout do…</button>}{canBulkTrash && <button className="mail-trash-action" onClick={() => void bulkAction("trash")}><Trash2 size={14}/>{selectedRows.every(isEmailInTrash) ? "Obnovit" : "Koš"}</button>}</>}</div>}
-      {error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
-      <div className="mail-list-head"><label><input type="checkbox" aria-label="Vybrat všechny zprávy na stránce" checked={rows.length > 0 && selected.length === rows.length} onChange={(e) => setSelected(e.target.checked ? rows.map((row) => row.id) : [])}/></label><span aria-hidden="true"/><span aria-hidden="true"/><span>ZPRÁVA</span><span>OD / VZTAH</span><span>DATUM</span></div>
-      <div className="mail-list">{busy ? <div className="mail-loading"><span className="spinner"/>Načítám zprávy…</div> : rows.length ? rows.map((row) => <div className={`mail-row ${row.isRead ? "" : "unread"} ${selected.includes(row.id) ? "selected" : ""} ${draggingIds.includes(row.id) ? "dragging" : ""}`} key={row.id} onDragEnd={() => { setDraggingIds([]); setDropTarget(""); }}>
-        <label className="mail-check" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={selected.includes(row.id)} onChange={(e) => setSelected((old) => e.target.checked ? [...old, row.id] : old.filter((id) => id !== row.id))}/></label>
-        <button type="button" className="mail-drag-handle" draggable={canChangeEntity(metadata, "Email", "edit") && folderId !== "drafts"} aria-label={`Přesunout zprávu ${row.subject || "bez předmětu"}; pro přesun klávesnicí použijte akci složky`} title="Přetáhnout do složky" onDragStart={(event) => startEmailDrag(event, row)} onClick={() => { const groupOnly = Boolean(row.groupFolderId) || !row.isUsers; setFolderPicker({ ids: [row.id], groupOnly, allowArchive: Boolean(row.groupFolderId) || Boolean(row.isUsers) }); setFolderPickerSearch(""); }}><GripVertical size={15}/></button>
+      {(selected.length > 0 || allResultsSelected) && <div className="mail-bulkbar"><span>{allResultsSelected ? `${total} výsledků vybráno` : `${selected.length} vybráno`}</span>{!allResultsSelected && canChangeEntity(metadata, "Email", "edit") && rows.length > 0 && rows.every((row) => selected.includes(row.id)) && folderId !== "all" && total > rows.length && <button className="mail-select-all-results" onClick={() => { setSelected([]); setAllResultsSelected(true); }}>Vybrat všech {total} výsledků</button>}{canChangeEntity(metadata, "Email", "edit") && !allResultsSelected && <>{canBulkMarkRead && <button onClick={() => void bulkAction(markAsReadKind)}>{markAsReadKind === "read" ? "Označit jako přečtené" : "Označit jako nepřečtené"}</button>}{canBulkMarkImportant && <button onClick={() => void bulkAction(markImportantKind)}><Star size={14}/>{markImportantKind === "important" ? "Označit důležité" : "Odebrat důležitost"}</button>}</>}{canChangeEntity(metadata, "Email", "edit") && <>{allResultsSelected ? <button type="button" onClick={() => { setFolderPicker({ ids: [], allResults: true, total, groupOnly: folderId.startsWith("group:") || folderId === "all", allowArchive: folderId !== "all" }); setFolderPickerSearch(""); }}><Folder size={14}/>Přesunout všech {total}…</button> : <>{selectedRows.every(canMoveEmailFolder) && <button type="button" onClick={() => { setFolderPicker({ ids: selected, groupOnly: folderId.startsWith("group:") || folderId === "all", allowArchive: folderId !== "all" }); setFolderPickerSearch(""); }}><Folder size={14}/>Přesunout do…</button>}{canBulkTrash && <button className="mail-trash-action" onClick={() => void bulkAction("trash")}><Trash2 size={14}/>{selectedRows.every(isEmailInTrash) ? "Obnovit" : "Koš"}</button>}</>}</>}{<button className="bulk-clear" onClick={() => { setSelected([]); setAllResultsSelected(false); }}>Zrušit výběr</button>}</div>}
+      {notice && <div className="save-confirm"><Check size={13}/>{notice}</div>}{error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
+      <div className="mail-list-head"><label><input type="checkbox" aria-label="Vybrat všechny zprávy na stránce" checked={allResultsSelected || rows.length > 0 && rows.every((row) => selected.includes(row.id))} onChange={(e) => { setAllResultsSelected(false); setSelected(e.target.checked ? [...new Set([...selected, ...rows.map((row) => row.id)])] : selected.filter((id) => !rows.some((row) => row.id === id))); }}/></label><span aria-hidden="true"/><span aria-hidden="true"/><span>ZPRÁVA</span><span>OD / VZTAH</span><span>DATUM</span></div>
+      <div className="mail-list">{busy ? <div className="mail-loading"><span className="spinner"/>Načítám zprávy…</div> : rows.length ? rows.map((row) => <div className={`mail-row ${row.isRead ? "" : "unread"} ${allResultsSelected || selected.includes(row.id) ? "selected" : ""} ${draggingIds.includes(row.id) ? "dragging" : ""}`} key={row.id} onDragEnd={() => { setDraggingIds([]); setDropTarget(""); }}>
+        <label className="mail-check" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={allResultsSelected || selected.includes(row.id)} onChange={(e) => { if (allResultsSelected) { setAllResultsSelected(false); setSelected(e.target.checked ? rows.map((item) => item.id) : rows.filter((item) => item.id !== row.id).map((item) => item.id)); } else setSelected((old) => e.target.checked ? [...new Set([...old, row.id])] : old.filter((id) => id !== row.id)); }}/></label>
+        <button type="button" className="mail-drag-handle" draggable={canChangeEntity(metadata, "Email", "edit") && folderId !== "drafts" && !allResultsSelected} aria-label={`Přesunout zprávu ${row.subject || "bez předmětu"}; pro přesun klávesnicí použijte akci složky`} title="Přetáhnout do složky" onDragStart={(event) => startEmailDrag(event, row)} onClick={() => { const groupOnly = Boolean(row.groupFolderId) || !row.isUsers; setFolderPicker({ ids: [row.id], groupOnly, allowArchive: Boolean(row.groupFolderId) || Boolean(row.isUsers) }); setFolderPickerSearch(""); }}><GripVertical size={15}/></button>
         {row.isUsers && (row.isImportant || !isEmailInTrash(row)) && <button className="mail-star" aria-label={row.isImportant ? "Odebrat důležitost" : "Označit jako důležité"} title={row.isImportant ? "Odebrat důležitost" : "Označit jako důležité"} onClick={async () => { try { await request("Email/inbox/important", { method: row.isImportant ? "DELETE" : "POST", body: JSON.stringify({ id: row.id }) }); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Změna se nepodařila."); } }}><Star size={15} fill={row.isImportant ? "currentColor" : "none"}/></button>}
         <button className="mail-row-main" onClick={() => onOpenRecord(row)}><span className="mail-subject">{row.subject || "(bez předmětu)"}{row.hasAttachment && <Paperclip size={13}/>}</span><span className="mail-preview">{row.personStringData || row.fromString || row.fromName || "Neznámý odesílatel"}</span></button>
         <button className="mail-related" onClick={() => onOpenRecord(row)}>{row.parentName || row.parent?.name || row.fromAddress || row.fromString || "—"}</button>
@@ -1805,7 +1830,7 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
       </div>) : <div className="mail-empty"><Mail size={25}/><strong>Žádné zprávy</strong><span>Ve složce „{currentFolder?.name || "E-mail"}“ zatím nic není.</span></div>}</div>
       <div className="mail-pagination"><span>{rows.length ? `${offset + 1}–${offset + rows.length}` : "0"}{total ? ` z ${total}` : " zpráv"}</span><div><button disabled={!offset || busy} onClick={() => setOffset(Math.max(0, offset - pageSize))}><ChevronLeft size={15}/></button><button disabled={busy || total > 0 && offset + rows.length >= total || rows.length < pageSize} onClick={() => setOffset(offset + pageSize)}><ChevronRight size={15}/></button></div></div>
     </div></section>
-    {folderPicker && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setFolderPicker(null)}><section className="record-modal mail-folder-picker" role="dialog" aria-modal="true" aria-labelledby="mail-folder-picker-title"><div className="modal-heading"><div><span className="eyebrow">PŘESUN ZPRÁV</span><h2 id="mail-folder-picker-title">Vybrat cílovou složku</h2><p>{folderPicker.ids.length === 1 ? "Zpráva bude přesunuta do zvolené složky." : `${folderPicker.ids.length} zpráv bude přesunuto do zvolené složky.`}</p></div><button type="button" className="icon-button" onClick={() => setFolderPicker(null)} aria-label="Zavřít"><X size={16}/></button></div><label className="mail-folder-picker-search"><Search size={16}/><input autoFocus value={folderPickerSearch} onChange={(event) => setFolderPickerSearch(event.target.value)} placeholder="Filtrovat složky…"/></label><div className="mail-folder-picker-options">{moveFolderOptions.length ? moveFolderOptions.map((folder) => <button type="button" key={folder.id} onClick={() => void moveMessages(folderPicker.ids, folder.id)}><span className="mail-folder-picker-icon">{folder.icon}</span><span>{folder.name}</span><ArrowRight size={15}/></button>) : <div className="mail-empty"><Folder size={23}/><strong>Žádné cílové složky</strong><span>Zkuste upravit hledaný výraz.</span></div>}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setFolderPicker(null)}>Zrušit</button></div></section></div>}
+    {folderPicker && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setFolderPicker(null)}><section className="record-modal mail-folder-picker" role="dialog" aria-modal="true" aria-labelledby="mail-folder-picker-title"><div className="modal-heading"><div><span className="eyebrow">PŘESUN ZPRÁV</span><h2 id="mail-folder-picker-title">Vybrat cílovou složku</h2><p>{folderPicker.allResults ? `Všech ${folderPicker.total || total} zpráv odpovídajících aktuální složce a filtrům bude přesunuto.` : folderPicker.ids.length === 1 ? "Zpráva bude přesunuta do zvolené složky." : `${folderPicker.ids.length} zpráv bude přesunuto do zvolené složky.`}</p></div><button type="button" className="icon-button" onClick={() => setFolderPicker(null)} aria-label="Zavřít"><X size={16}/></button></div><label className="mail-folder-picker-search"><Search size={16}/><input autoFocus value={folderPickerSearch} onChange={(event) => setFolderPickerSearch(event.target.value)} placeholder="Filtrovat složky…"/></label><div className="mail-folder-picker-options">{moveFolderOptions.length ? moveFolderOptions.map((folder) => <button type="button" key={folder.id} onClick={() => void moveMessages(folderPicker.ids, folder.id, Boolean(folderPicker.allResults))}><span className="mail-folder-picker-icon">{folder.icon}</span><span>{folder.name}</span><ArrowRight size={15}/></button>) : <div className="mail-empty"><Folder size={23}/><strong>Žádné cílové složky</strong><span>Zkuste upravit hledaný výraz.</span></div>}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setFolderPicker(null)}>Zrušit</button></div></section></div>}
     {folderEditor && <RecordEditor entity={folderEditor.entity} fields={getEditorFields(metadata, folderEditor.entity)} metadata={metadata} record={folderEditor.record} onClose={() => setFolderEditor(null)} onSaved={() => { setFolderEditor(null); setFolderReload((value) => value + 1); }}/ >}{importEmlOpen && <EmailEmlImportDialog onClose={() => setImportEmlOpen(false)} onImported={(id) => { setImportEmlOpen(false); onOpenRecord({ id }); void load(); }}/ >}
   </div>;
 }

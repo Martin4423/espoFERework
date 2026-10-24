@@ -1097,6 +1097,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .mail-bulkbar { display: flex; align-items: center; gap: 9px; min-height: 43px; padding: 0 14px; border-bottom: 1px solid #ececf3; background: #f8f7ff; }
 .mail-bulkbar > span { color: #625cb6; font-size: 9px; font-weight: 700; margin-right: 4px; }
 .mail-bulkbar button, .mail-bulkbar select { display: inline-flex; align-items: center; gap: 5px; min-height: 27px; padding: 0 8px; border: 1px solid #e5e3f4; border-radius: 6px; background: white; color: #667189; font-size: 9px; cursor: pointer; }
+.mail-bulkbar .mail-select-all-results { border-color: #d9d6ff; background: #efeeff; color: #554ec1; font-weight: 700; }
+.mail-bulkbar .bulk-clear { margin-left: auto; border-color: transparent; background: transparent; color: #858da0; }
 .mail-bulkbar .mail-trash-action { color: #b6666b; }
 .mail-list-head, .mail-row { display: grid; grid-template-columns: 28px 20px 34px minmax(170px,1.4fr) minmax(120px,.8fr) minmax(190px,auto); align-items: center; }
 .mail-list-head { min-height: 34px; padding: 0 13px; border-bottom: 1px solid #edf0f4; background: #fafbfc; color: #9aa4b4; font-size: 8px; font-weight: 700; letter-spacing: .06em; }
