@@ -717,7 +717,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : notificationsOpen
         ? <NotificationCenter onBack={() => { setNotificationsOpen(false); refreshNotificationCount(); }} onOpenRecord={(scope, id) => void openNotificationRecord(scope, id)} onUnreadChange={refreshNotificationCount} />
         : activityOpen
-        ? <ActivityView user={user} onBack={() => setActivityOpen(false)} />
+        ? <ActivityView user={user} metadata={metadata} onBack={() => setActivityOpen(false)} />
         : entity === "__settings__"
         ? <AdminSettings metadata={metadata} onBack={openAdmin} />
         : entity === "__extensions__"
