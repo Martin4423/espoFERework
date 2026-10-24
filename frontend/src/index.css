@@ -1290,6 +1290,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .personal-dashlet-manage button { display: grid; width: 24px; height: 22px; place-items: center; border: 0; border-radius: 5px; background: transparent; color: #748096; cursor: pointer; }
 .personal-dashlet-manage button:hover:not(:disabled) { background: #eeedfc; color: #5148c8; }
 .personal-dashlet-manage button:disabled { opacity: .3; cursor: default; }
+.personal-dashlet-manage .personal-dashlet-drag { cursor: grab; touch-action: none; }
+.personal-dashlet-manage .personal-dashlet-drag:active { cursor: grabbing; }
+.personal-dashlet-resize { position: absolute; z-index: 3; right: 3px; bottom: 3px; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: nwse-resize; touch-action: none; }
+.personal-dashlet-resize::after { position: absolute; right: 3px; bottom: 3px; width: 0; height: 0; border-right: 9px solid #7c879a; border-top: 9px solid transparent; content: ""; }
+.personal-dashlet-resize:hover::after { border-right-color: #5148c8; }
 .personal-dashlet { min-height: 0; height: 100%; flex: 1 1 auto; overflow: auto; }
 .personal-dashlet > header { display: flex; align-items: center; gap: 9px; min-height: 47px; padding: 0 14px; border-bottom: 1px solid #eef0f4; }
 .personal-dashlet-icon { display: grid; width: 27px; height: 27px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: #f0efff; color: #5a51cb; }
@@ -1366,6 +1371,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .expanded-layout-empty { padding: 10px; border: 1px dashed #dce1e9; border-radius: 6px; color: #8792a4; font-size: 10px; text-align: center; }
 @media (max-width: 660px) { .expanded-layout-item { grid-template-columns: minmax(0,1fr) auto; } .expanded-layout-item > label:first-child { grid-column: 1 / -1; } .expanded-layout-item-move { grid-column: 1; } }
 @media (max-width: 760px) { .personal-dashboard-heading { display: block; } .personal-dashboard-actions { justify-content: flex-start; margin-top: 13px; } .personal-dashboard-grid { grid-template-columns: 1fr; grid-auto-rows: minmax(180px, auto); } .personal-dashlet-wrap { grid-column: 1 / -1; grid-row: auto / span var(--dashlet-height); } }
+@media (max-width: 760px) { .personal-dashlet-drag, .personal-dashlet-resize { display: none !important; } }
 .personal-chart-list { display: grid; gap: 13px; padding: 16px; }
 .personal-chart-list > div { display: grid; gap: 6px; }
 .personal-chart-list > div > span { display: flex; justify-content: space-between; gap: 12px; color: #68748a; font-size: 9px; }

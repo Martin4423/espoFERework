@@ -58,6 +58,7 @@ export const FileSearch = icon("fas fa-file-circle-question");
 export const FileSpreadsheet = icon("fas fa-file-excel");
 export const FileText = icon("fas fa-file-lines");
 export const Filter = icon("fas fa-filter");
+export const GripVertical = icon("fas fa-grip-vertical");
 export const Flag = icon("fas fa-flag");
 export const Folder = icon("fas fa-folder");
 export const FolderTree = icon("fas fa-folder-tree");
