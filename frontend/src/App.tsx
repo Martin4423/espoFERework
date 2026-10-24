@@ -143,6 +143,12 @@ function addressText(address: AddressParts): string {
   return [address.street, address.city, address.state, address.postalCode, address.country].map((part) => String(part || "").trim()).filter(Boolean).join(", ");
 }
 
+function espocrmLogoUrl(logoId: string, themeLogo: string) {
+  if (logoId) return `/?entryPoint=LogoImage&id=${encodeURIComponent(logoId)}&t=${encodeURIComponent(logoId)}`;
+  const logo = themeLogo || "client/img/logo.svg";
+  return /^(https?:|data:|blob:)/i.test(logo) ? logo : `/${logo.replace(/^\/+/, "")}`;
+}
+
 function remapAuthenticationProviderLogic(value: any): any {
   if (Array.isArray(value)) return value.map(remapAuthenticationProviderLogic);
   if (!value || typeof value !== "object") return value;
@@ -836,11 +842,18 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   const portalColors = portalThemeColors[portalTheme] || portalThemeColors.Espo;
   const portalStyle = (isPortalUser ? { "--primary": portalColors.primary, "--primary-dark": portalColors.primaryDark, "--nav": portalColors.nav, "--canvas": portalColors.canvas, "--surface": portalColors.surface, "--ink": portalColors.ink, "--line": portalColors.line } : {}) as CSSProperties;
   const portalLogoId = String(portalSettings.companyLogoId || "");
-  const portalLogoUrl = isPortalUser && portalLogoId ? `/?entryPoint=LogoImage&id=${encodeURIComponent(portalLogoId)}` : "";
+  const themeDefs = (metadata as any).themes || {};
+  const portalLogoUrl = isPortalUser ? espocrmLogoUrl(portalLogoId, String(themeDefs[portalTheme]?.logo || "client/img/logo.svg")) : "";
+  const companyLogoId = String(metadata.appSettings?.companyLogoId || "");
+  const companyTheme = String(metadata.appSettings?.theme || "Espo");
+  const companyLogoUrl = !isPortalUser ? espocrmLogoUrl(companyLogoId, String(themeDefs[companyTheme]?.logo || "client/img/logo.svg")) : "";
+  const sidebarLogoUrl = isPortalUser ? portalLogoUrl : companyLogoUrl;
   const portalDirection = portalTheme === "EspoRtl" ? "rtl" : "ltr";
   const entities = useMemo(() => entityList(metadata), [metadata]);
   const [portalVisibleScopes, setPortalVisibleScopes] = useState<string[] | null>(null);
+  const [brandLogoFailed, setBrandLogoFailed] = useState(false);
   const updatePortalScopes = useCallback((scopes: string[]) => setPortalVisibleScopes(scopes), []);
+  useEffect(() => { setBrandLogoFailed(false); }, [sidebarLogoUrl]);
   const navEntities = isPortalUser ? portalVisibleScopes ?? portalEntities(metadata) : entities.filter((name) => name !== "User");
   const [entity, setEntity] = useState<string | null>(null);
   const [relatedRoute, setRelatedRoute] = useState<{ entity: string; id: string; link: string } | null>(null);
@@ -1065,7 +1078,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   }, [entity, record?.id, relatedRoute?.entity, relatedRoute?.id, relatedRoute?.link, routeAction, routeActionId, calendarOpen, adminOpen, activityOpen, globalStreamOpen, notificationsOpen, lastViewedOpen, accountPage, preferencesTarget?.id]);
   return <div className={`app-shell ${!isPortalUser && sidebarCollapsed ? "sidebar-collapsed" : ""} ${isPortalUser ? `portal-theme-${portalTheme.toLowerCase()} portal-navbar-${portalNavbar} ${portalDirection === "rtl" ? "portal-rtl" : ""}` : ""}`} style={portalStyle} dir={isPortalUser ? portalDirection : undefined}>
     <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
-      <div className="brand sidebar-brand">{portalLogoUrl ? <img className="portal-brand-logo" src={portalLogoUrl} alt=""/> : <span className="brand-mark">{isPortalUser ? portalName.slice(0, 1).toUpperCase() : "v"}</span>}<span>{isPortalUser ? portalName : <>via<span className="brand-light">crm</span></>}</span><button className="sidebar-close" onClick={() => setMobileNav(false)} aria-label="Zavřít nabídku"><X size={17}/></button>{!isPortalUser && <button type="button" className="sidebar-collapse-toggle" onClick={toggleSidebarCollapsed} aria-label={sidebarCollapsed ? "Rozbalit navigaci" : "Zúžit navigaci"} title={sidebarCollapsed ? "Rozbalit navigaci" : "Zúžit navigaci"}>{sidebarCollapsed ? <ChevronRight size={15}/> : <ChevronLeft size={15}/>}</button>}</div>
+      <div className="brand sidebar-brand">{sidebarLogoUrl && !brandLogoFailed ? <img className={`sidebar-brand-logo ${isPortalUser ? "portal-brand-logo" : ""}`} src={sidebarLogoUrl} alt={isPortalUser ? portalName : "Logo společnosti"} onError={() => setBrandLogoFailed(true)}/> : <span className="brand-mark">{isPortalUser ? portalName.slice(0, 1).toUpperCase() : "v"}</span>}<span>{isPortalUser ? portalName : <>via<span className="brand-light">crm</span></>}</span><button className="sidebar-close" onClick={() => setMobileNav(false)} aria-label="Zavřít nabídku"><X size={17}/></button>{!isPortalUser && <button type="button" className="sidebar-collapse-toggle" onClick={toggleSidebarCollapsed} aria-label={sidebarCollapsed ? "Rozbalit navigaci" : "Zúžit navigaci"} title={sidebarCollapsed ? "Rozbalit navigaci" : "Zúžit navigaci"}>{sidebarCollapsed ? <ChevronRight size={15}/> : <ChevronLeft size={15}/>}</button>}</div>
       <div className="workspace-pill" aria-label={isPortalUser ? "Klientský portál" : "Pracovní prostor"} title={sidebarCollapsed ? (isPortalUser ? "Klientský portál" : "Pracovní prostor") : undefined}><span className="workspace-dot"/><span>{isPortalUser ? "KLIENTSKÝ PORTÁL" : "PRACOVNÍ PROSTOR"}</span>{!isPortalUser && <ChevronDown size={14}/>}</div>
       <nav className="nav-list">
         <div className="nav-caption">PŘEHLED</div>
