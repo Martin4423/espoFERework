@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Link2, Pencil, Plus, RotateCcw, Search, Send, Trash2, X } from "./Icons";
-import { canAccessEntity, canChangeEntity, canCreateEntity, entityLabel, fetchLayout, fieldLabel, getSession, request, type LayoutItem, type Metadata } from "./api";
+import { ArrowLeft, ArrowRight, Check, Filter, Link2, Pencil, Plus, RotateCcw, Search, Send, Trash2, X } from "./Icons";
+import { aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, entityLabel, fetchLayout, fieldLabel, getSession, request, type LayoutItem, type Metadata } from "./api";
 import RecordActivitiesPanel from "./RecordActivitiesPanel";
 import SelectRecordsDialog from "./SelectRecordsDialog";
 import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
@@ -9,6 +9,15 @@ import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
 type Row = Record<string, any>;
 type RelationshipLink = { entity?: string; type?: string; foreign?: string; readOnly?: boolean; columnAttributeMap?: Record<string, string> };
 type PanelDef = { disabled?: boolean; hidden?: boolean; label?: string; order?: number; create?: boolean; select?: boolean; removeDisabled?: boolean; createDisabled?: boolean; filterList?: string[]; selectPrimaryFilterName?: string; rowActionList?: string[]; [key: string]: any };
+const relationshipPresetRequests = new Map<string, Promise<Row[]>>();
+function loadRelationshipPresets(userId: string, entity: string): Promise<Row[]> {
+  const key = `${userId}:${entity}`;
+  const existing = relationshipPresetRequests.get(key);
+  if (existing) return existing;
+  const pending = request<Row>(`Preferences/${encodeURIComponent(userId)}`).then((preferences) => Array.isArray(preferences.presetFilters?.[entity]) ? preferences.presetFilters[entity] : []).catch((error) => { relationshipPresetRequests.delete(key); throw error; });
+  relationshipPresetRequests.set(key, pending);
+  return pending;
+}
 
 export default function RecordRelationships({ entity, record, metadata, onOpenRecord, onOpenTaskList, onComposeEmail, renderActivityEditor, onlyLink }: { entity: string; record: Row; metadata: Metadata; onOpenRecord: (entity: string, row: Row) => void; onOpenTaskList?: (entity: string, where: Row[]) => void; onComposeEmail?: (draft: Row) => void; renderActivityEditor: (scope: string, initial: Row, onSaved: (row: Row) => void, onClose: () => void) => ReactNode; onlyLink?: string }) {
   const scopeDefs = metadata.entityDefs?.[entity];
@@ -112,6 +121,13 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
   const [error, setError] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [filter, setFilter] = useState(String(panel.selectPrimaryFilterName || "all"));
+  const [primaryFilter, setPrimaryFilter] = useState("");
+  const [activeBoolFilters, setActiveBoolFilters] = useState<string[]>([]);
+  const [savedPresets, setSavedPresets] = useState<Row[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [savedPresetWhere, setSavedPresetWhere] = useState<Row[]>([]);
+  const [filterOptionsOpen, setFilterOptionsOpen] = useState(false);
+  const filterOptionsRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [candidates, setCandidates] = useState<Row[]>([]);
   const [candidateBusy, setCandidateBusy] = useState(false);
@@ -162,6 +178,58 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
   const openTrackingEnabled = Boolean(metadata.appSettings?.massEmailOpenTracking ?? metadata.appParams?.massEmailOpenTracking);
   const campaignLogFilters = ["sent", "opened", "optedOut", "bounced", "clicked", "optedIn", "leadCreated"].filter((item) => item !== "opened" || openTrackingEnabled);
   const filterList = isCampaignLogPanel ? campaignLogFilters : panel.filterList || [];
+  const currentUser = getSession()?.user as any;
+  const canUseFilterDefinition = (definition: any) => {
+    if (!definition || typeof definition === "string") return true;
+    if (definition.isPortalOnly && !["portal", "portal-user"].includes(currentUser?.type)) return false;
+    if (definition.inPortalDisabled && ["portal", "portal-user"].includes(currentUser?.type)) return false;
+    if (definition.isAdminOnly && !["admin", "super-admin"].includes(currentUser?.type)) return false;
+    for (const access of definition.accessDataList || []) {
+      if (access.scope && (access.action ? aclLevel(metadata, access.scope, access.action) === "no" : !canAccessEntity(metadata, access.scope))) return false;
+      if (!access.scope && access.action && aclLevel(metadata, relatedEntity, access.action) === "no") return false;
+      if (access.teamIdList?.length && !access.teamIdList.some((id: string) => currentUser?.teamsIds?.includes(id))) return false;
+      if (access.portalIdList?.length && !access.portalIdList.some((id: string) => currentUser?.portalsIds?.includes(id))) return false;
+    }
+    return true;
+  };
+  const nativePrimaryFilters = [...(metadata.scopes?.[relatedEntity]?.stars ? [{ name: "starred", primary: "starred" }] : []), ...((metadata.clientDefs?.[relatedEntity]?.filterList || []) as Array<string | Row>)].filter((item) => canUseFilterDefinition(item)).map((item) => {
+    const filterName = typeof item === "string" ? item : String(item.name || item.primary || "");
+    const primary = typeof item === "string" ? item : String(item.primary || (item.data ? "" : item.name || ""));
+    const label = (metadata.labels as any)?.[relatedEntity]?.filters?.[filterName] || (metadata.labels as any)?.[relatedEntity]?.filters?.[primary] || (primary === "starred" ? (metadata.labels as any)?.[relatedEntity]?.presetFilters?.starred : "") || (typeof item === "object" && item.label) || filterName;
+    return { name: filterName, primary, label };
+  }).filter((item) => item.name && item.primary);
+  const nativeBoolFilters = [...((metadata.clientDefs?.[relatedEntity]?.boolFilterList || []) as Array<string | Row>)].filter((item) => canUseFilterDefinition(item) && (typeof item === "string" || !item.aux)).map((item) => {
+    const filterName = typeof item === "string" ? item : String(item.name || "");
+    return { name: filterName, label: (metadata.labels as any)?.[relatedEntity]?.boolFilters?.[filterName] || filterName.replace(/([a-z0-9])([A-Z])/g, "$1 $2") };
+  }).filter((item) => item.name);
+  const readablePresetWhere = (where: any): Row | null => {
+    if (!where || typeof where !== "object") return null;
+    if (["and", "or"].includes(where.type) && Array.isArray(where.value)) {
+      const children = where.value.map(readablePresetWhere);
+      return children.every(Boolean) ? { ...where, value: children } : null;
+    }
+    const rawAttribute = where.attribute || where.field;
+    if (rawAttribute) {
+      const attribute = String(rawAttribute).split(".").at(-1)!.replace(/Id$/, "");
+      if (!metadata.entityDefs?.[relatedEntity]?.fields?.[attribute] || metadata.userAcl?.fieldTable?.[relatedEntity]?.[attribute]?.read === "no") return null;
+    }
+    return where;
+  };
+  function selectSavedPreset(id: string) {
+    const preset = savedPresets.find((item) => item.id === id);
+    if (!preset) { setSelectedPresetId(""); setSavedPresetWhere([]); setPrimaryFilter(""); setActiveBoolFilters([]); return; }
+    const definitions = Object.values(preset.data || {}) as Row[];
+    const parsed = definitions.map((definition) => readablePresetWhere(definition?.where || (definition?.type && (definition?.attribute || definition?.field) ? definition : null)));
+    if (parsed.some((item) => !item)) { setError("Uložený filtr obsahuje podmínku nebo pole, které tato obrazovka neumí bezpečně použít."); return; }
+    if (preset.primary && !nativePrimaryFilters.some((item) => item.primary === preset.primary)) { setError("Tento uložený filtr odkazuje na filtr, který pro vás není dostupný."); return; }
+    const where = parsed.filter((item): item is Row => Boolean(item));
+    setError("");
+    setSelectedPresetId(preset.id);
+    setSavedPresetWhere(where);
+    setPrimaryFilter(String(preset.primary || ""));
+    setActiveBoolFilters(Array.isArray(preset.boolFilterList) ? preset.boolFilterList.filter((item: string) => nativeBoolFilters.some((option) => option.name === item)) : []);
+    setOffset(0);
+  }
   const queueFilterFallbacks: Record<string, string> = { all: "Vše", pending: "Čekající", sent: "Odeslané", failed: "Neúspěšné" };
   const relationshipFilterLabel = (value: string) => (metadata.labels as any)?.[relatedEntity]?.presetFilters?.[value] || queueFilterFallbacks[value] || (value === "active" ? "Aktivní" : value);
   const actionOptions = metadata.entityDefs?.CampaignLogRecord?.fields?.action?.options || [];
@@ -176,9 +244,28 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
   const canRemoveTask = isTaskSidePanel && canChangeEntity(metadata, "Task", "delete");
   const canUnlinkAll = Array.isArray(panel.actionList) && panel.actionList.some((item: Row) => item?.action === "unlinkAllRelated") && canEditParent && link.readOnly !== true;
   useEffect(() => {
+    const defaults = metadata.clientDefs?.[relatedEntity]?.selectDefaultFilters || {};
+    const primary = String(defaults.filter || "");
+    setPrimaryFilter(nativePrimaryFilters.some((item) => item.primary === primary) ? primary : "");
+    setActiveBoolFilters(Object.entries(defaults.bool || {}).filter(([name, enabled]) => Boolean(enabled) && nativeBoolFilters.some((item) => item.name === name)).map(([name]) => name));
+    setSavedPresets([]); setSelectedPresetId(""); setSavedPresetWhere([]);
+    if (!currentUser?.id) return;
+    let live = true;
+    loadRelationshipPresets(currentUser.id, relatedEntity).then((items) => live && setSavedPresets(items)).catch(() => live && setSavedPresets([]));
+    return () => { live = false; };
+  }, [relatedEntity, metadata, currentUser?.id]);
+  useEffect(() => {
     const timer = window.setTimeout(() => { setListSearch(listSearchDraft.trim()); setOffset(0); }, 250);
     return () => window.clearTimeout(timer);
   }, [listSearchDraft]);
+  useEffect(() => {
+    if (!filterOptionsOpen) return;
+    const onPointerDown = (event: PointerEvent) => { if (!filterOptionsRef.current?.contains(event.target as Node)) setFilterOptionsOpen(false); };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setFilterOptionsOpen(false); };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => { document.removeEventListener("pointerdown", onPointerDown); document.removeEventListener("keydown", onKeyDown); };
+  }, [filterOptionsOpen]);
   const params = useMemo(() => {
     const search = new URLSearchParams({ maxSize: String(perPage), offset: String(offset), select: selectedFields });
     const orderBy = panel.orderBy || panel.sortBy || metadata.entityDefs?.[relatedEntity]?.collection?.orderBy;
@@ -190,10 +277,13 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
       if (isMassEmailQueuePanel) search.set("primaryFilter", filter);
       else whereGroup.push({ type: "primary", value: filter });
     }
+    if (primaryFilter) whereGroup.push({ type: "primary", value: primaryFilter });
+    if (activeBoolFilters.length) whereGroup.push({ type: "bool", value: activeBoolFilters });
+    whereGroup.push(...savedPresetWhere);
     if (listSearch) whereGroup.push({ type: "textFilter", value: listSearch });
     if (whereGroup.length) search.set("whereGroup", JSON.stringify(whereGroup));
     return search;
-  }, [offset, panel.orderBy, panel.sortBy, panel.orderDirection, relatedEntity, metadata, filter, selectedFields, isMassEmailQueuePanel, listSearch]);
+  }, [offset, panel.orderBy, panel.sortBy, panel.orderDirection, relatedEntity, metadata, filter, selectedFields, isMassEmailQueuePanel, listSearch, primaryFilter, activeBoolFilters, savedPresetWhere]);
   async function load() {
     setLoading(true); setError("");
     try { const result = await request<{ list?: Row[]; total?: number }>(`${entity}/${encodeURIComponent(record.id)}/${encodeURIComponent(name)}?${params.toString()}`); setRows(result.list || []); setTotal(result.total ?? result.list?.length ?? 0); }
@@ -389,7 +479,7 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
   const canChangePosition = panel.rowActionList?.includes("changeTeamPosition") && relatedEntity === "User" && positionList.length > 0 && canChangeEntity(metadata, "User", "edit");
   const targetEntities = ["Contact", "Lead", "User", "Account"];
   const canToggleTargetOptOut = canChangeEntity(metadata, "TargetList", "edit") && (entity === "TargetList" && targetEntities.includes(relatedEntity) || targetEntities.includes(entity) && relatedEntity === "TargetList");
-  return <section className="detail-panel relationship-panel"><div className="relationship-panel-head"><div><div className="drawer-section-title">{panelName}</div><small>{loading ? "Načítám…" : `${total} záznamů`}</small></div><div className="relationship-panel-actions"><form className="relationship-list-search" role="search" onSubmit={(event) => event.preventDefault()}><Search size={14}/><input type="search" aria-label={`Hledat v seznamu ${panelName}`} placeholder="Hledat v seznamu…" value={listSearchDraft} onChange={(event) => setListSearchDraft(event.target.value)}/>{listSearchDraft && <button type="button" aria-label="Vymazat hledání" onClick={() => setListSearchDraft("")}><X size={13}/></button>}</form>{filterList.length > 1 && <select aria-label={`Filtr ${panelName}`} value={filter} onChange={(event) => { setFilter(event.target.value); setOffset(0); }}><option value="all">{isCampaignLogPanel || isMassEmailQueuePanel ? relationshipFilterLabel("all") : "Vše"}</option>{filterList.filter((item) => item !== "all").map((item) => <option key={item} value={item}>{isCampaignLogPanel ? actionLabel(campaignFilterStatus(item)) : isTaskSidePanel ? ({ actual: "Aktivní", completed: "Dokončené" }[item] || item) : relationshipFilterLabel(item)}</option>)}</select>}{canCreateRelated && <button type="button" className="button subtle" onClick={createRelatedRecord}><Plus size={14}/> Vytvořit</button>}{canCreateTask && <button className="button subtle" onClick={createRelatedTask}><Plus size={14}/> Vytvořit úkol</button>}{isTaskSidePanel && onOpenTaskList && <button type="button" className="button subtle" onClick={() => { const where = entity === "Account" ? [{ type: "equals", attribute: "accountId", value: record.id }] : entity === "User" ? [{ type: "equals", attribute: "assignedUserId", value: record.id }] : [{ type: "equals", attribute: "parentId", value: record.id }, { type: "equals", attribute: "parentType", value: entity }]; onOpenTaskList("Task", where); }}><ArrowRight size={13}/> Zobrazit seznam</button>}{canUnlinkAll && <button type="button" className="button subtle" disabled={Boolean(savingId)} onClick={() => void unlinkAllRelated()}><Trash2 size={13}/> Odebrat všechny</button>}{canCreateMassEmail && <button className="button subtle" onClick={() => { createMassEmail(); }}><Plus size={14}/> Nový hromadný e-mail</button>}{canCreateTargetList && <button className="button subtle" onClick={() => { const status = filter === "all" ? "" : campaignFilterStatus(filter); const initial = status && actionOptions.includes(status) ? [status] : []; setTargetListIncludes(initial); setTargetListExcludes([]); setTargetListName(""); setTargetListDescription(""); setTargetListError(""); setTargetListOpen(true); }}><Plus size={14}/> Vytvořit cílový seznam</button>}{canSelect && <button className="button subtle" onClick={() => { setPickerOpen(true); setCandidates([]); setCandidateError(""); void searchCandidates(); }}><Plus size={14}/> Přiřadit</button>}</div></div>
+  return <section className="detail-panel relationship-panel"><div className="relationship-panel-head"><div><div className="drawer-section-title">{panelName}</div><small>{loading ? "Načítám…" : `${total} záznamů`}</small></div><div className="relationship-panel-actions"><form className="relationship-list-search" role="search" onSubmit={(event) => event.preventDefault()}><Search size={14}/><input type="search" aria-label={`Hledat v seznamu ${panelName}`} placeholder="Hledat v seznamu…" value={listSearchDraft} onChange={(event) => setListSearchDraft(event.target.value)}/>{listSearchDraft && <button type="button" aria-label="Vymazat hledání" onClick={() => setListSearchDraft("")}><X size={13}/></button>}</form>{(nativePrimaryFilters.length > 0 || nativeBoolFilters.length > 0 || savedPresets.length > 0) && <div className="relationship-filter-menu" ref={filterOptionsRef}><button type="button" className={`button subtle ${filterOptionsOpen ? "selected" : ""}`} aria-expanded={filterOptionsOpen} onClick={() => setFilterOptionsOpen((open) => !open)}><Filter size={14}/> Filtry{(primaryFilter || activeBoolFilters.length || selectedPresetId) ? <b>{Number(Boolean(primaryFilter)) + activeBoolFilters.length + Number(Boolean(selectedPresetId))}</b> : null}</button>{filterOptionsOpen && <div className="relationship-filter-popover" role="group" aria-label={`Pokročilé filtry ${panelName}`}>{nativePrimaryFilters.length > 0 && <label><span>Filtr EspoCRM</span><select value={primaryFilter} onChange={(event) => { setPrimaryFilter(event.target.value); setSelectedPresetId(""); setSavedPresetWhere([]); setOffset(0); }}><option value="">Všechny záznamy</option>{nativePrimaryFilters.map((item) => <option key={item.name} value={item.primary}>{item.label}</option>)}</select></label>}{savedPresets.length > 0 && <label><span>Uložený filtr</span><select value={selectedPresetId} onChange={(event) => selectSavedPreset(event.target.value)}><option value="">Bez uloženého filtru</option>{savedPresets.map((preset, index) => <option key={preset.id || index} value={preset.id}>{preset.label || preset.name || "Uložený filtr"}</option>)}</select></label>}{nativeBoolFilters.length > 0 && <fieldset><legend>Další podmínky</legend>{nativeBoolFilters.map((item) => <label className="relationship-bool-filter" key={item.name}><input type="checkbox" checked={activeBoolFilters.includes(item.name)} onChange={(event) => { setActiveBoolFilters((current) => event.target.checked ? [...current, item.name] : current.filter((name) => name !== item.name)); setOffset(0); }}/><span>{item.label}</span></label>)}</fieldset>}<button type="button" className="button subtle relationship-filter-clear" onClick={() => { setPrimaryFilter(""); setActiveBoolFilters([]); setSelectedPresetId(""); setSavedPresetWhere([]); setOffset(0); }}>Vymazat filtry</button></div>}</div>}{filterList.length > 1 && <select aria-label={`Filtr ${panelName}`} value={filter} onChange={(event) => { setFilter(event.target.value); setOffset(0); }}><option value="all">{isCampaignLogPanel || isMassEmailQueuePanel ? relationshipFilterLabel("all") : "Vše"}</option>{filterList.filter((item) => item !== "all").map((item) => <option key={item} value={item}>{isCampaignLogPanel ? actionLabel(campaignFilterStatus(item)) : isTaskSidePanel ? ({ actual: "Aktivní", completed: "Dokončené" }[item] || item) : relationshipFilterLabel(item)}</option>)}</select>}{canCreateRelated && <button type="button" className="button subtle" onClick={createRelatedRecord}><Plus size={14}/> Vytvořit</button>}{canCreateTask && <button className="button subtle" onClick={createRelatedTask}><Plus size={14}/> Vytvořit úkol</button>}{isTaskSidePanel && onOpenTaskList && <button type="button" className="button subtle" onClick={() => { const where = entity === "Account" ? [{ type: "equals", attribute: "accountId", value: record.id }] : entity === "User" ? [{ type: "equals", attribute: "assignedUserId", value: record.id }] : [{ type: "equals", attribute: "parentId", value: record.id }, { type: "equals", attribute: "parentType", value: entity }]; onOpenTaskList("Task", where); }}><ArrowRight size={13}/> Zobrazit seznam</button>}{canUnlinkAll && <button type="button" className="button subtle" disabled={Boolean(savingId)} onClick={() => void unlinkAllRelated()}><Trash2 size={13}/> Odebrat všechny</button>}{canCreateMassEmail && <button className="button subtle" onClick={() => { createMassEmail(); }}><Plus size={14}/> Nový hromadný e-mail</button>}{canCreateTargetList && <button className="button subtle" onClick={() => { const status = filter === "all" ? "" : campaignFilterStatus(filter); const initial = status && actionOptions.includes(status) ? [status] : []; setTargetListIncludes(initial); setTargetListExcludes([]); setTargetListName(""); setTargetListDescription(""); setTargetListError(""); setTargetListOpen(true); }}><Plus size={14}/> Vytvořit cílový seznam</button>}{canSelect && <button className="button subtle" onClick={() => { setPickerOpen(true); setCandidates([]); setCandidateError(""); void searchCandidates(); }}><Plus size={14}/> Přiřadit</button>}</div></div>
     {error && <div className="inline-error" role="alert">{error}</div>}{notice && <div className="save-confirm" role="status">{notice}</div>}{loading ? <div className="table-loading"><span className="spinner"/> Načítám související záznamy…</div> : rows.length ? <div className="relationship-list">{rows.map((row) => <div className="relationship-row" key={row.id}><button className="relationship-open" disabled={panel.viewDisabled} onClick={() => !panel.viewDisabled && onOpenRecord(relatedEntity, row)}><span className="relationship-row-icon"><Link2 size={14}/></span><span><strong>{rowLabel(row)}</strong><small>{isTaskSidePanel ? [row.isOverdue ? "Po termínu" : "", row.assignedUserName, row.dateEnd || row.dateEndDate ? formatEspoDateTime(String(row.dateEnd || row.dateEndDate), timeZone) : "", row.status].filter(Boolean).join(" · ") : layoutValues(row).map((item) => item.value).join(" · ") || entityLabel(metadata, relatedEntity)}</small></span>{!panel.viewDisabled && <ArrowRight size={14}/>}</button>{isTaskSidePanel && canChangeEntity(metadata, "Task", "edit") && <button type="button" className="icon-button" title="Upravit úkol" aria-label={`Upravit úkol ${rowLabel(row)}`} onClick={() => setTaskEditorInitial(row)}><Pencil size={13}/></button>}{isTaskSidePanel && canChangeEntity(metadata, "Task", "edit") && metadata.userAcl?.fieldTable?.Task?.status?.edit !== "no" && !["Completed", "Canceled"].includes(row.status) && <button type="button" className="button subtle" disabled={savingId === row.id} onClick={() => void completeRelatedTask(row)}><Check size={13}/> Dokončit</button>}{canRemoveTask && <button type="button" className="icon-button danger-ghost relationship-unlink" aria-label={`Odstranit úkol ${rowLabel(row)}`} title="Odstranit úkol" disabled={savingId === row.id} onClick={() => void removeRelatedTask(row)}><Trash2 size={14}/></button>}{isCampaignMassEmailPanel && canChangeEntity(metadata, "MassEmail", "edit") && row.status !== "Complete" && <button type="button" className="button subtle" onClick={() => openMassEmailTest(row)}><Send size={13}/> Poslat test</button>}{canToggleTargetOptOut && <button type="button" className="button subtle" disabled={savingId === row.id} onClick={() => void changeTargetOptOut(row)}>{row[entity === "TargetList" ? "targetListIsOptedOut" : "isOptedOut"] ? <><RotateCcw size={13}/> Zrušit odhlášení</> : "Odhlásit"}</button>}{canChangePosition && <div className="relationship-position"><select aria-label={`Pozice ${rowLabel(row)}`} value={positionDraft[row.id] ?? row.teamRole ?? ""} onChange={(event) => setPositionDraft((old) => ({ ...old, [row.id]: event.target.value }))}><option value="">Bez pozice</option>{positionList.map((position) => <option key={position} value={position}>{position}</option>)}</select><button className="button subtle" disabled={savingId === row.id || (positionDraft[row.id] ?? row.teamRole ?? "") === (row.teamRole ?? "")} onClick={() => void changeTeamPosition(row)}>{savingId === row.id ? "Ukládám…" : "Uložit"}</button></div>}{canUnlink && <button className="icon-button danger-ghost relationship-unlink" aria-label={`Odebrat ${rowLabel(row)}`} title="Odebrat vztah" disabled={savingId === row.id} onClick={() => void unlinkRow(row)}><Trash2 size={14}/></button>}</div>)}</div> : <div className="relationship-empty">{panel.emptyMessage || (listSearch ? `Pro hledání „${listSearch}“ jsme nic nenašli.` : "Zatím zde nejsou žádné navázané záznamy.")}{canCreateRelated && <button type="button" className="button subtle" onClick={createRelatedRecord}><Plus size={14}/> Vytvořit záznam</button>}{canSelect && <button className="button subtle" onClick={() => { setPickerOpen(true); setCandidates([]); void searchCandidates(); }}><Plus size={14}/> Přiřadit záznam</button>}{isTaskSidePanel && canCreateTask && <button className="button subtle" onClick={createRelatedTask}><Plus size={14}/> Vytvořit úkol</button>}</div>}
     {!loading && total > perPage && <div className="relationship-pagination"><button className="button subtle" disabled={offset <= 0} onClick={() => setOffset(Math.max(0, offset - perPage))}><ArrowLeft size={13}/> Předchozí</button><span>{offset + 1}–{Math.min(offset + perPage, total)} z {total}</span><button className="button subtle" disabled={offset + perPage >= total} onClick={() => setOffset(offset + perPage)}>Další <ArrowRight size={13}/></button></div>}
     {pickerOpen && <div className="modal-backdrop relationship-picker-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setPickerOpen(false)}><section className="record-modal relationship-picker"><div className="modal-heading"><div><span className="eyebrow">{panelName.toLocaleUpperCase("cs")}</span><h2>Přiřadit {entityLabel(metadata, relatedEntity).toLocaleLowerCase("cs")}</h2><p>Vyberte existující záznam, který se má propojit.</p></div><button className="icon-button" onClick={() => setPickerOpen(false)} aria-label="Zavřít"><X size={17}/></button></div><form className="relationship-search" onSubmit={(event) => void searchCandidates(event)}><Search size={15}/><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Hledat podle názvu…"/><button className="button subtle">Hledat</button></form>{candidateError && <div className="inline-error">{candidateError}</div>}{candidateBusy ? <div className="table-loading"><span className="spinner"/> Hledám záznamy…</div> : candidates.length ? <div className="relationship-candidates">{candidates.map((candidate) => <button key={candidate.id} disabled={Boolean(savingId)} onClick={() => void selectRow(candidate)}><span><strong>{rowLabel(candidate)}</strong><small>{candidate.emailAddress || candidate.userName || entityLabel(metadata, relatedEntity)}</small></span><span>{savingId === candidate.id ? "Přiřazuji…" : <Plus size={15}/>}</span></button>)}</div> : <div className="relationship-empty">{query ? "Nebyly nalezeny žádné záznamy." : "Zadejte hledaný výraz nebo vyberte z výsledků."}</div>}<div className="modal-footer"><button className="button subtle" onClick={() => setPickerOpen(false)}>Zavřít</button></div></section></div>}
