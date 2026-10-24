@@ -2624,3 +2624,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .account-session-list .button { display: inline-flex; align-items: center; gap: 6px; }
 .account-session-list .button > svg:last-child { display: none; }
 @media (max-width: 560px) { .account-session-list article { grid-template-columns: 24px minmax(0,1fr); } .account-session-list article .button { grid-column: 2; justify-self: start; } }
+.account-security-panels { display: grid; gap: 16px; margin-top: 16px; }
+.account-security-panels .account-sessions { margin-top: 0; }
+.account-login-history { padding: 18px; }
+.account-login-event-list { display: grid; gap: 7px; }
+.account-login-event-list article { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid #e6e9f0; border-radius: 8px; background: #fbfcfe; }
+.account-login-event-list article > span { display: grid; place-items: center; color: #21836b; }
+.account-login-event-list article.denied > span { color: #b76065; }
+.account-login-event-list article > div { display: grid; gap: 3px; min-width: 0; }
+.account-login-event-list strong { color: #38455c; font-size: 11px; font-weight: 650; }
+.account-login-event-list small { color: #8993a5; font-size: 9px; }
+.account-login-event-list code { color: #65738b; font-size: 10px; }
+@media (max-width: 560px) { .account-login-event-list article { grid-template-columns: 24px minmax(0,1fr); } .account-login-event-list code { grid-column: 2; } }

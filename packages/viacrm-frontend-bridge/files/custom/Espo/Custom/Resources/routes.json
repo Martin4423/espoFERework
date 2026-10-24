@@ -53,6 +53,11 @@
     "actionClassName": "Espo\\Custom\\Api\\GetCurrentUserSessions"
   },
   {
+    "route": "/UserSecurity/currentLoginHistory",
+    "method": "get",
+    "actionClassName": "Espo\\Custom\\Api\\GetCurrentUserLoginHistory"
+  },
+  {
     "route": "/UserSecurity/currentSession/:id",
     "method": "delete",
     "actionClassName": "Espo\\Custom\\Api\\DeleteCurrentUserSession"
