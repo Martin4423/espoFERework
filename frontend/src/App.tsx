@@ -1710,6 +1710,19 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     return where;
   }, [folderId, emailFilters]);
   useEffect(() => {
+    const handleComposeShortcut = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.code !== "Space" || event.isComposing) return;
+      if (target?.closest("input, textarea, select, button, [contenteditable='true'], [role='dialog']")) return;
+      if (!canCreateEntity(metadata, "Email") || metadata.clientDefs?.Email?.createDisabled) return;
+      event.preventDefault();
+      event.stopPropagation();
+      onCompose();
+    };
+    window.addEventListener("keydown", handleComposeShortcut);
+    return () => window.removeEventListener("keydown", handleComposeShortcut);
+  }, [metadata, onCompose]);
+  useEffect(() => {
     let live = true;
     const groupFolderRequest = canAccessEntity(metadata, "GroupEmailFolder") ? request<PageResult>("GroupEmailFolder?maxSize=200&offset=0&orderBy=order&order=asc").catch(() => ({ list: [], total: 0 })) : Promise.resolve({ list: [], total: 0 });
     Promise.all([request<{ list: MailFolder[] }>("EmailFolder/action/listAll?maxSize=200"), request<Record<string, number>>("Email/inbox/notReadCounts"), groupFolderRequest]).then(([folderData, countData, groupFolderData]) => {
@@ -1858,7 +1871,7 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     return <div className="mail-folder-row" key={`${entityName}-${folder.id}`}><button {...folderDropProps(folder.id)} className={`mail-folder ${folder.id === folderId ? "active" : ""} ${dropTarget === folder.id ? "drop-target" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{entityName === "GroupEmailFolder" ? <Users size={14}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>{(canEdit || canDelete) && <div className="mail-folder-actions">{canEdit && <><button className="icon-button" title="Posunout nahoru" aria-label={`Posunout složku ${folder.name} nahoru`} disabled={index === 0} onClick={() => void reorderFolder(entityName, entityId, "Up")}><ArrowUp size={12}/></button><button className="icon-button" title="Posunout dolů" aria-label={`Posunout složku ${folder.name} dolů`} disabled={index === list.length - 1} onClick={() => void reorderFolder(entityName, entityId, "Down")}><ArrowDown size={12}/></button><button className="icon-button" title="Upravit složku" aria-label={`Upravit složku ${folder.name}`} onClick={() => setFolderEditor({ entity: entityName, record: { ...folder, id: entityId } })}><Pencil size={12}/></button></>}{canDelete && <button className="icon-button danger-ghost" title="Odstranit složku" aria-label={`Odstranit složku ${folder.name}`} onClick={() => void deleteFolder(entityName, folder)}><Trash2 size={12}/></button>}</div>}</div>;
   };
   return <div className="mail-page">
-    <header className="mail-page-heading"><div><div className="eyebrow">KOMUNIKACE</div><h1>E-mail</h1><p>Schránka, složky a zprávy propojené se záznamy CRM.</p></div><div className="mail-heading-actions">{canCreateEntity(metadata, "Email") && <button type="button" className="button subtle" onClick={() => setImportEmlOpen(true)}><FileInput size={14}/>Importovat EML</button>}<button className="button primary" onClick={onCompose}><Plus size={15}/>Napsat e-mail</button></div></header>
+    <header className="mail-page-heading"><div><div className="eyebrow">KOMUNIKACE</div><h1>E-mail</h1><p>Schránka, složky a zprávy propojené se záznamy CRM.</p></div><div className="mail-heading-actions">{canCreateEntity(metadata, "Email") && <button type="button" className="button subtle" onClick={() => setImportEmlOpen(true)}><FileInput size={14}/>Importovat EML</button>}{canCreateEntity(metadata, "Email") && !metadata.clientDefs?.Email?.createDisabled && <button type="button" className="button primary" onClick={onCompose} aria-keyshortcuts="Control+Space" title="Napsat e-mail (Ctrl + mezerník)"><Plus size={15}/>Napsat e-mail</button>}</div></header>
     <section className="mail-surface surface"><aside className="mail-sidebar"><div className="mail-sidebar-title">SCHRÁNKY</div>{systemMailFolders.map((folder) => <button {...folderDropProps(folder.id)} key={folder.id} className={`mail-folder ${folder.id === folderId ? "active" : ""} ${dropTarget === folder.id ? "drop-target" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{folder.id === "inbox" ? <InboxIcon size={16}/> : folder.id === "important" ? <Star size={15}/> : folder.id === "sent" ? <Send size={15}/> : folder.id === "drafts" ? <FileText size={15}/> : folder.id === "archive" ? <Archive size={15}/> : folder.id === "trash" ? <Trash2 size={15}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>)}
       {(folders.length > 0 || canAccessEntity(metadata, "EmailFolder")) && <><div className="mail-sidebar-title custom-folders-title">VLASTNÍ SLOŽKY</div>{folders.map((folder, index) => renderCustomFolder(folder, "EmailFolder", index, folders))}</>}
       {(groupFolders.length > 0 || canAccessEntity(metadata, "GroupEmailFolder")) && <><div className="mail-sidebar-title custom-folders-title">SKUPINOVÉ SLOŽKY</div>{groupFolders.map((folder, index) => renderCustomFolder(folder, "GroupEmailFolder", index, groupFolders))}</>}
