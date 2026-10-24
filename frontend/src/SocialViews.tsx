@@ -10,6 +10,30 @@ type Page<T> = { list?: T[]; total?: number };
 type NotificationItem = Record<string, any>;
 const PAGE_SIZE = 20;
 
+function customNotificationMessage(item: NotificationItem, metadata: Metadata) {
+  const type = String(item.type || "");
+  const key = type ? type[0].toLocaleLowerCase() + type.slice(1) : "";
+  const data = item.data || {};
+  const note = item.noteData || {};
+  const parents = [item.relatedParentType, item.relatedType, note.parentType].filter((value): value is string => typeof value === "string");
+  const dictionaries = (metadata.labels as any) || {};
+  const template = parents.map((parent) => dictionaries[parent]?.notificationMessages?.[key]).find((value) => typeof value === "string") || dictionaries.Global?.notificationMessages?.[key];
+  if (typeof template !== "string" || !template) return "";
+  const entityType = data.entityType || note.parentType || item.relatedParentType || item.relatedType || "";
+  const values: Record<string, string> = {
+    entityType: entityType ? entityLabel(metadata, entityType) : "",
+    entity: String(data.entityName || note.parentName || item.relatedParentName || data.emailName || ""),
+    user: String(data.userName || note.createdByName || item.createdByName || ""),
+    assignee: String(data.assigneeName || data.assignedUserName || ""),
+    mentioned: String(data.mentionedName || data.mentionedUserName || ""),
+    from: String(data.fromString || data.personEntityName || ""),
+    post: String(note.post || data.post || ""),
+    invitee: String(data.inviteeName || ""),
+    type: String(data.type || ""),
+  };
+  return template.replace(/\{([A-Za-z0-9_]+)\}/g, (match, name: string) => values[name] || match);
+}
+
 function notificationTitle(item: NotificationItem, metadata: Metadata) {
   const data = item.data || {};
   const note = item.noteData || {};
@@ -34,7 +58,7 @@ function notificationTitle(item: NotificationItem, metadata: Metadata) {
   if (item.type === "EntityRemoved") return actor ? `${actor} odstranil/a záznam` : "Záznam byl odstraněn";
   if (item.type === "System") return data.message || "Systémové oznámení";
   const customView = (metadata.clientDefs?.Notification as any)?.itemViews?.[String(item.type || "")];
-  return customView ? `Oznámení · ${humanize(item.type || "")}` : humanize(item.type || "Oznámení");
+  return customView ? customNotificationMessage(item, metadata) || `Oznámení · ${humanize(item.type || "")}` : humanize(item.type || "Oznámení");
 }
 
 function notificationDetail(item: NotificationItem, metadata: Metadata) {
