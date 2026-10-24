@@ -91,7 +91,7 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
       setValue(data); const formatted = JSON.stringify(data, null, 2); setSource(formatted); setInitialSource(formatted);
     }).catch((e) => live && setError(e instanceof Error ? e.message : "Rozložení se nepodařilo načíst.")).finally(() => live && setBusy(false));
     return () => { live = false; };
-  }, [scope, layoutName]);
+  }, [scope, layoutName, layoutSetId]);
 
   function setLayout(next: any) { setValue(next); setSource(JSON.stringify(next, null, 2)); setNotice(""); setError(""); }
   function parseSource() {
