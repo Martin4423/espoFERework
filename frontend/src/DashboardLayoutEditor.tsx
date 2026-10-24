@@ -3,13 +3,13 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "./Icons";
 import type { Metadata } from "./api";
 
 type Item = { id: string; name: string; x?: number; y?: number; width?: number; height?: number };
-type Tab = { name: string; layout: Item[] };
+type Tab = { id?: string; name: string; layout: Item[] };
 type Data = Record<string, any>;
 
 function newId() { return `via-${Math.random().toString(36).slice(2, 11)}`; }
 function normalizeLayout(value: unknown): Tab[] {
   if (!Array.isArray(value)) return [{ name: "Přehled", layout: [] }];
-  return value.map((tab: any, tabIndex) => ({ name: String(tab?.name || `Přehled ${tabIndex + 1}`), layout: Array.isArray(tab?.layout) ? tab.layout.map((item: any, index: number) => ({ ...item, id: String(item?.id || newId()), name: String(item?.name || "Records"), x: Number.isFinite(Number(item?.x)) ? Number(item.x) : index % 2, y: Number.isFinite(Number(item?.y)) ? Number(item.y) : Math.floor(index / 2), width: Math.max(1, Math.min(4, Number(item?.width) || 2)), height: Math.max(1, Math.min(8, Number(item?.height) || 3)) })) : [] }));
+  return value.map((tab: any, tabIndex) => ({ ...tab, name: String(tab?.name || `Přehled ${tabIndex + 1}`), layout: Array.isArray(tab?.layout) ? tab.layout.map((item: any, index: number) => ({ ...item, id: String(item?.id || newId()), name: String(item?.name || "Records"), x: Number.isFinite(Number(item?.x)) ? Number(item.x) : index % 2, y: Number.isFinite(Number(item?.y)) ? Number(item.y) : Math.floor(index / 2), width: Math.max(1, Math.min(4, Number(item?.width) || 2)), height: Math.max(1, Math.min(8, Number(item?.height) || 3)) })) : [] }));
 }
 
 /** Edits the native dashboard tab/grid JSON used by DashboardTemplate and user preferences. */
@@ -23,8 +23,20 @@ export default function DashboardLayoutEditor({ value, options, metadata, disabl
   const available = Object.keys(defs).sort((a, b) => String(labels[a] || a).localeCompare(String(labels[b] || b), "cs"));
 
   function updateTab(index: number, next: Tab) { onChange(tabs.map((tab, i) => i === index ? next : tab)); }
-  function addTab() { onChange([...tabs, { name: `Přehled ${tabs.length + 1}`, layout: [] }]); setActiveTab(tabs.length); }
-  function deleteTab() { if (tabs.length <= 1) return; onChange(tabs.filter((_, index) => index !== activeTab)); setActiveTab(Math.max(0, activeTab - 1)); }
+  function addTab() { onChange([...tabs, { id: newId(), name: `Přehled ${tabs.length + 1}`, layout: [] }]); setActiveTab(tabs.length); }
+  function moveTab(delta: number) {
+    const nextIndex = activeTab + delta;
+    if (nextIndex < 0 || nextIndex >= tabs.length) return;
+    const next = [...tabs]; [next[activeTab], next[nextIndex]] = [next[nextIndex], next[activeTab]];
+    onChange(next); setActiveTab(nextIndex);
+  }
+  function deleteTab() {
+    if (tabs.length <= 1) return;
+    const nextTabs = tabs.filter((_, index) => index !== activeTab);
+    const remainingIds = new Set(nextTabs.flatMap((tab) => tab.layout.map((item) => item.id)));
+    const nextOptions = Object.fromEntries(Object.entries(options).filter(([id]) => remainingIds.has(id)));
+    onOptionsChange(nextOptions); onChange(nextTabs); setActiveTab(Math.max(0, activeTab - 1));
+  }
   function addDashlet() {
     if (!selectedDashlet) return;
     const id = newId();
@@ -59,7 +71,7 @@ export default function DashboardLayoutEditor({ value, options, metadata, disabl
 
   return <section className="dashboard-layout-editor">
     <div className="dashboard-layout-tabs">{tabs.map((tab, index) => <button type="button" key={`${index}-${tab.name}`} className={index === activeTab ? "active" : ""} onClick={() => setActiveTab(index)}>{tab.name || `Přehled ${index + 1}`}<small>{tab.layout.length}</small></button>)}<button type="button" className="dashboard-layout-add-tab" onClick={addTab} disabled={disabled}><Plus size={14}/> Přidat záložku</button></div>
-    <div className="dashboard-layout-toolbar"><label><span>Název záložky</span><input value={current.name} disabled={disabled} onChange={(event) => updateTab(activeTab, { ...current, name: event.target.value })}/></label><button type="button" className="button subtle" disabled={disabled || tabs.length < 2} onClick={deleteTab}><Trash2 size={13}/> Odebrat záložku</button></div>
+    <div className="dashboard-layout-toolbar"><label><span>Název záložky</span><input value={current.name} disabled={disabled} onChange={(event) => updateTab(activeTab, { ...current, name: event.target.value })}/></label><div className="dashboard-layout-item-actions"><button type="button" title="Posunout záložku nahoru" disabled={disabled || activeTab === 0} onClick={() => moveTab(-1)}><ArrowUp size={14}/></button><button type="button" title="Posunout záložku dolů" disabled={disabled || activeTab === tabs.length - 1} onClick={() => moveTab(1)}><ArrowDown size={14}/></button></div><button type="button" className="button subtle" disabled={disabled || tabs.length < 2} onClick={deleteTab}><Trash2 size={13}/> Odebrat záložku</button></div>
     <div className="dashboard-layout-add"><label><span>Přidat panel</span><select value={selectedDashlet} disabled={disabled} onChange={(event) => setSelectedDashlet(event.target.value)}><option value="">Vyberte panel…</option>{available.map((name) => <option key={name} value={name}>{labels[name] || name}</option>)}</select></label><button type="button" className="button subtle" disabled={disabled || !selectedDashlet} onClick={addDashlet}><Plus size={14}/> Přidat panel</button></div>
     {!current.layout.length ? <div className="dashboard-layout-empty">Tato záložka zatím nemá žádné panely.</div> : <div className="dashboard-layout-items">{current.layout.map((item, index) => {
       const fieldDefs = defs[item.name]?.options?.fields || {};
