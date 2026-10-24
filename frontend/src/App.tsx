@@ -559,6 +559,9 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [quickCreateScope, setQuickCreateScope] = useState<string | null>(null);
+  const [quickCreateInitialValues, setQuickCreateInitialValues] = useState<Row>({});
+  const [quickCreateFromDashboard, setQuickCreateFromDashboard] = useState(false);
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [tabPreferences, setTabPreferences] = useState<Row>({});
   const [openTabGroups, setOpenTabGroups] = useState<Record<string, boolean>>({});
   const [quickCreateLayout, setQuickCreateLayout] = useState<{ scope: string; names: string[] } | null>(null);
@@ -583,6 +586,21 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
     if (!Array.isArray(configured)) return [];
     return configured.filter((scope): scope is string => typeof scope === "string" && Boolean(metadata.scopes?.[scope]?.entity) && !metadata.scopes?.[scope]?.disabled && !metadata.clientDefs?.[scope]?.createDisabled && canCreateEntity(metadata, scope));
   }, [metadata]);
+  function openDashboardCreate(scope: string) {
+    if (!canCreateEntity(metadata, scope)) return;
+    const initialValues: Row = {};
+    if (metadata.entityDefs?.[scope]?.fields?.assignedUsers) {
+      initialValues.assignedUsersIds = [user.id];
+      initialValues.assignedUsersNames = { [user.id]: user.name };
+    } else if (metadata.entityDefs?.[scope]?.fields?.assignedUser) {
+      initialValues.assignedUserId = user.id;
+      initialValues.assignedUserName = user.name;
+    }
+    setQuickCreateLayout(null);
+    setQuickCreateInitialValues(initialValues);
+    setQuickCreateFromDashboard(true);
+    setQuickCreateScope(scope);
+  }
   useEffect(() => {
     let live = true;
     request<Row>(`Preferences/${encodeURIComponent(user.id)}`).then((prefs) => live && setTabPreferences(prefs)).catch(() => live && setTabPreferences({}));
@@ -747,11 +765,11 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : entity === "Email" && !isPortalUser ? <EmailInbox metadata={metadata} refresh={emailRefresh} onCompose={() => setEmailDraft({})} onOpenRecord={(row) => { if (row.status === "Draft") setEmailDraft({ id: row.id, status: "Draft" }); else setRecord(row); }} />
         : entity ? <EntityView key={entity} entity={entity} metadata={metadata} onOpenRecord={setRecord} onNavigateEntity={openEntity} fixedWhere={entityFixedWhere} />
         : isPortalUser ? <PortalHome metadata={metadata} user={user} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onAvailableChange={updatePortalScopes} />
-        : <Dashboard entities={entities} metadata={metadata} user={user} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onComposeEmail={() => setEmailDraft({})} />}
+        : <Dashboard entities={entities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openDashboardCreate} onComposeEmail={() => setEmailDraft({})} />}
       </main>
       {record && entity === "Email" && !isPortalUser ? <EmailDrawer record={record} metadata={metadata} canCreateDocument={canCreateEntity(metadata, "Document")} canCreateFilter={canCreateEntity(metadata, "EmailFilter")} onClose={() => setRecord(null)} onChanged={() => setEmailRefresh((n) => n + 1)} onReply={(draft) => setEmailDraft(draft)} onOpenRecord={(next) => setRecord(next)} onOpenEntityRecord={(scope, row) => { setEntityFixedWhere([]); setEntity(scope); setRecord(row); }} onCreateFilter={(address) => { setRecord(null); setEntityFixedWhere([]); setEntity("EmailFilter"); setEmailFilterDraft({ from: address, name: address }); }} /> : record && entity && <RecordDrawer entity={entity} record={record} metadata={metadata} onClose={() => setRecord(null)} onChanged={(next) => setRecord(next)} onOpenRelated={(relatedEntity, relatedRecord) => { setEntityFixedWhere([]); setEntity(relatedEntity); setRecord(relatedRecord); }} onOpenPreferences={openPreferencesFor} onOpenEmailAccounts={openEmailAccountsFor} onOpenEntity={(name) => openEntity(name)} onOpenCalendar={openCalendarFor} onComposeEmail={(draft) => setEmailDraft(draft)} />}
       {emailFilterDraft && entity === "EmailFilter" && <RecordEditor entity="EmailFilter" fields={getEditorFields(metadata, "EmailFilter")} metadata={metadata} initialValues={emailFilterDraft} onClose={() => setEmailFilterDraft(null)} onSaved={() => { setEmailFilterDraft(null); setEmailRefresh((n) => n + 1); }} />}
-      {quickCreateScope && <RecordEditor entity={quickCreateScope} fields={getEditorFields(metadata, quickCreateScope).filter(([name, def]) => (quickCreateLayout?.scope !== quickCreateScope || quickCreateLayout.names.includes(name)) && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.read !== "no" && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.edit !== "no" && !def.hidden && !def.utility && !def.disabled)} metadata={metadata} onClose={() => setQuickCreateScope(null)} onSaved={(created) => { const scope = quickCreateScope; setQuickCreateScope(null); openEntity(scope); setRecord(created); }}/>}
+      {quickCreateScope && <RecordEditor entity={quickCreateScope} fields={getEditorFields(metadata, quickCreateScope).filter(([name, def]) => (quickCreateLayout?.scope !== quickCreateScope || quickCreateLayout.names.includes(name)) && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.read !== "no" && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.edit !== "no" && !def.hidden && !def.utility && !def.disabled)} metadata={metadata} initialValues={quickCreateInitialValues} onClose={() => { setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); }} onSaved={(created) => { const scope = quickCreateScope; const fromDashboard = quickCreateFromDashboard; setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); if (fromDashboard) setDashboardRefreshKey((value) => value + 1); else { openEntity(scope); setRecord(created); } }}/>}
       {emailDraft && <EmailComposer initial={emailDraft} onClose={() => setEmailDraft(null)} onSaved={() => { setEmailDraft(null); setEmailRefresh((n) => n + 1); }} />}
       {globalSearchOpen && <GlobalSearchOverlay metadata={metadata} onClose={() => setGlobalSearchOpen(false)} onSelect={(name, row) => { setGlobalSearchOpen(false); openEntity(name); setRecord(row); }} />}
       <footer className="app-footer"><span>ViaCRM</span><span>Vaše vztahy. Váš přehled.</span></footer>
@@ -1295,8 +1313,8 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
   </>;
 }
 
-function Dashboard({ entities, metadata, user, onOpenEntity, onOpenRecord, onComposeEmail }: { entities: string[]; metadata: Metadata; user: User; onOpenEntity: (name: string) => void; onOpenRecord: (name: string, row: Row) => void; onComposeEmail: () => void }) {
-  return <PersonalDashboard user={user} metadata={metadata} onOpenRecord={onOpenRecord} onComposeEmail={onComposeEmail} fallback={<ClassicDashboard entities={entities} metadata={metadata} onOpenEntity={onOpenEntity} onOpenRecord={onOpenRecord}/>} />;
+function Dashboard({ entities, metadata, user, refreshKey, onOpenEntity, onOpenRecord, onCreateRecord, onComposeEmail }: { entities: string[]; metadata: Metadata; user: User; refreshKey: number; onOpenEntity: (name: string) => void; onOpenRecord: (name: string, row: Row) => void; onCreateRecord: (scope: string) => void; onComposeEmail: () => void }) {
+  return <PersonalDashboard user={user} metadata={metadata} refreshKey={refreshKey} onOpenRecord={onOpenRecord} onCreateRecord={onCreateRecord} onComposeEmail={onComposeEmail} fallback={<ClassicDashboard entities={entities} metadata={metadata} onOpenEntity={onOpenEntity} onOpenRecord={onOpenRecord}/>} />;
 }
 
 function ClassicDashboard({ entities, metadata, onOpenEntity, onOpenRecord }: { entities: string[]; metadata: Metadata; onOpenEntity: (name: string) => void; onOpenRecord: (name: string, row: Row) => void }) {

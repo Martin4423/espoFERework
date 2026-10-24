@@ -1252,6 +1252,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .personal-dashlet > header { display: flex; align-items: center; gap: 9px; min-height: 47px; padding: 0 14px; border-bottom: 1px solid #eef0f4; }
 .personal-dashlet-icon { display: grid; width: 27px; height: 27px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: #f0efff; color: #5a51cb; }
 .personal-dashlet > header h2 { flex: 1; overflow: hidden; margin: 0; color: #36435a; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.dashlet-create-menu { position: relative; }
+.dashlet-create-popover { position: absolute; z-index: 20; top: calc(100% + 5px); right: 0; display: grid; min-width: 145px; gap: 2px; padding: 5px; border: 1px solid #e6e9f0; border-radius: 8px; background: #fff; box-shadow: 0 8px 20px #26334b20; }
+.dashlet-create-popover button { border: 0; border-radius: 5px; padding: 7px 9px; background: transparent; color: #56637a; text-align: left; font: inherit; font-size: 10px; cursor: pointer; }
+.dashlet-create-popover button:hover { background: #f3f2ff; color: #5148c8; }
 .personal-dashlet-list { padding: 4px 13px 10px; }
 .personal-dashlet-row { display: flex; align-items: center; gap: 5px; border-bottom: 1px solid #f0f2f6; }
 .personal-dashlet-row:last-child { border-bottom: 0; }
