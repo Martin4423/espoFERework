@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, FileInput, Plus, Save, Search, Trash2, X } from "./Icons";
+import { ArrowLeft, Check, Copy, FileInput, Plus, Save, Search, Trash2, X } from "./Icons";
 import { downloadAttachment, entityLabel, fetchMetadata, fieldLabel, request } from "./api";
 import EspoIcon from "./EspoIcon";
 import AdminEntityFormula from "./AdminEntityFormula";
@@ -33,6 +33,7 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [formulaOpen, setFormulaOpen] = useState(false);
+  const [rebuildOpen, setRebuildOpen] = useState(false);
   const [exportData, setExportData] = useState<Data>(() => { try { return JSON.parse(localStorage.getItem("espo-custom-export-manifest") || "{}"); } catch { return {}; } });
   const scopes = useMemo(() => Object.keys(liveMetadata.scopes || {}).filter((name) => liveMetadata.scopes[name].entity).sort((a, b) => entityLabel(liveMetadata, a, true).localeCompare(entityLabel(liveMetadata, b, true), "cs")), [liveMetadata]);
   const templates = liveMetadata.app?.entityTemplateList || [];
@@ -156,6 +157,7 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
       } else {
         await request("EntityManager/action/updateEntity", { method: "POST", body: JSON.stringify(payload) });
         setLiveMetadata(await fetchMetadata()); setNotice("Nastavení entity bylo uloženo.");
+        if (!originalData.fullTextSearch && payload.fullTextSearch) setRebuildOpen(true);
       }
     } catch (e) { setError(e instanceof Error ? e.message : "Entitu se nepodařilo uložit."); }
     finally { setBusy(false); }
@@ -249,6 +251,7 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
       </> : <div className="field-manager-placeholder"><span><Save size={20}/></span><h2>Vyberte entitu</h2><p>Upravte její nastavení, nebo založte vlastní modul.</p></div>}</section>
     </div>
     {exportOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !exporting && setExportOpen(false)}><section className="record-modal entity-export-modal"><div className="modal-heading"><div><span className="eyebrow">DISTRIBUCE VLASTNÍCH ÚPRAV</span><h2>Exportovat rozšíření EspoCRM</h2><p>Vytvořte instalovatelný ZIP balíček vlastních polí, entit, rozložení a dalších změn.</p></div><button className="icon-button" onClick={() => setExportOpen(false)} disabled={exporting} aria-label="Zavřít"><X size={16}/></button></div><div className="settings-fields entity-export-fields"><label className="setting-field"><span>Název balíčku</span><input value={exportData.name || ""} onChange={(event) => setExportData((old: Data) => ({ ...old, name: event.target.value }))} required pattern="[A-Za-z0-9 ]+"/></label><label className="setting-field"><span>Název modulu</span><input value={exportData.module || ""} onChange={(event) => setExportData((old: Data) => ({ ...old, module: event.target.value }))} required pattern="[A-Z][a-z][A-Za-z]+" placeholder="AcmeCrm"/></label><label className="setting-field"><span>Verze</span><input value={exportData.version || "0.0.1"} onChange={(event) => setExportData((old: Data) => ({ ...old, version: event.target.value }))} required pattern="[0-9]+\.[0-9]+\.[0-9]+"/></label><label className="setting-field"><span>Autor</span><input value={exportData.author || ""} onChange={(event) => setExportData((old: Data) => ({ ...old, author: event.target.value }))} required/></label><label className="setting-field entity-export-description"><span>Popis</span><textarea rows={3} value={exportData.description || ""} onChange={(event) => setExportData((old: Data) => ({ ...old, description: event.target.value }))}/></label></div><div className="modal-footer"><button className="button subtle" onClick={() => setExportOpen(false)} disabled={exporting}>Zrušit</button><button className="button primary" onClick={() => void exportCustomizations()} disabled={exporting || !String(exportData.name || "").trim() || !/^[A-Z][a-z][A-Za-z]+$/.test(String(exportData.module || "")) || !/^\d+\.\d+\.\d+$/.test(String(exportData.version || "")) || !String(exportData.author || "").trim()}>{exporting ? "Vytvářím balíček…" : <><FileInput size={14}/> Vytvořit a stáhnout ZIP</>}</button></div></section></div>}
+    {rebuildOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setRebuildOpen(false)}><section className="record-modal entity-export-modal" role="dialog" aria-modal="true" aria-labelledby="entity-rebuild-title"><div className="modal-heading"><div><span className="eyebrow">DOKONČENÍ NASTAVENÍ</span><h2 id="entity-rebuild-title">Je potřeba obnovit fulltextový index</h2><p>Plnotextové vyhledávání se začne používat po přegenerování metadat a indexů EspoCRM.</p></div><button className="icon-button" onClick={() => setRebuildOpen(false)} aria-label="Zavřít"><X size={16}/></button></div><div className="settings-fields"><div className="setting-field"><span>V terminálu na serveru spusťte</span><code>php rebuild.php</code><small>Spusťte příkaz z kořenové složky instalace EspoCRM. Do dokončení obnovy nemusí být nové vyhledávání dostupné.</small></div></div><div className="modal-footer"><button className="button subtle" onClick={() => { void navigator.clipboard?.writeText("php rebuild.php").then(() => setNotice("Příkaz php rebuild.php byl zkopírován.")); }}><Copy size={14}/> Kopírovat příkaz</button><button className="button primary" onClick={() => setRebuildOpen(false)}>Rozumím</button></div></section></div>}
     {formulaOpen && <AdminEntityFormula metadata={liveMetadata} entity={scope} onClose={() => setFormulaOpen(false)}/>}
   </div>;
 }
