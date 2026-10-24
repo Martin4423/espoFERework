@@ -1289,6 +1289,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .dashboard-tab-editor-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 6px 8px; border: 1px solid #e8eaf0; border-radius: 8px; background: #fafbfc; }
 .dashboard-tab-editor-move { display: flex; gap: 1px; }
 .dashboard-tab-editor-row input { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid #e1e5ed; border-radius: 6px; background: #fff; color: #39465e; font: inherit; font-size: 11px; }
+.dashboard-lock-toggle { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; padding: 11px 12px; border: 1px solid #e5e8ef; border-radius: 8px; background: #f8f9fc; cursor: pointer; }
+.dashboard-lock-toggle input { margin-top: 2px; accent-color: #5148c8; }
+.dashboard-lock-toggle > span { display: grid; gap: 3px; }
+.dashboard-lock-toggle strong { color: #344054; font-size: 12px; }
+.dashboard-lock-toggle small { color: #7b8799; font-size: 11px; }
 .dashboard-add-tab { margin-top: 10px; }
 .personal-dashboard-heading .personal-dashboard-actions { flex-wrap: wrap; justify-content: flex-end; }
 .dashlet-option-editor { width: min(620px, 100%); max-height: min(88vh, 860px); }
