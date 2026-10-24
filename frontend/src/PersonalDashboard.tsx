@@ -5,7 +5,7 @@ import { aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, entityLabe
 import type { Metadata, User } from "./api";
 import SelectRecordsDialog from "./SelectRecordsDialog";
 import { findDashletPosition, packDashboardItems, placeDashboardItem } from "./dashboardGrid";
-import { formatEspoDateTime } from "./timeZone";
+import { dateFilterBoundaryInTimeZone, formatEspoDateTime } from "./timeZone";
 
 type Data = Record<string, any>;
 type Dashlet = { id: string; name: string; x?: number; y?: number; width?: number; height?: number };
@@ -13,6 +13,12 @@ type DashTab = { name: string; layout: Dashlet[] };
 type DashTabDraft = { sourceIndex: number | null; name: string };
 const defaultLayout: DashTab[] = [{ name: "My Espo", layout: [{ id: "default-activities", name: "Activities", x: 2, y: 2, width: 2, height: 4 }, { id: "default-stream", name: "Stream", x: 0, y: 0, width: 2, height: 4 }] }];
 const entityByDashlet: Record<string, string> = { Leads: "Lead", Opportunities: "Opportunity", Cases: "Case", Calls: "Call", Meetings: "Meeting", Tasks: "Task", Emails: "Email" };
+
+function shiftedDateKeyInTimeZone(offsetDays: number, timeZone: string) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((part) => [part.type, part.value]));
+  const date = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day) + offsetDays));
+  return date.toISOString().slice(0, 10);
+}
 
 function taskDeadlineSummary(row: Data, timeZone: string): { kind: "overdue" | "today" | "normal" | "none"; label: string } {
   const dateOnly = Boolean(row.dateEndDate);
@@ -139,11 +145,12 @@ function DashletCard({ item, user, metadata, options, appSettings, timeZone, ref
           const list = Array.isArray(data) ? data : data.list || [];
           if (live) setRows(list);
         } else if (item.name === "Calendar") {
-          const start = new Date(); start.setDate(start.getDate() - 7);
-          const end = new Date(); end.setDate(end.getDate() + Math.max(7, Number(options.futureDays || 30)));
+          const futureDays = Math.max(7, Number(options.futureDays || 30));
+          const from = dateFilterBoundaryInTimeZone(shiftedDateKeyInTimeZone(-7, timeZone), timeZone);
+          const to = dateFilterBoundaryInTimeZone(shiftedDateKeyInTimeZone(futureDays + 1, timeZone), timeZone);
           const allowedActivities = (options.enabledScopeList || ["Meeting", "Call", "Task"]).filter((scope: string) => canAccessEntity(metadata, scope));
           if (!allowedActivities.length) { if (live) setRows([]); return; }
-          const params = new URLSearchParams({ from: start.toISOString().slice(0, 19).replace("T", " "), to: end.toISOString().slice(0, 19).replace("T", " "), scopeList: allowedActivities.join(","), agenda: "true" });
+          const params = new URLSearchParams({ from, to, scopeList: allowedActivities.join(","), agenda: "true" });
           params.set("futureDays", String(Number(options.futureDays ?? 30)));
           if (options.includeShared) params.set("includeShared", "true");
           if (item.name === "Calendar") {
