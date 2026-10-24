@@ -1523,6 +1523,7 @@ function AdminNotifications({ metadata, onBack }: { metadata: Metadata; onBack: 
 type QuickSearchTab = { label: string; target: string; admin?: boolean };
 const quickAdminTargets: Record<string, string> = { users: "User", teams: "Team", roles: "Role", entityManager: "__entity-manager__", groupEmailAccounts: "EmailAccount", personalEmailAccounts: "EmailAccount", portalUsers: "__portal-users__", workingTimeCalendar: "WorkingTimeCalendar" };
 function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNavigate }: { metadata: Metadata; tabs: any[]; isAdmin: boolean; onClose: () => void; onSelect: (entity: string, record: Row) => void; onNavigate: (target: string) => void }) {
+  const dialogRef = useRef<HTMLElement | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Row[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -1581,7 +1582,22 @@ function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNav
     }, 240);
     return () => { live = false; window.clearTimeout(timer); };
   }, [query, metadata.appSettings?.globalSearchMaxSize]);
-  useEffect(() => { const handler = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, [onClose]);
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLInputElement>("input")?.focus();
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { onClose(); return; }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('input:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) { event.preventDefault(); return; }
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => { window.removeEventListener("keydown", handler); if (previousFocus?.isConnected) previousFocus.focus(); };
+  }, [onClose]);
   function selectResult(index: number) {
     const record = results[index];
     if (!record) return;
@@ -1604,7 +1620,7 @@ function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNav
     else if (event.key === "ArrowUp" && selectableCount) { event.preventDefault(); setSelectedIndex((index) => (index - 1 + selectableCount) % selectableCount); }
     else if (event.key === "Enter" && selectableCount) { event.preventDefault(); selectItem(Math.min(selectedIndex, selectableCount - 1)); }
   }
-  return <div className="global-search-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><section className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Vyhledávání v CRM"><div className="global-search-input"><Search size={19}/><input autoFocus role="combobox" aria-autocomplete="list" aria-expanded={selectableCount > 0} aria-controls="global-search-results" aria-activedescendant={selectableCount ? `global-search-result-${selectedIndex}` : undefined} value={query} onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }} onKeyDown={handleSearchKeyDown} placeholder="Hledat moduly, administraci a záznamy…"/><kbd>ESC</kbd><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
+  return <div className="global-search-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><section ref={dialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Vyhledávání v CRM"><div className="global-search-input"><Search size={19}/><input autoFocus role="combobox" aria-autocomplete="list" aria-expanded={selectableCount > 0} aria-controls="global-search-results" aria-activedescendant={selectableCount ? `global-search-result-${selectedIndex}` : undefined} value={query} onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }} onKeyDown={handleSearchKeyDown} placeholder="Hledat moduly, administraci a záznamy…"/><kbd>ESC</kbd><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
     {query.trim().length < 1 ? <div className="global-search-hint">Začněte psát název modulu, administrace nebo záznamu.</div> : <div className="global-search-results" id="global-search-results" role="listbox">{matchingTabs.length > 0 && <><div className="global-search-section-label">Rychlé přechody</div>{matchingTabs.map((item, index) => <button id={`global-search-result-${index}`} role="option" aria-selected={selectedIndex === index} className={`global-search-result ${selectedIndex === index ? "active" : ""}`} key={item.target} onMouseEnter={() => setSelectedIndex(index)} onClick={() => selectItem(index)}><span className="global-result-icon"><ArrowRight size={15}/></span><span><strong>{item.label}</strong><small>{item.admin ? "Administrace" : item.target.startsWith("url:") ? "Odkaz" : "Modul"}</small></span><ArrowRight size={14}/></button>)}</>}{query.trim().length >= 2 && <><div className="global-search-section-label">Záznamy</div>{busy ? <div className="global-search-state"><span className="spinner"/>Hledám v CRM…</div> : error ? <div className="global-search-state error">{error}</div> : results.length ? results.map((record, index) => { const scope = record.entityType || record.scope || record._scope || ""; const itemIndex = matchingTabs.length + index; return <button id={`global-search-result-${itemIndex}`} role="option" aria-selected={selectedIndex === itemIndex} className={`global-search-result ${selectedIndex === itemIndex ? "active" : ""}`} key={`${scope}-${record.id}-${index}`} onMouseEnter={() => setSelectedIndex(itemIndex)} onClick={() => selectItem(itemIndex)}><span className="global-result-icon"><EntityIcon name={scope} size={15}/></span><span><strong>{recordFieldDisplayValue(scope, "name", record) || record.subject || "Záznam"}</strong><small>{entityLabel(metadata, scope)}{record.accountName ? ` · ${record.accountName}` : ""}</small></span><ArrowRight size={14}/></button>; }) : <div className="global-search-state">Nenašli jsme žádné odpovídající záznamy.</div>}</>}</div>}
     <footer className="global-search-footer"><span><kbd>↵</kbd> otevřít záznam</span><span>Vyhledávání respektuje oprávnění účtu</span></footer>
   </section></div>;
