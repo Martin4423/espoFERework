@@ -2512,10 +2512,11 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   const canCreate = canCreateEntity(metadata, entity) && !["EmailQueueItem", "AuthLogRecord", "Job"].includes(entity) && !isLeadCaptureLogRecord && !entityClientDefs.createDisabled;
   const isAuthLogRecord = entity === "AuthLogRecord";
   const isEmailQueueItem = entity === "EmailQueueItem";
+  const currentUserIsAdmin = ["admin", "super-admin"].includes(String(getSession()?.user.type || ""));
   const hasNativeListSettings = Boolean(metadata.scopes?.[entity]?.object) || ["AppLogRecord", "AuthLogRecord", "Job"].includes(entity);
   const canEdit = canChangeEntity(metadata, entity, "edit") && !entityClientDefs.editDisabled && !isAuthLogRecord && !isEmailQueueItem && entity !== "Job" && !isLeadCaptureLogRecord;
   const canDelete = canChangeEntity(metadata, entity, "delete") && !entityClientDefs.removeDisabled && entity !== "EmailFolder";
-  const canExport = canUsePermission(metadata, "exportPermission") && !entityClientDefs.exportDisabled && !isAuthLogRecord && !inboundEmailList && !emailAccountList && entity !== "EmailFolder";
+  const canExport = canUsePermission(metadata, "exportPermission") && !(metadata.appSettings?.exportDisabled && !currentUserIsAdmin) && !entityClientDefs.exportDisabled && !isAuthLogRecord && !inboundEmailList && !emailAccountList && entity !== "EmailFolder";
   const canMassUpdate = canUsePermission(metadata, "massUpdatePermission") && canEdit && !entityClientDefs.massUpdateDisabled && !isAuthLogRecord && !emailFilterList && entity !== "EmailFolder";
   const canMerge = canEdit && canDelete && !entityClientDefs.massActionsDisabled && !entityClientDefs.mergeDisabled && !isAuthLogRecord && !isEmailQueueItem && !inboundEmailList && !emailAccountList && !emailFilterList && entity !== "EmailFolder" && userType !== "api" && userType !== "portal";
   const currencyFields = Object.entries(fieldDefs).filter(([name, def]) => fieldPermissions[name]?.edit !== "no" && fieldPermissions[name]?.read !== "no" && def.type === "currency" && !def.readOnly && !def.disabled && !def.notStorable && !def.utility && !def.hidden);
