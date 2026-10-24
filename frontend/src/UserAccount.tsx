@@ -99,7 +99,10 @@ function PreferenceControl({ field, value, metadata, settings, timeFormat, langu
   if (optionList && ["checklist", "multiEnum"].includes(type)) {
     return <PreferenceChecklist label={label} options={optionList} value={value} onChange={onChange}/>;
   }
-  if (optionList) return <label className="field-input" htmlFor={controlId}><span>{label}{def.required && <i> *</i>}</span><select id={controlId} value={value ?? ""} required={def.required} onChange={(event) => onChange(event.target.value === "" ? "" : ["enumInt"].includes(type) || name === "weekStart" ? Number(event.target.value) : event.target.value)}><option value="">Výchozí nastavení</option>{optionList.map(([key, title]) => <option value={key} key={key}>{title}</option>)}</select></label>;
+  if (optionList) {
+    const defaultLabel = name === "dateFormat" ? `Výchozí · ${settings.dateFormat || ""}` : name === "timeFormat" ? `Výchozí · ${settings.timeFormat || ""}` : name === "defaultCurrency" ? `Výchozí · ${settings.defaultCurrency || ""}` : "Výchozí nastavení";
+    return <label className="field-input" htmlFor={controlId}><span>{label}{def.required && <i> *</i>}</span><select id={controlId} value={value ?? ""} required={def.required} onChange={(event) => onChange(event.target.value === "" ? "" : ["enumInt"].includes(type) || name === "weekStart" ? Number(event.target.value) : event.target.value)}><option value="">{defaultLabel}</option>{optionList.map(([key, title]) => <option value={key} key={key}>{title}</option>)}</select></label>;
+  }
   if (type === "bool") return null;
   if (type === "wysiwyg") return <div className="field-input preference-signature"><span>{label}</span><WysiwygEditor value={String(value || "")} htmlMode entity="Preferences" field={name} onChange={onChange}/><small>HTML podpis se vkládá do nových e-mailů. Zprávy odeslané jako prostý text mohou odstranit formátování.</small></div>;
   if (["jsonArray", "jsonObject", "array", "checklist", "multiEnum"].includes(type)) {
