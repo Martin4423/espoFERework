@@ -2514,3 +2514,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .admin-tab-group-items > div:not(.admin-tab-group-add) { display: flex; align-items: center; gap: 3px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); }
 .admin-tab-group-items > div > strong { flex: 1; font-size: 11px; }
 .admin-tab-group-add select { width: 100%; }
+.admin-tab-icon-picker { position: relative; }
+.admin-tab-icon-current { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); text-align: left; }
+.admin-tab-icon-current span { flex: 1; font-size: 12px; color: var(--ink); }
+.admin-tab-icon-current small { color: var(--muted); font-size: 10px; }
+.admin-tab-icon-popover { position: absolute; z-index: 12; top: calc(100% + 5px); left: 0; width: min(520px, calc(100vw - 48px)); padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 12px 35px rgba(24, 32, 55, .18); }
+.admin-tab-icon-popover > input { width: 100%; margin-bottom: 8px; }
+.admin-tab-icon-popover > div { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; max-height: 230px; overflow: auto; }
+.admin-tab-icon-popover > div button { display: grid; justify-items: center; gap: 5px; min-width: 0; padding: 9px 4px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); }
+.admin-tab-icon-popover > div button:hover { border-color: var(--primary); color: var(--primary); }
+.admin-tab-icon-popover > div small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.admin-tab-icon-popover > small { display: block; margin-top: 8px; color: var(--muted); font-size: 10px; }
+@media (max-width: 560px) { .admin-tab-icon-popover > div { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
