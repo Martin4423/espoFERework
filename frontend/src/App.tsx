@@ -3544,6 +3544,11 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   function updateFieldValue(name: string, value: any) {
     setValues((old) => {
       if (entity === "EmailAccount" && name === "assignedUser") return { ...old, assignedUser: value, emailFolder: "" };
+      if (entity === "Opportunity" && name === "stage") {
+        const probabilityMap = (metadata.entityDefs?.Opportunity?.fields?.stage as any)?.probabilityMap || {};
+        const probability = probabilityMap[String(value)];
+        return probability === null || probability === undefined ? { ...old, stage: value } : { ...old, stage: value, probability };
+      }
       if (entity === "Task" && ["dateEnd", "dateEndDate"].includes(name) && !value) {
         const next = { ...old, [name]: value };
         if (!next.dateEnd && !next.dateEndDate && Array.isArray(next.reminders) && next.reminders.length) next.reminders = [];
