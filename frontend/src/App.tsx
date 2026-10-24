@@ -4201,7 +4201,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       }
     }
     for (const [name] of fields) {
-      if (entity === "AppSecret" && name === "value" && activeRecord && !changingAppSecret) continue;
+      if ((entity === "AppSecret" && name === "value" && activeRecord && !changingAppSecret) || fieldMap.get(name)?.type === "autoincrement") continue;
       const logic = dynamicLogicDefs.fields?.[name] || {};
       if (logic.visible?.conditionGroup && !conditionGroupMatches(logic.visible, values, dynamicLogicUser)) continue;
       if (logic.required?.conditionGroup && conditionGroupMatches(logic.required, values, dynamicLogicUser)) {
@@ -4260,7 +4260,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     }
     const payload: Row = {};
     for (const [name, def] of fields) {
-      if (name === "passwordConfirm") continue;
+      if (name === "passwordConfirm" || def.type === "autoincrement") continue;
       if (entity === "AppSecret" && name === "value" && activeRecord && !changingAppSecret) continue;
       if (def.type === "duration") continue;
       const value = values[name];
@@ -5429,7 +5429,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const emailFolderUserScoped = emailAccountEmailFolder && (sessionUser?.type === "admin" || sessionUser?.type === "super-admin") && Boolean(emailFolderAssignedUserId);
   const emailFilterFolderParentId = String(relatedContext?.parent?.id || "");
   const emailFilterFolderUserScoped = emailFilterEmailFolder && (sessionUser?.type === "admin" || sessionUser?.type === "super-admin") && relatedContext?.parent?.type === "User" && Boolean(emailFilterFolderParentId);
-  const fieldDisabled = Boolean(def.readOnly || def.disabled || (assignedUserField || collaboratorsField) && assignmentPermission === "no" || entity === "Note" && name === "users" && noteMessagePermission === "no" && notePortalPermission === "no");
+  const fieldDisabled = Boolean(def.readOnly || def.disabled || type === "autoincrement" || (assignedUserField || collaboratorsField) && assignmentPermission === "no" || entity === "Note" && name === "users" && noteMessagePermission === "no" && notePortalPermission === "no");
   const isCategoryTree = /category[-]?tree/i.test(String(def.view || "")) || /category[-]?tree/i.test(type);
   const label = fieldLabel(name, def, entity, metadata);
   const resolvedOptions = nativeFieldOptions(metadata, entity, name, def);
@@ -5647,6 +5647,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   };
   const inputLabel = <span>{label}{def.required && <i> *</i>}</span>;
   if (type === "colorpicker") return <ColorPickerFieldInput id={`field-${entity}-${name}`.replace(/[^a-zA-Z0-9_-]/g, "-")} label={label} value={value} required={Boolean(def.required)} disabled={fieldDisabled} onChange={onChange}/>;
+  if (type === "autoincrement") return <label className="field-input autoincrement-field" htmlFor={`field-${name}`}><span>{inputLabel}</span><input id={`field-${name}`} value={value ?? ""} readOnly disabled={Boolean(def.disabled)} placeholder="Přidělí se po vytvoření" aria-describedby={`field-${name}-help`}/><small id={`field-${name}-help`}>Číslo záznamu přiděluje EspoCRM automaticky.</small></label>;
   if (entity === "Settings" && name === "availableReactions") {
     const reactions = (((metadata.app as any)?.reactions?.list || []) as Array<{ type: string; iconClass?: string }>);
     const options = reactions.map((item) => item.type).filter(Boolean);

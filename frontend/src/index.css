@@ -3081,6 +3081,8 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .colorpicker-value-wrap { display: grid; gap: 4px; min-width: 0; }
 .colorpicker-value-wrap > input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em; text-transform: uppercase; }
 .colorpicker-value-wrap > small { color: var(--muted, #778196); font-size: 11px; line-height: 1.4; }
+.autoincrement-field input[readonly] { color: var(--muted, #778196); background: var(--surface-muted, #f7f8fa); cursor: default; }
+.autoincrement-field > small { color: var(--muted, #778196); font-size: 11px; line-height: 1.4; }
 @media (max-width: 680px) { .user-password-input { align-items: stretch; flex-direction: column; } }
 @media (max-width: 680px) { .user-password-unchanged { align-items: stretch; flex-direction: column; } .user-password-unchanged > .button { align-self: flex-start; } }
 
