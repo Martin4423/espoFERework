@@ -35,6 +35,7 @@ import ImageCropDialog from "./ImageCropDialog";
 import SelectRecordsDialog from "./SelectRecordsDialog";
 import TextPreviewDialog from "./TextPreviewDialog";
 import CategoryTreeDialog from "./CategoryTreeDialog";
+import CategoryNavigation from "./CategoryNavigation";
 import OAuthAuthorizationParams from "./OAuthAuthorizationParams";
 import { AdminExtensions, AdminUpgrade } from "./AdminPackages";
 import AdminIntegrations from "./AdminIntegrations";
@@ -1589,6 +1590,10 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   const fieldPermissions = metadata.userAcl?.fieldTable?.[entity] || {};
   const canReadField = (name: string) => fieldPermissions[name]?.read !== "no";
   const statusField = String(metadata.scopes?.[entity]?.statusField || "");
+  const categoryScope = entity === "Document" ? "DocumentFolder" : entity === "KnowledgeBaseArticle" ? "KnowledgeBaseCategory" : "";
+  const categoryField = String((metadata.scopes?.[categoryScope] as any)?.categoryField || (entity === "Document" ? "folder" : "category"));
+  const hasCategoryNavigation = Boolean(categoryScope && metadata.scopes?.[categoryScope]?.entity && !metadata.scopes?.[categoryScope]?.disabled && canAccessEntity(metadata, categoryScope));
+  const categoryFieldType = fieldDefs[categoryField]?.type || "link";
   const canUseKanban = Boolean(entityClientDefs.kanbanViewMode && statusField && fieldDefs[statusField]);
   const fallbackColumns = useMemo(() => getListFields(metadata, entity).filter(canReadField), [metadata, entity, metadata.userAcl]);
   const canCreate = canCreateEntity(metadata, entity) && entity !== "EmailQueueItem" && entity !== "AuthLogRecord" && !entityClientDefs.createDisabled;
@@ -1655,6 +1660,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   const [appliedFilters, setAppliedFilters] = useState<FilterCondition[]>([]);
   const [primaryFilter, setPrimaryFilter] = useState("");
   const [activeBoolFilters, setActiveBoolFilters] = useState<string[]>([]);
+  const [categorySelection, setCategorySelection] = useState<{ id: string; name: string } | { uncategorized: true } | null>(null);
   const [savedPresets, setSavedPresets] = useState<Row[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [savedPresetWhere, setSavedPresetWhere] = useState<Row[]>([]);
@@ -1738,6 +1744,8 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       const whereGroup: Row[] = [...fixedWhere];
       if (search.trim()) whereGroup.push({ type: "textFilter", value: search.trim() });
       if (userType) whereGroup.push({ type: "equals", attribute: "type", value: userType });
+      if (categorySelection && "uncategorized" in categorySelection) whereGroup.push(categoryFieldType === "linkMultiple" ? { type: "isNotLinked", attribute: categoryField } : { type: "isNull", attribute: `${categoryField}Id` });
+      else if (categorySelection) whereGroup.push({ type: "inCategory", attribute: categoryField, value: categorySelection.id });
       if (activeBoolFilters.length) whereGroup.push({ type: "bool", value: activeBoolFilters });
       if (primaryFilter) whereGroup.push({ type: "primary", value: primaryFilter });
       whereGroup.push(...savedPresetWhere);
@@ -1748,7 +1756,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       setKanbanGroups(viewMode === "kanban" ? (data.groups || []).filter((group) => !((metadata.scopes?.[entity]?.kanbanStatusIgnoreList || []).includes(group.name))) : []);
     } catch (e) { setError(e instanceof Error ? e.message : "Záznamy se nepodařilo načíst."); }
     finally { setBusy(false); }
-  }, [entity, offset, search, userType, appliedFilters, primaryFilter, activeBoolFilters, savedPresetWhere, sortOrder, sortPreferenceKey, metadata, fixedWhere, viewMode, statusField, kanbanLayout, kanbanPageSize]);
+  }, [entity, offset, search, userType, appliedFilters, primaryFilter, activeBoolFilters, categorySelection, categoryField, categoryFieldType, savedPresetWhere, sortOrder, sortPreferenceKey, metadata, fixedWhere, viewMode, statusField, kanbanLayout, kanbanPageSize]);
   useEffect(() => { void load(); }, [load]);
 
   const createFields = useMemo(() => {
@@ -1757,6 +1765,20 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     return fields;
   }, [metadata, entity, editor?.record, userType]);
   function doSearch(event: FormEvent) { event.preventDefault(); setOffset(0); setSearch(query); }
+  function startNewRecord() {
+    if (entity === "User" && userType === "portal") { setPortalContactPicker(true); return; }
+    const initialValues: Row = userType ? { type: userType } : {};
+    if (categorySelection && "id" in categorySelection) {
+      if (categoryFieldType === "linkMultiple") {
+        initialValues[`${categoryField}Ids`] = [categorySelection.id];
+        initialValues[`${categoryField}Names`] = { [categorySelection.id]: categorySelection.name };
+      } else {
+        initialValues[`${categoryField}Id`] = categorySelection.id;
+        initialValues[`${categoryField}Name`] = categorySelection.name;
+      }
+    }
+    setEditor({ initialValues });
+  }
   function sortBy(field: string) {
     const nextOrder: "asc" | "desc" = activeOrderBy === field && activeOrder === "asc" ? "desc" : "asc";
     const next = { key: sortPreferenceKey, orderBy: field, order: nextOrder };
@@ -2059,12 +2081,14 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     catch (e) { setError(e instanceof Error ? e.message : "Hromadná úprava selhala."); }
     finally { setMassBusy(false); }
   }
-  const exportWhere = [...savedPresetWhere, ...appliedFilters.flatMap(conditionToWhere), ...(userType ? [{ type: "equals", attribute: "type", value: userType }] : [])];
+  const exportWhere = [...savedPresetWhere, ...appliedFilters.flatMap(conditionToWhere), ...(userType ? [{ type: "equals", attribute: "type", value: userType }] : []), ...(categorySelection && "uncategorized" in categorySelection ? [categoryFieldType === "linkMultiple" ? { type: "isNotLinked", attribute: categoryField } : { type: "isNull", attribute: `${categoryField}Id` }] : categorySelection ? [{ type: "inCategory", attribute: categoryField, value: categorySelection.id }] : [])];
 
   return <div className="entity-view">
-    <div className="entity-heading"><div><div className="eyebrow">SPRÁVA ZÁZNAMŮ</div><h1>{title || entityLabel(metadata, entity, true)}<span className="title-count">{total || ""}</span></h1><p>{userType === "api" ? "Účty služby EspoCRM pro přístup přes API." : userType === "portal" ? "Uživatelské účty zákaznických a partnerských portálů." : "Všechny záznamy a jejich aktuální stav na jednom místě."}</p></div>{canCreate && (entity === "Email" ? <button className="button primary" onClick={() => setComposeEmail(true)}><Plus size={15}/> Napsat e-mail</button> : <button className="button primary" onClick={() => entity === "User" && userType === "portal" ? setPortalContactPicker(true) : setEditor({})}><Plus size={15}/>{userType === "api" ? "Nový API uživatel" : userType === "portal" ? "Nový uživatel portálu" : "Nový záznam"}</button>)}</div>
+    <div className="entity-heading"><div><div className="eyebrow">SPRÁVA ZÁZNAMŮ</div><h1>{title || entityLabel(metadata, entity, true)}<span className="title-count">{total || ""}</span></h1><p>{userType === "api" ? "Účty služby EspoCRM pro přístup přes API." : userType === "portal" ? "Uživatelské účty zákaznických a partnerských portálů." : "Všechny záznamy a jejich aktuální stav na jednom místě."}</p></div>{canCreate && (entity === "Email" ? <button className="button primary" onClick={() => setComposeEmail(true)}><Plus size={15}/> Napsat e-mail</button> : <button className="button primary" onClick={startNewRecord}><Plus size={15}/>{userType === "api" ? "Nový API uživatel" : userType === "portal" ? "Nový uživatel portálu" : "Nový záznam"}</button>)}</div>
     {entity === "ScheduledJob" && <ScheduledJobCronNotice onOpenJobs={() => onNavigateEntity?.("Job")}/>}
-    <section className="surface records-surface">
+    <section className={`surface records-surface ${hasCategoryNavigation ? "has-category-navigation" : ""}`}>
+      {hasCategoryNavigation && <CategoryNavigation entity={categoryScope} metadata={metadata} selection={categorySelection} onSelect={(selection) => { setCategorySelection(selection); setOffset(0); }} canManage={canChangeEntity(metadata, categoryScope, "edit") || canCreateEntity(metadata, categoryScope)} onManage={() => onNavigateEntity?.(categoryScope)}/>}
+      <div className="records-main">
       <div className="list-toolbar"><div className="list-tabs"><button className="list-tab active">Všechny záznamy <span>{total || rows.length}</span></button><button className="list-tab" onClick={() => { setOffset(0); setSearch(""); setQuery(""); setAppliedFilters([]); setDraftFilters([]); setSelectedPresetId(""); setSavedPresetWhere([]); setPrimaryFilter(""); setActiveBoolFilters([]); }}>Vymazat filtry <X size={12}/></button></div>
         {canUseKanban && <div className="list-view-mode" role="group" aria-label="Zobrazení záznamů"><button type="button" className={viewMode === "list" ? "active" : ""} onClick={() => switchViewMode("list")} title="Seznam">Seznam</button><button type="button" className={viewMode === "kanban" ? "active" : ""} onClick={() => switchViewMode("kanban")} title="Kanban">Kanban</button></div>}
         {savedPresets.length > 0 && <div className="saved-filter-picker"><select aria-label="Uložený filtr" value={selectedPresetId} onChange={(event) => selectSavedPreset(event.target.value)}><option value="">Uložené filtry…</option>{savedPresets.map((preset, index) => <option key={preset.id || index} value={preset.id}>{preset.label || preset.name || "Uložený filtr"}</option>)}</select>{selectedPresetId && <button type="button" className="icon-button danger-ghost" aria-label="Odstranit uložený filtr" title="Odstranit uložený filtr" onClick={() => void removeSavedPreset()}><Trash2 size={13}/></button>}</div>}
@@ -2111,6 +2135,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
           <td className="actions-col">{canEdit && entity === "Task" && !["Completed", "Canceled"].includes(row.status) && <button className="icon-button task-complete-action" title="Označit jako dokončený" aria-label="Označit jako dokončený" disabled={massBusy} onClick={(e) => { e.stopPropagation(); void completeTaskRow(row); }}><Check size={14}/></button>}{(isAuthLogRecord || isEmailQueueItem) && canDelete && <button type="button" className="icon-button danger-ghost" title="Odstranit záznam" aria-label={isAuthLogRecord ? "Odstranit záznam historie přihlášení" : "Odstranit položku fronty e-mailů"} disabled={massBusy} onClick={(e) => { e.stopPropagation(); void removeReadOnlyListRecord(row); }}><Trash2 size={14}/></button>}{!isAuthLogRecord && !isEmailQueueItem && <button className="row-more" onClick={(e) => { e.stopPropagation(); onOpenRecord(row); }}>···</button>}</td>
         </tr>) : <tr><td colSpan={columns.length + 2}><EmptyState label="Žádné záznamy k zobrazení" /></td></tr>}</tbody></table></div>
       <div className="table-footer"><span>Zobrazeno <b>{rows.length ? offset + 1 : 0}–{end}</b>{total ? <> z <b>{total}</b></> : " záznamů"}</span><div className="pagination"><button aria-label="Předchozí stránka" disabled={!offset || busy} onClick={() => setOffset(Math.max(0, offset - pageSize))}><ChevronLeft size={14}/></button><span>{Math.floor(offset / pageSize) + 1}</span><button aria-label="Další stránka" disabled={busy || (total ? end >= total : rows.length < pageSize)} onClick={() => setOffset(offset + pageSize)}><ChevronRight size={14}/></button></div></div></>}
+      </div>
     </section>
     {editor && <RecordEditor entity={entity} fields={createFields} metadata={metadata} record={editor.record} initialValues={{ ...(userType ? { type: userType } : {}), ...(editor.initialValues || {}) }} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(); }} />}
     {portalContactPicker && <SelectRecordsDialog entity="Contact" metadata={metadata} multiple={false} selectedIds={[]} selectedRows={[]} primaryFilter="notPortalUsers" onClose={() => setPortalContactPicker(false)} onSkip={() => { setPortalContactPicker(false); setEditor({ initialValues: { type: "portal" } }); }} onSelect={(rows) => { const selected = rows[0]; setPortalContactPicker(false); if (!selected?.id) return; void request<Row>(`Contact/${encodeURIComponent(selected.id)}`).then((contact) => { const initialValues: Row = { type: "portal", contactId: contact.id, contactName: contact.name, firstName: contact.firstName || "", lastName: contact.lastName || "", salutationName: contact.salutationName || "", emailAddress: contact.emailAddress || "", emailAddressData: contact.emailAddressData || [], phoneNumber: contact.phoneNumber || "", phoneNumberData: contact.phoneNumberData || [], userName: String(contact.emailAddress || "").toLowerCase() }; if (contact.accountId) { initialValues.accountsIds = [contact.accountId]; initialValues.accountsNames = { [contact.accountId]: contact.accountName || "" }; } setEditor({ initialValues }); }).catch((cause) => setError(cause instanceof Error ? cause.message : "Kontakt se nepodařilo načíst.")); }}/ >}
@@ -2675,6 +2700,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
     }
     return initial;
   });
+  const autoPublishDate = useRef(false);
   const [changingAppSecret, setChangingAppSecret] = useState(!record);
   const [passwordStrengthParams, setPasswordStrengthParams] = useState<PasswordRecoveryInfo["strengthParams"] | null>(null);
   useEffect(() => {
@@ -2966,6 +2992,17 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
   const emailFilterActions = values.isGlobal ? ["Skip"] : values.parent?.type === "User" ? ["Skip", "Move to Folder", "None"] : values.parent?.type === "InboundEmail" ? ["Skip", "Move to Group Folder"] : values.parent?.type === "EmailAccount" ? ["Skip"] : ["Skip"];
   function updateFieldValue(name: string, value: any) {
     setValues((old) => {
+      if (entity === "KnowledgeBaseArticle" && name === "status") {
+        if (value === "Published" && !old.publishDate) {
+          autoPublishDate.current = true;
+          const today = new Date();
+          return { ...old, status: value, publishDate: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}` };
+        }
+        if (value !== "Published" && autoPublishDate.current) {
+          autoPublishDate.current = false;
+          return { ...old, status: value, publishDate: null };
+        }
+      }
       if (entity === "Template" && name === "entityType" && !record) {
         const previousType = String(old.entityType || "");
         if (previousType) templateDrafts.current[previousType] = Object.fromEntries(["header", "body", "footer", "style"].map((key) => [key, old[key] ?? null]));
@@ -3063,6 +3100,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
     }
     if (record && def.readOnlyAfterCreate) def = { ...def, readOnly: true };
     if (entity === "AuthenticationProvider" && name === "method") { const methods = (metadata as any).authenticationMethods || {}; const available = Object.entries(methods).filter(([, value]: [string, any]) => Boolean(value?.provider?.isAvailable)).map(([method]) => method); const currentMethod = String(values.method || ""); def = { ...def, options: [...new Set([...available, ...(currentMethod && !available.includes(currentMethod) ? [currentMethod] : [])])] }; }
+    if (entity === "KnowledgeBaseArticle" && name === "language") { const languages = Array.isArray(metadata.app?.language?.list) ? metadata.app.language.list.map(String) : []; const currentLanguage = String(values.language || ""); def = { ...def, options: [...new Set([...languages, ...(currentLanguage && !languages.includes(currentLanguage) ? [currentLanguage] : [])])] }; }
     if (entity === "InboundEmail") {
       const roundRobin = values.createCase && ["Round-Robin", "Least-Busy"].includes(String(values.caseDistribution || ""));
       const directAssignment = values.createCase && values.caseDistribution === "Direct-Assignment";
@@ -3737,7 +3775,7 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
   const fieldDisabled = Boolean(def.readOnly || def.disabled);
   const isCategoryTree = /category[-]?tree/i.test(String(def.view || "")) || /category[-]?tree/i.test(type);
   const label = fieldLabel(name, def, entity, metadata);
-  const optionLabel = (option: string | number) => ((metadata.labels as any)?.[entity]?.options?.[name]?.[String(option)] || String(option));
+  const optionLabel = (option: string | number) => ((entity === "KnowledgeBaseArticle" && name === "language" ? (metadata.labels as any)?.Global?.options?.language?.[String(option)] : undefined) || (metadata.labels as any)?.[entity]?.options?.[name]?.[String(option)] || String(option));
   const currencySettings = metadata.appSettings || {};
   const currencyList = (currencySettings.currencyList || (metadata.app as any)?.currency?.list || []) as string[];
   const defaultCurrency = String(currencySettings.defaultCurrency || currencyList[0] || "USD");
@@ -3932,7 +3970,7 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
   }} onInput={(event) => { event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, window.innerHeight * .6)}px`; }}/><button type="button" className="button subtle text-preview-trigger" disabled={!value} onClick={() => setTextPreviewOpen(true)}><Eye size={13}/>Náhled formátovaného textu</button></label>{textPreviewOpen && <TextPreviewDialog text={String(value || "")} onClose={() => setTextPreviewOpen(false)}/>}</>;
   return <label className={`field-input ${def.required ? "required" : ""}`} htmlFor={`field-${name}`}>{inputLabel}
     {type === "bool" ? <span className="switch-row"><input id={`field-${name}`} type="checkbox" disabled={Boolean(def.readOnly || def.disabled)} checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} /><span>Ano / Ne</span></span>
-      : ["enum", "enumInt", "enumFloat"].includes(type) ? <select {...controlProps} value={value == null ? "" : String(value)} onChange={(event) => onChange(type === "enumFloat" && event.target.value !== "" ? Number(event.target.value) : event.target.value)}><option value="">Vyberte…</option>{(def.options || []).filter((option) => option !== "").map((option) => <option key={option} value={String(option)}>{optionLabel(option)}</option>)}</select>
+      : ["enum", "enumInt", "enumFloat"].includes(type) ? <select {...controlProps} value={value == null ? "" : String(value)} onChange={(event) => onChange(type === "enumFloat" && event.target.value !== "" ? Number(event.target.value) : event.target.value)}><option value="">{entity === "KnowledgeBaseArticle" && name === "language" ? "Jakýkoli jazyk" : "Vyberte…"}</option>{(def.options || []).filter((option) => option !== "").map((option) => <option key={option} value={String(option)}>{optionLabel(option)}</option>)}</select>
       : ["multiEnum", "arrayInt"].includes(type) ? <select id={`field-${name}`} disabled={Boolean(def.readOnly || def.disabled)} multiple size={Math.min(Math.max(dynamicEnumOptions.length, 3), 7)} value={Array.isArray(value) ? value.map(String) : []} onChange={(e) => { const selected = Array.from(e.currentTarget.selectedOptions, (option) => option.value); onChange(type === "arrayInt" ? selected.map(Number).filter(Number.isFinite) : selected); }}>{dynamicEnumOptions.map((option) => <option key={option} value={String(option)}>{type === "multiEnum" && metadata.scopes?.[String(option)] ? entityLabel(metadata, String(option), def.translation?.includes("Plural") ?? true) : optionLabel(option)}</option>)}</select>
       : type === "checklist" ? <div className="checklist-field">{(def.options || []).map((option) => <label key={option}><input type="checkbox" disabled={Boolean(def.readOnly || def.disabled)} checked={Array.isArray(value) && value.map(String).includes(String(option))} onChange={(event) => onChange(event.target.checked ? [...(Array.isArray(value) ? value : []), option] : (Array.isArray(value) ? value : []).filter((item) => String(item) !== String(option)))}/>{optionLabel(option)}</label>)}</div>
       : ["text", "wysiwyg", "jsonObject", "jsonArray", "array", "urlMultiple"].includes(type) ? <textarea {...controlProps} rows={type === "text" || type === "wysiwyg" ? 3 : 5} value={typeof value === "string" ? value : value == null ? "" : Array.isArray(value) ? value.join("\n") : JSON.stringify(value, null, 2)} placeholder={["array", "urlMultiple"].includes(type) ? "Jedna hodnota na řádek" : ["jsonObject", "jsonArray"].includes(type) ? "{}" : undefined}/>

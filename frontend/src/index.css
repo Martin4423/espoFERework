@@ -2541,3 +2541,22 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .email-eml-picker input { padding: 10px; border: 1px dashed var(--line); border-radius: 8px; background: #fbfbfe; }
 .email-eml-picker small { color: var(--ink); font-weight: 500; }
 @media (max-width: 600px) { .mail-heading-actions { align-items: stretch; flex-direction: column; } }
+.records-surface.has-category-navigation { display: grid; grid-template-columns: 224px minmax(0, 1fr); align-items: stretch; }
+.records-main { min-width: 0; }
+.category-navigation { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 15px 10px; border-right: 1px solid var(--line); background: #fbfbfd; }
+.category-navigation-heading { display: flex; align-items: center; justify-content: space-between; padding: 1px 7px 8px; color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .12em; }
+.category-nav-row { display: flex; align-items: center; min-width: 0; min-height: 31px; border-radius: 7px; color: #68758c; font-size: 11px; }
+.category-nav-row.selected { background: var(--lavender); color: var(--primary-dark); font-weight: 650; }
+.category-nav-all { gap: 8px; padding: 0 8px; border: 0; background: transparent; text-align: left; }
+.category-nav-select { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; padding: 5px 2px; border: 0; background: transparent; color: inherit; text-align: left; }
+.category-nav-select span, .category-nav-all span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.category-nav-expand { display: grid; place-items: center; width: 26px; height: 26px; flex: 0 0 26px; border: 0; border-radius: 6px; background: transparent; color: inherit; }
+.category-nav-row button:hover, .category-nav-expand:hover { color: var(--primary); background: rgba(99, 91, 219, .07); }
+.category-nav-node .category-nav-row { width: 100%; }
+.category-nav-loading, .category-nav-error, .category-nav-empty { padding: 9px 7px; color: var(--muted); font-size: 10px; }
+.category-nav-error { color: var(--danger, #b54747); }
+.category-navigation .spinner { width: 12px; height: 12px; }
+@media (max-width: 850px) {
+  .records-surface.has-category-navigation { grid-template-columns: 1fr; }
+  .category-navigation { max-height: 210px; overflow-y: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+}
