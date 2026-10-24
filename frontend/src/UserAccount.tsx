@@ -205,7 +205,7 @@ export function UserPreferencesView({ metadata, user, onBack }: { metadata: Meta
     try {
       await request(`Preferences/${encodeURIComponent(user.id)}`, { method: "PUT", body: JSON.stringify(changed) });
       const next = { ...values, ...changed }; setValues(next); setOriginal(next); setNotice("Preference byly uloženy.");
-      if (["language", "theme", "pageContentWidth", "themeParams"].some((key) => key in changed)) window.setTimeout(() => window.location.reload(), 900);
+      if (["language", "theme", "pageContentWidth", "themeParams", "dateFormat", "timeFormat"].some((key) => key in changed)) window.setTimeout(() => window.location.reload(), 900);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Preference se nepodařilo uložit."); }
     finally { setSaving(false); }
   }

@@ -118,3 +118,30 @@ export function useEspoTimeZone() {
   }, []);
   return timeZone;
 }
+
+type EspoTimeSettings = { timeFormat: string; locale: string };
+const timeSettingsRequests = new Map<string, Promise<EspoTimeSettings>>();
+
+export function useEspoTimeSettings(defaultFormat = "HH:mm", defaultLanguage = "en") {
+  const userId = getSession()?.user.id || "";
+  const [settings, setSettings] = useState<EspoTimeSettings>(() => ({ timeFormat: defaultFormat, locale: defaultLanguage.replace(/_/g, "-") }));
+  useEffect(() => {
+    const fallback = { timeFormat: defaultFormat || "HH:mm", locale: (defaultLanguage || "en").replace(/_/g, "-") };
+    if (!userId) { setSettings(fallback); return; }
+    const key = `${userId}:${fallback.timeFormat}:${fallback.locale}`;
+    let promise = timeSettingsRequests.get(key);
+    if (!promise) {
+      promise = request<Record<string, unknown>>(`Preferences/${encodeURIComponent(userId)}`)
+        .then((preferences) => ({
+          timeFormat: typeof preferences.timeFormat === "string" && preferences.timeFormat ? preferences.timeFormat : fallback.timeFormat,
+          locale: typeof preferences.language === "string" && preferences.language ? preferences.language.replace(/_/g, "-") : fallback.locale,
+        }))
+        .catch(() => fallback);
+      timeSettingsRequests.set(key, promise);
+    }
+    let live = true;
+    promise.then((next) => live && setSettings(next));
+    return () => { live = false; };
+  }, [userId, defaultFormat, defaultLanguage]);
+  return settings;
+}
