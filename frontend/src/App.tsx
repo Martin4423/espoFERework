@@ -1115,7 +1115,22 @@ function AdminSettings({ metadata, onBack, focus = "all" }: { metadata: Metadata
   const focusPattern = focus === "userInterface" ? /^(theme|logo|tab|navbar|dashboard|adminPanel|pageContentWidth|userThemes)/i : focus === "authentication" ? /^(auth|password|oauth|ldap|sso|2fa|login|apiKey|token)/i : focus === "notifications" ? /^(notification|emailNotifications|assignment|mention|stream)/i : focus === "outboundEmails" ? /^(smtp|outboundEmail|emailAddressLookup|emailAddressSelect|massEmail|emailScheduled)/i : focus === "inboundEmails" ? /^(emailMessageMaxSize|personalEmailMaxPortionSize|maxEmailAccountCount|inboundEmailMaxPortionSize)/i : focus === "jobsSettings" ? /^(job|cron|pool|queue|daemon)/i : focus === "currency" ? /^(currency|defaultCurrency|baseCurrency)/i : focus === "sms" ? /^(sms|outboundSms)/i : null;
   const filteredFields = fields.filter(([name, def]) => (!focusPattern || focusPattern.test(name)) && (!query.trim() || `${fieldLabel(name, def, "Settings", metadata)} ${name}`.toLowerCase().includes(query.trim().toLowerCase())));
   const restrictedMode = Boolean(metadata.appParams?.isRestrictedMode) && getSession()?.user.type !== "super-admin";
-  const visibleFields = filteredFields.filter(([name]) => {
+  const settingsLogic = (metadata as any).logicDefs?.Settings || {};
+  const settingsUser = getSession()?.user as (User & { teamsIds?: string[] }) | undefined;
+  const logicAwareFields = filteredFields.flatMap(([name, originalDef]) => {
+    const rule = settingsLogic.fields?.[name] || {};
+    if (rule.visible?.conditionGroup && !conditionGroupMatches(rule.visible, settings, settingsUser)) return [];
+    const def: FieldDef = { ...originalDef };
+    if (rule.required?.conditionGroup && conditionGroupMatches(rule.required, settings, settingsUser)) def.required = true;
+    if (rule.readOnly?.conditionGroup && conditionGroupMatches(rule.readOnly, settings, settingsUser)) def.readOnly = true;
+    const optionRules = settingsLogic.options?.[name];
+    if (Array.isArray(optionRules)) {
+      const match = optionRules.find((item: Row) => conditionGroupMatches(item, settings, settingsUser));
+      if (match) def.options = match.optionList || [];
+    }
+    return [[name, def] as [string, FieldDef]];
+  });
+  const visibleFields = logicAwareFields.filter(([name]) => {
     if (focus === "userInterface" && name === "themeParams") return false;
     if (restrictedMode && focus === "all" && ["cronDisabled", "maintenanceMode"].includes(name)) return false;
     if (focus === "all" && ["phoneNumberPreferredCountryList", "phoneNumberExtensions"].includes(name) && !settings.phoneNumberInternational) return false;
