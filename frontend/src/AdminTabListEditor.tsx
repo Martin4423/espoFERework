@@ -7,11 +7,11 @@ import { espoIconClasses } from "./espoIconClasses";
 type TabGroup = { id?: string; type: "group" | "url" | "divider"; text?: string | null; iconClass?: string | null; color?: string | null; itemList?: string[]; url?: string | null; aclScope?: string | null; onlyAdmin?: boolean };
 type TabItem = string | TabGroup;
 
-export default function AdminTabListEditor({ value, metadata, onChange }: { value: TabItem[]; metadata: Metadata; onChange: (value: TabItem[]) => void }) {
+export default function AdminTabListEditor({ value, metadata, onChange, allowedScopes }: { value: TabItem[]; metadata: Metadata; onChange: (value: TabItem[]) => void; allowedScopes?: string[] }) {
   const [editing, setEditing] = useState<{ index: number; item: TabGroup } | null>(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [iconQuery, setIconQuery] = useState("");
-  const scopes = useMemo(() => Object.keys(metadata.scopes || {}).filter((scope) => metadata.scopes[scope].tab && !metadata.scopes[scope].disabled).sort((a, b) => entityLabel(metadata, a, true).localeCompare(entityLabel(metadata, b, true), "cs")), [metadata]);
+  const scopes = useMemo(() => Object.keys(metadata.scopes || {}).filter((scope) => metadata.scopes[scope].tab && !metadata.scopes[scope].disabled && (!allowedScopes || allowedScopes.includes(scope))).sort((a, b) => entityLabel(metadata, a, true).localeCompare(entityLabel(metadata, b, true), "cs")), [metadata, allowedScopes]);
   const list = Array.isArray(value) ? value : [];
   const add = (item: TabItem) => onChange([...list, item]);
   const change = (index: number, item: TabItem) => onChange(list.map((current, i) => i === index ? item : current));
