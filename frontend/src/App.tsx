@@ -3655,7 +3655,7 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
   }
   const controlProps = { id: `field-${name}`, value: value ?? "", onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => onChange(e.target.value), required: def.required, maxLength: def.maxLength, min: def.min, disabled: Boolean(def.readOnly || def.disabled) };
   const inputLabel = <span>{label}{def.required && <i> *</i>}</span>;
-  if (type === "array") return <ArrayFieldInput label={inputLabel} value={Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split("\n").filter(Boolean) : []} disabled={Boolean(def.readOnly || def.disabled)} maxCount={def.maxCount} maxLength={def.maxItemLength || 100} options={(def.options || []).map(String)} onChange={onChange}/>;
+  if (["array", "urlMultiple"].includes(type)) return <ArrayFieldInput label={inputLabel} value={Array.isArray(value) ? value.map(String) : typeof value === "string" ? value.split("\n").filter(Boolean) : []} disabled={Boolean(def.readOnly || def.disabled)} maxCount={def.maxCount} maxLength={def.maxItemLength || (type === "urlMultiple" ? 255 : 100)} options={(def.options || []).map(String)} urlMode={type === "urlMultiple"} stripProtocol={Boolean(def.strip)} onChange={onChange}/>;
   if (type === "wysiwyg") return <div className={`field-input html-field ${def.required ? "required" : ""}`}><span>{inputLabel}</span><HtmlFieldEditor entity={entity} metadata={metadata} value={value} onChange={onChange} htmlMode={entity !== "EmailTemplate" || relatedContext?.isHtml !== false} fieldName={name} disabled={Boolean(def.readOnly || def.disabled)}/></div>;
   if (type === "address") {
     const current = value || {};
@@ -3772,18 +3772,29 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
   </label>;
 }
 
-function ArrayFieldInput({ label, value, disabled, maxCount, maxLength, options, onChange }: { label: React.ReactNode; value: string[]; disabled: boolean; maxCount?: number; maxLength?: number; options: string[]; onChange: (value: string[]) => void }) {
+function ArrayFieldInput({ label, value, disabled, maxCount, maxLength, options, urlMode = false, stripProtocol = false, onChange }: { label: React.ReactNode; value: string[]; disabled: boolean; maxCount?: number; maxLength?: number; options: string[]; urlMode?: boolean; stripProtocol?: boolean; onChange: (value: string[]) => void }) {
   const [draft, setDraft] = useState("");
+  const [error, setError] = useState("");
   const add = (raw: string) => {
-    const next = raw.trim();
+    let next = raw.trim();
+    if (urlMode) {
+      if (stripProtocol) next = next.replace(/^[a-z][a-z\d+.-]*:\/\//i, "").replace(/\/+$/, "");
+      try {
+        if (next === decodeURI(next)) next = encodeURI(next);
+        const parsed = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(next) ? next : `https://${next}`);
+        if (!/^https?:$/.test(parsed.protocol) || (!parsed.hostname.includes(".") && parsed.hostname !== "localhost")) throw new Error();
+      } catch { setError("Zadejte platnou webovou adresu, například https://example.com."); return; }
+    }
     if (!next || value.includes(next) || (maxCount && value.length >= maxCount)) return;
     onChange([...value, next]); setDraft("");
+    setError("");
   };
   const move = (index: number, offset: number) => {
     const target = index + offset; if (target < 0 || target >= value.length) return;
     const next = [...value]; [next[index], next[target]] = [next[target], next[index]]; onChange(next);
   };
-  return <div className="field-input native-array-field"><span>{label}</span><div className="native-array-items">{value.map((item, index) => <div className="native-array-item" key={`${item}-${index}`}><span>{item}</span><div><button type="button" className="icon-button" aria-label={`Posunout ${item} nahoru`} disabled={disabled || index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${item} dolů`} disabled={disabled || index === value.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className="icon-button danger-ghost" aria-label={`Odebrat ${item}`} disabled={disabled} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}>×</button></div></div>)}{!value.length && <small className="field-hint">Zatím nejsou přidané žádné položky.</small>}</div>{!disabled && (!maxCount || value.length < maxCount) && <div className="native-array-add">{options.length ? <select value={draft} onChange={(event) => { if (event.target.value) add(event.target.value); }}><option value="">Vyberte položku…</option>{options.filter((option) => !value.includes(option)).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input value={draft} maxLength={maxLength} placeholder="Nová položka…" onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(draft); } }}/>}<button type="button" className="button subtle" disabled={!draft.trim()} onClick={() => add(draft)}>Přidat</button></div>}</div>;
+  const safeUrl = (item: string) => { try { const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(item) ? item : `https://${item}`); return /^https?:$/.test(url.protocol) ? url.toString() : null; } catch { return null; } };
+  return <div className={`field-input native-array-field ${urlMode ? "url-multiple-field" : ""}`}><span>{label}</span><div className="native-array-items">{value.map((item, index) => <div className="native-array-item" key={`${item}-${index}`}><span>{urlMode ? safeUrl(item) ? <a href={safeUrl(item) || undefined} target="_blank" rel="noreferrer">{item}</a> : item : item}</span><div><button type="button" className="icon-button" aria-label={`Posunout ${item} nahoru`} disabled={disabled || index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${item} dolů`} disabled={disabled || index === value.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className="icon-button danger-ghost" aria-label={`Odebrat ${item}`} disabled={disabled} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}>×</button></div></div>)}{!value.length && <small className="field-hint">Zatím nejsou přidané žádné položky.</small>}</div>{!disabled && (!maxCount || value.length < maxCount) && <div className="native-array-add">{options.length ? <select value={draft} onChange={(event) => { if (event.target.value) add(event.target.value); }}><option value="">Vyberte položku…</option>{options.filter((option) => !value.includes(option)).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input value={draft} maxLength={maxLength} placeholder={urlMode ? "https://example.com" : "Nová položka…"} onChange={(event) => { setDraft(event.target.value); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(draft); } }}/>}<button type="button" className="button subtle" disabled={!draft.trim()} onClick={() => add(draft)}>Přidat</button></div>}{error && <small className="field-error">{error}</small>}</div>;
 }
 
 type TimeRange = [string | null, string | null];
