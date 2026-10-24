@@ -1694,11 +1694,44 @@ function ClassicDashboard({ entities, metadata, onOpenEntity, onOpenRecord }: { 
 
 type ActivityEvent = { id: string; recordId: string; scope: string; title?: string; name?: string; dateStart?: string; dateEnd?: string; dateStartDate?: string; dateEndDate?: string; status?: string; [key: string]: any };
 
+function calendarZonedDateTime(date: Date, timeZone: string) {
+  const target = { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate(), hour: date.getHours(), minute: date.getMinutes(), second: date.getSeconds() };
+  const targetWallTime = Date.UTC(target.year, target.month - 1, target.day, target.hour, target.minute, target.second);
+  let timestamp = targetWallTime;
+  const formatter = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  for (let index = 0; index < 3; index++) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]));
+    const representedWallTime = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
+    timestamp += targetWallTime - representedWallTime;
+  }
+  return new Date(timestamp);
+}
+
+function espocrmDateTime(value: Date) {
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")} ${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}:${String(value.getUTCSeconds()).padStart(2, "0")}`;
+}
+
+function parseEspoCalendarDateTime(value: string) {
+  const normalized = value.replace(" ", "T");
+  return new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized) ? normalized : `${normalized}Z`);
+}
+
+function dateKeyInTimeZone(value: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function calendarWallDateAsUtc(value: Date) {
+  return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+}
+
 function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: Metadata; onOpenRecord: (name: string, row: Row) => void; userId?: string; userName?: string }) {
   const scopes = useMemo(() => Object.entries(metadata.scopes || {}).filter(([name, scope]) => scope.calendar && metadata.entityDefs?.[name]?.fields).map(([name]) => name), [metadata]);
   const calendarPreferenceKey = `via:calendar:${getSession()?.user.id || "guest"}`;
   const readCalendarPreference = () => { try { return JSON.parse(localStorage.getItem(calendarPreferenceKey) || "null") as Row | null; } catch { return null; } };
   const [anchor, setAnchor] = useState(() => new Date());
+  const [calendarTimeZone, setCalendarTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [activeScopes, setActiveScopes] = useState<string[]>(() => { const stored = readCalendarPreference()?.scopes; return Array.isArray(stored) ? stored.filter((item): item is string => typeof item === "string" && scopes.includes(item)) : scopes; });
   const [calendarUsers, setCalendarUsers] = useState<Array<{ id: string; name: string }>>(() => { const stored = readCalendarPreference()?.users; return Array.isArray(stored) ? stored.filter((item): item is { id: string; name: string } => Boolean(item && typeof item.id === "string" && typeof item.name === "string")) : []; });
   const [calendarTeams, setCalendarTeams] = useState<Array<{ id: string; name: string }>>(() => { const stored = readCalendarPreference()?.teams; return Array.isArray(stored) ? stored.filter((item): item is { id: string; name: string } => Boolean(item && typeof item.id === "string" && typeof item.name === "string")) : []; });
@@ -1715,6 +1748,25 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   const [draggedEvent, setDraggedEvent] = useState<ActivityEvent | null>(null);
   const [movingEvent, setMovingEvent] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
+  useEffect(() => {
+    const currentUserId = getSession()?.user.id;
+    if (!currentUserId) return;
+    let live = true;
+    request<Row>(`Preferences/${encodeURIComponent(currentUserId)}`).then((preferences) => {
+      if (!live || typeof preferences.timeZone !== "string" || !preferences.timeZone) return;
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: preferences.timeZone });
+        setCalendarTimeZone(preferences.timeZone);
+        const nowParts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: preferences.timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((part) => [part.type, part.value]));
+        setAnchor((current) => {
+          const browserNow = new Date();
+          if (current.getFullYear() !== browserNow.getFullYear() || current.getMonth() !== browserNow.getMonth() || current.getDate() !== browserNow.getDate()) return current;
+          return new Date(Number(nowParts.year), Number(nowParts.month) - 1, Number(nowParts.day));
+        });
+      } catch { /* Keep the browser time zone when the saved zone is invalid. */ }
+    }).catch(() => {});
+    return () => { live = false; };
+  }, []);
   const weekStart = useMemo(() => {
     const day = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
     day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
@@ -1729,8 +1781,8 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
     const days: Date[] = []; for (const date = new Date(start); date < end; date.setDate(date.getDate() + 1)) days.push(new Date(date));
     return { start, end, days };
   }, [anchor, viewMode, weekStart]);
-  const from = range.start.toISOString().slice(0, 19).replace("T", " ");
-  const to = range.end.toISOString().slice(0, 19).replace("T", " ");
+  const from = espocrmDateTime(calendarZonedDateTime(range.start, calendarTimeZone));
+  const to = espocrmDateTime(calendarZonedDateTime(range.end, calendarTimeZone));
   const scopeParam = activeScopes.join(",");
   const userIdList = calendarUsers.map((item) => item.id).join(",");
   const teamIdList = calendarTeams.map((item) => item.id).join(",");
@@ -1805,11 +1857,12 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   }, [from, to, scopeParam, refreshIndex, userId, canSelectCalendarUsers, canSelectCalendarTeams, userIdList, teamIdList]);
 
   const days = range.days;
-  const rangeLabel = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric" }).formatRange(range.start, new Date(range.end.getTime() - 86400000));
-  const eventDate = (event: ActivityEvent) => event.dateStartDate ? new Date(`${event.dateStartDate}T00:00:00`) : new Date(String(event.dateStart || "").replace(" ", "T") + "Z");
+  const rangeLabel = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).formatRange(calendarWallDateAsUtc(range.start), calendarWallDateAsUtc(new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate() - 1)));
+  const eventDate = (event: ActivityEvent) => event.dateStartDate ? new Date(`${event.dateStartDate}T00:00:00`) : parseEspoCalendarDateTime(String(event.dateStart || ""));
   const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  const dayEvents = (day: Date) => events.filter((event) => dayKey(eventDate(event)) === dayKey(day)).sort((a, b) => eventDate(a).getTime() - eventDate(b).getTime());
-  const prettyTime = (event: ActivityEvent) => event.dateStartDate ? "Celý den" : Number.isNaN(eventDate(event).getTime()) ? "" : new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit" }).format(eventDate(event));
+  const calendarTodayKey = dateKeyInTimeZone(new Date(), calendarTimeZone);
+  const dayEvents = (day: Date) => events.filter((event) => (event.dateStartDate || dateKeyInTimeZone(eventDate(event), calendarTimeZone)) === dayKey(day)).sort((a, b) => eventDate(a).getTime() - eventDate(b).getTime());
+  const prettyTime = (event: ActivityEvent) => event.dateStartDate ? "Celý den" : Number.isNaN(eventDate(event).getTime()) ? "" : new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit", timeZone: calendarTimeZone }).format(eventDate(event));
   const eventTone: Record<string, string> = { Meeting: "meeting", Call: "call", Task: "task" };
   async function moveCalendarEvent(event: ActivityEvent, targetDay: Date) {
     const id = event.recordId || event.id;
@@ -1837,16 +1890,17 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   const timelineSlots = 60;
   const timelineGrid = <div className="calendar-timeline-scroll"><div className="calendar-timeline-grid" style={{ gridTemplateRows: `42px repeat(${timelineSlots}, 18px)` }}>
     <div className="calendar-timeline-corner" style={{ gridColumn: 1, gridRow: 1 }}>ČAS</div>
-    {days.map((day, index) => <div className={`calendar-timeline-dayhead ${dayKey(day) === dayKey(new Date()) ? "today" : ""}`} key={dayKey(day)} style={{ gridColumn: index + 2, gridRow: 1 }}><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(day)}</span><strong>{new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "numeric" }).format(day)}</strong></div>)}
+    {days.map((day, index) => <div className={`calendar-timeline-dayhead ${dayKey(day) === calendarTodayKey ? "today" : ""}`} key={dayKey(day)} style={{ gridColumn: index + 2, gridRow: 1 }}><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: "short", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><strong>{new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "numeric", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</strong></div>)}
     {Array.from({ length: timelineSlots }, (_, slot) => <Fragment key={`slot-${slot}`}><div className="calendar-timeline-time" style={{ gridColumn: 1, gridRow: slot + 2 }}>{slot % 4 === 0 ? `${String(timelineStartHour + Math.floor(slot / 4)).padStart(2, "0")}:00` : ""}</div>{days.map((day, index) => <div className={`calendar-timeline-cell ${slot % 4 === 0 ? "hour" : ""}`} key={`${dayKey(day)}-${slot}`} style={{ gridColumn: index + 2, gridRow: slot + 2 }}/>)}</Fragment>)}
     {busy && <div className="calendar-timeline-loading" style={{ gridColumn: "2 / -1", gridRow: "2 / -1" }}><span className="spinner"/> Načítám události…</div>}
     {!busy && days.flatMap((day, dayIndex) => dayEvents(day).map((event) => {
       const date = eventDate(event);
-      const hour = event.dateStartDate ? timelineStartHour : date.getHours();
-      const minute = event.dateStartDate ? 0 : date.getMinutes();
+      const timeParts = new Intl.DateTimeFormat("en", { timeZone: calendarTimeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
+      const hour = event.dateStartDate ? timelineStartHour : Number(timeParts.find((part) => part.type === "hour")?.value || 0);
+      const minute = event.dateStartDate ? 0 : Number(timeParts.find((part) => part.type === "minute")?.value || 0);
       const startSlot = Math.max(0, Math.min(timelineSlots - 1, Math.floor(((hour * 60 + minute) - timelineStartHour * 60) / 15)));
-      const startMs = event.dateStart ? new Date(String(event.dateStart).includes("T") ? String(event.dateStart) : String(event.dateStart).replace(" ", "T") + "Z").getTime() : NaN;
-      const endMs = event.dateEnd ? new Date(String(event.dateEnd).includes("T") ? String(event.dateEnd) : String(event.dateEnd).replace(" ", "T") + "Z").getTime() : NaN;
+      const startMs = event.dateStart ? parseEspoCalendarDateTime(String(event.dateStart)).getTime() : NaN;
+      const endMs = event.dateEnd ? parseEspoCalendarDateTime(String(event.dateEnd)).getTime() : NaN;
       const span = Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(1, Math.min(timelineSlots - startSlot, Math.ceil((endMs - startMs) / 900000))) : 2;
       return <button draggable={false} className={`calendar-timeline-event ${eventTone[event.scope] || "other"}`} key={`${event.scope}-${event.recordId || event.id}`} style={{ gridColumn: dayIndex + 2, gridRow: `${startSlot + 2} / span ${span}` }} title={`${prettyTime(event)} ${event.title || event.name || ""}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><time>{prettyTime(event)}</time><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}</small></button>;
     }))}
@@ -1858,8 +1912,8 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
       <div className="calendar-toolbar"><div className="calendar-nav"><button className="icon-button" onClick={() => setAnchor((d) => { const next = new Date(d); if (viewMode === "month") next.setMonth(next.getMonth() - 1); else if (viewMode === "day") next.setDate(next.getDate() - 1); else next.setDate(next.getDate() - 7); return next; })} aria-label="Předchozí období"><ChevronLeft size={17}/></button><button className="button subtle" onClick={() => setAnchor(new Date())}>Dnes</button><button className="icon-button" onClick={() => setAnchor((d) => { const next = new Date(d); if (viewMode === "month") next.setMonth(next.getMonth() + 1); else if (viewMode === "day") next.setDate(next.getDate() + 1); else next.setDate(next.getDate() + 7); return next; })} aria-label="Další období"><ChevronRight size={17}/></button><h2>{rangeLabel}</h2></div><div className="calendar-toolbar-actions"><div className="calendar-view-switch" role="group" aria-label="Zobrazení kalendáře">{([["day", "Den"], ["week", "Týden"], ["timeline", "Časová osa"], ["month", "Měsíc"], ["agenda", "Agenda"]] as const).map(([mode, label]) => <button key={mode} className={viewMode === mode ? "active" : ""} onClick={() => setViewMode(mode)}>{label}</button>)}</div>{canSelectCalendarUsers && <button type="button" className="button subtle calendar-participant-filter" onClick={() => setCalendarFilterPicker("users")}>Uživatelé{calendarUsers.length ? ` · ${calendarUsers.length}` : " · všichni"}</button>}{canSelectCalendarTeams && <button type="button" className="button subtle calendar-participant-filter" onClick={() => setCalendarFilterPicker("teams")}>Týmy{calendarTeams.length ? ` · ${calendarTeams.length}` : " · všechny"}</button>}{canManageSharedViews && <><select className="calendar-shared-view-select" aria-label="Sdílený pohled" value={selectedSharedViewId} onChange={(event) => { const item = sharedCalendarViews.find((view) => view.id === event.target.value); setSelectedSharedViewId(item?.id || ""); if (item) { setViewMode((["day", "week", "month", "agenda", "timeline"].includes(item.mode) ? item.mode : "week") as typeof viewMode); setCalendarTeams(item.teamIdList.map((id) => ({ id, name: item.teamNames[id] || id }))); } }}><option value="">Sdílené pohledy</option>{sharedCalendarViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}</select>{selectedSharedViewId && <><button type="button" className="icon-button" aria-label="Upravit sdílený pohled" title="Upravit sdílený pohled" onClick={() => { const item = sharedCalendarViews.find((view) => view.id === selectedSharedViewId); if (item) setSharedViewEditor({ id: item.id, name: item.name, mode: item.mode, teams: item.teamIdList.map((id) => ({ id, name: item.teamNames[id] || id })) }); }}><Pencil size={14}/></button><button type="button" className="icon-button" aria-label="Odstranit sdílený pohled" title="Odstranit sdílený pohled" onClick={() => void deleteSharedCalendarView()} disabled={sharedViewsBusy}><Trash2 size={14}/></button></>}<button type="button" className="icon-button" aria-label="Přidat sdílený pohled" title="Přidat sdílený pohled" onClick={() => setSharedViewEditor({ name: "", mode: viewMode, teams: calendarTeams })}><Plus size={15}/></button></>}<button className="icon-button" title="Obnovit" onClick={() => setRefreshIndex((n) => n + 1)}><RefreshCw size={15}/></button></div></div>
       <div className="calendar-filters">{scopes.map((scope) => <button key={scope} className={`calendar-filter ${activeScopes.includes(scope) ? "selected" : ""} ${eventTone[scope] || "other"}`} onClick={() => setActiveScopes((current) => current.includes(scope) ? current.filter((item) => item !== scope) : [...current, scope])}><i/>{entityLabel(metadata, scope, true)}</button>)}</div>
       {error && <div className="table-error">{error}<button onClick={() => setAnchor(new Date(anchor))}>Zkusit znovu</button></div>}
-      {viewMode === "timeline" ? timelineGrid : <div className={`calendar-week-grid calendar-${viewMode}-grid`}>{viewMode === "month" && ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"].map((day) => <div className="calendar-month-weekday" key={day}>{day}</div>)}{days.map((day) => <section className={`calendar-day ${dayKey(day) === dayKey(new Date()) ? "today" : ""} ${viewMode === "month" && day.getMonth() !== anchor.getMonth() ? "outside-month" : ""} ${draggedEvent ? "calendar-drop-target" : ""}`} key={dayKey(day)} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); const moving = draggedEvent; setDraggedEvent(null); if (moving) void moveCalendarEvent(moving, day); }}><header><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: viewMode === "month" ? "short" : "long" }).format(day)}</span><b>{day.getDate()}</b></header><div className="calendar-day-events">{busy ? <div className="calendar-day-loading"/> : dayEvents(day).length ? dayEvents(day).map((event) => <button draggable={!movingEvent} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-event ${eventTone[event.scope] || "other"}`} key={`${event.scope}-${event.recordId || event.id}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><span>{prettyTime(event)}</span><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}{event.status ? ` · ${event.status}` : ""}</small></button>) : <span className="calendar-empty">—</span>}</div></section>)}</div>}
-      <div className="calendar-footer"><span>{busy ? "Načítám aktivity…" : `${events.length} aktivit v období`}</span><span>{movingEvent ? "Přesouvám událost…" : "Událost přetáhněte na jiný den. Časy podle nastavení účtu EspoCRM."}</span></div>
+      {viewMode === "timeline" ? timelineGrid : <div className={`calendar-week-grid calendar-${viewMode}-grid`}>{viewMode === "month" && ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"].map((day) => <div className="calendar-month-weekday" key={day}>{day}</div>)}{days.map((day) => <section className={`calendar-day ${dayKey(day) === calendarTodayKey ? "today" : ""} ${viewMode === "month" && day.getMonth() !== anchor.getMonth() ? "outside-month" : ""} ${draggedEvent ? "calendar-drop-target" : ""}`} key={dayKey(day)} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); const moving = draggedEvent; setDraggedEvent(null); if (moving) void moveCalendarEvent(moving, day); }}><header><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: viewMode === "month" ? "short" : "long", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><b>{day.getDate()}</b></header><div className="calendar-day-events">{busy ? <div className="calendar-day-loading"/> : dayEvents(day).length ? dayEvents(day).map((event) => <button draggable={!movingEvent} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-event ${eventTone[event.scope] || "other"}`} key={`${event.scope}-${event.recordId || event.id}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><span>{prettyTime(event)}</span><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}{event.status ? ` · ${event.status}` : ""}</small></button>) : <span className="calendar-empty">—</span>}</div></section>)}</div>}
+      <div className="calendar-footer"><span>{busy ? "Načítám aktivity…" : `${events.length} aktivit v období`}</span><span title={`Časová zóna účtu EspoCRM: ${calendarTimeZone}`}>{movingEvent ? "Přesouvám událost…" : `Událost přetáhněte na jiný den. Časy podle nastavení účtu EspoCRM · ${calendarTimeZone}.`}</span></div>
     </section>
     {createEntity && <RecordEditor entity={createEntity} fields={getEditorFields(metadata, createEntity)} metadata={metadata} initialValues={userId ? { assignedUserId: userId, assignedUserName: userName } : {}} onClose={() => setCreateEntity(null)} onSaved={() => { setCreateEntity(null); setRefreshIndex((n) => n + 1); }} />}
     {sharedViewEditor && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !sharedViewsBusy && setSharedViewEditor(null)}><section className="record-modal" role="dialog" aria-modal="true" aria-labelledby="shared-calendar-title"><div className="modal-heading"><div><span className="eyebrow">KALENDÁŘ · TÝMOVÉ SDÍLENÍ</span><h2 id="shared-calendar-title">{sharedViewEditor.id ? "Upravit sdílený pohled" : "Vytvořit sdílený pohled"}</h2><p>Pohled bude dostupný členům vybraných týmů.</p></div><button type="button" className="icon-button" aria-label="Zavřít" onClick={() => setSharedViewEditor(null)}><X size={16}/></button></div><label className="field-input"><span>Název</span><input autoFocus value={sharedViewEditor.name} onChange={(event) => setSharedViewEditor((current) => current ? { ...current, name: event.target.value } : current)} required/></label><label className="field-input"><span>Zobrazení</span><select value={sharedViewEditor.mode} onChange={(event) => setSharedViewEditor((current) => current ? { ...current, mode: event.target.value } : current)}>{([["day", "Den"], ["week", "Týden"], ["month", "Měsíc"], ["timeline", "Časová osa"], ["agenda", "Agenda"]] as const).map(([mode, label]) => <option key={mode} value={mode}>{label}</option>)}</select></label><div className="field-input"><span>Týmy</span><button type="button" className="button subtle" onClick={() => setCalendarFilterPicker("shared-teams")}>{sharedViewEditor.teams.length ? sharedViewEditor.teams.map((team) => team.name).join(", ") : "Vybrat týmy…"}</button></div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setSharedViewEditor(null)} disabled={sharedViewsBusy}>Zrušit</button><button type="button" className="button primary" onClick={() => void saveSharedCalendarView()} disabled={sharedViewsBusy || !sharedViewEditor.name.trim() || !sharedViewEditor.teams.length}><Save size={14}/> Uložit pohled</button></div></section></div>}
