@@ -3056,6 +3056,13 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .stream-attachment-file-info { display: grid; min-width: 0; gap: 3px; }
 .stream-attachment-file-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stream-attachment-file-info small, .stream-attachment-row time { color: var(--muted); font-size: 12px; }
+.stream-post-list { display: grid; gap: 2px; max-height: min(50vh, 430px); overflow: auto; }
+.stream-post-list-item { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; gap: 10px; padding: 12px 8px; border-bottom: 1px solid var(--line); }
+.stream-post-list-content { min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.stream-post-list-content > span { display: flex; justify-content: space-between; gap: 12px; }
+.stream-post-list-content time { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.stream-post-list-content p { display: -webkit-box; overflow: hidden; margin: 5px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.stream-post-list-content:hover strong, .stream-post-list-content:focus-visible strong { color: var(--primary); text-decoration: underline; }
 .stream-attachments-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 14px; color: var(--muted); font-size: 12px; }
 .stream-attachments-footer > div { display: flex; align-items: center; gap: 8px; }
 @media (max-width: 600px) { .stream-attachment-row { grid-template-columns: 32px minmax(100px, 1fr) 32px; } .stream-attachment-row time { grid-column: 2; } .stream-attachment-row > button { grid-column: 3; grid-row: 1 / span 2; } .stream-attachments-footer { align-items: flex-start; flex-direction: column; } }
