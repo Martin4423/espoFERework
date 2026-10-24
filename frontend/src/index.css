@@ -778,7 +778,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .about-content > div:last-child { display: grid; gap: 4px; }
 .about-content strong { font: 700 17px Manrope,sans-serif; }
 .about-content span, .about-description { color: var(--muted); font-size: 13px; }
-.about-description { margin: 0; padding: 0 22px 18px; line-height: 1.6; white-space: pre-line; }
+.about-description { margin: 0; padding: 0 22px 18px; line-height: 1.6; }
+.about-description > :first-child { margin-top: 0; }
+.about-description > :last-child { margin-bottom: 0; }
 .about-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .about-footer a { display: inline-flex; align-items: center; gap: 5px; color: var(--primary); text-decoration: none; }
 .about-footer a:hover { text-decoration: underline; }
