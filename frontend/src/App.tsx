@@ -3232,10 +3232,28 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
       return { ...old, [name]: value };
     });
   }
-  const dynamicLogicDefs = metadata.logicDefs?.[entity] || {};
+  const baseDynamicLogicDefs = metadata.logicDefs?.[entity] || {};
+  const authenticationMethods = (metadata as any).authenticationMethods || {};
+  const availableAuthenticationMethods = entity === "AuthenticationProvider" ? Object.entries(authenticationMethods).filter(([, method]: [string, any]) => method?.provider?.isAvailable) as Array<[string, any]> : [];
+  const authenticationProviderFieldOwners = new Map<string, string[]>();
+  const authenticationProviderDynamicFields: Row = {};
+  for (const [methodName, method] of availableAuthenticationMethods) {
+    const provider = method.provider || {};
+    const fieldList: string[] = provider.fieldList || method.settings?.fieldList || [];
+    for (const name of fieldList) authenticationProviderFieldOwners.set(name, [...(authenticationProviderFieldOwners.get(name) || []), methodName]);
+    const dynamicFields = (provider.dynamicLogic || method.settings?.dynamicLogic || {}).fields || {};
+    for (const [name, definition] of Object.entries(dynamicFields)) {
+      if (!fieldList.includes(name)) continue;
+      const remapAttribute = (value: any): any => Array.isArray(value) ? value.map(remapAttribute) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, key === "attribute" && item === "authenticationMethod" ? "method" : remapAttribute(item)])) : value;
+      authenticationProviderDynamicFields[name] = remapAttribute(definition);
+    }
+  }
+  const dynamicLogicDefs = entity === "AuthenticationProvider" ? { ...baseDynamicLogicDefs, fields: { ...(baseDynamicLogicDefs.fields || {}), ...authenticationProviderDynamicFields } } : baseDynamicLogicDefs;
   const dynamicLogicUser = getSession()?.user as (User & { teamsIds?: string[] }) | undefined;
   const renderField = (name: string) => {
     let def = fieldMap.get(name)!;
+    const owners = authenticationProviderFieldOwners.get(name);
+    if (entity === "AuthenticationProvider" && owners?.length && !owners.includes(String(values.method || ""))) return null;
     if (entity === "Note" && name === "post") def = { ...def, required: !(values.attachments?.length || values.attachmentsIds?.length) };
     if (entity === "AppSecret" && name === "value" && record && !changingAppSecret) return <div className="field-input app-secret-value" key={name}><span>{fieldLabel(name, def, entity, metadata)}</span><div className="app-secret-masked"><code>••••••••••</code><span>Uložená hodnota je skrytá.</span><button type="button" className="button subtle" onClick={() => { setChangingAppSecret(true); setValues((current) => ({ ...current, value: "" })); }}>Změnit hodnotu</button></div></div>;
     if (entity === "AppSecret" && name === "value") def = { ...def, type: "password" };
