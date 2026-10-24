@@ -2253,6 +2253,9 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .native-bool-filters input { accent-color: #625bd7; }
 @media (max-width: 720px) { .native-primary-filter { max-width: 130px; } }
 .saved-filter-picker { display: inline-flex; align-items: center; gap: 3px; }
+.saved-filter-picker .saved-filter-order-action { width: 28px; height: 28px; color: #7c8798; }
+.saved-filter-picker .saved-filter-order-action:hover:not(:disabled) { color: var(--primary); background: #f3f1ff; }
+.saved-filter-picker .saved-filter-order-action:disabled { color: #b8c0cc; cursor: default; }
 .saved-filter-picker select { min-height: 34px; max-width: 190px; padding: 6px 9px; border: 1px solid #e1e5ed; border-radius: 7px; background: #fff; color: #526178; font: inherit; font-size: 10px; }
 .save-filter-row { display: flex; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid #edf0f4; }
 .save-filter-row input { width: min(280px, 48%); min-height: 34px; padding: 7px 9px; border: 1px solid #e1e5ed; border-radius: 7px; background: #fff; color: #405168; font: inherit; font-size: 10px; }
