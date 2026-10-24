@@ -56,7 +56,11 @@ function DashletCard({ item, user, metadata, options, appSettings, onOpenRecord,
           const data = await request<{ list?: Data[] }>(`Email?${params}`);
           if (live) setRows(data.list || []);
         } else if (entity && metadata.entityDefs?.[entity]?.fields && canAccessEntity(metadata, entity)) {
-          const data = await request<{ list: Data[] }>(`${encodeURIComponent(entity)}?maxSize=${Number(options.displayRecords || 8)}&offset=0&orderBy=${encodeURIComponent(options.orderBy || "modifiedAt")}&order=${encodeURIComponent(options.order || "desc")}`);
+          const params = new URLSearchParams({ maxSize: String(Number(options.displayRecords || 8)), offset: "0", orderBy: options.sortBy || options.orderBy || metadata.entityDefs[entity]?.collection?.orderBy || "modifiedAt", order: options.sortDirection || options.order || metadata.entityDefs[entity]?.collection?.order || "desc" });
+          if (options.primaryFilter && options.primaryFilter !== "all") params.set("primaryFilter", options.primaryFilter);
+          if (Array.isArray(options.boolFilterList)) options.boolFilterList.forEach((filter: string) => params.append("boolFilterList[]", filter));
+          if (options.includeShared && (metadata.scopes?.[entity] as Data | undefined)?.collaborators) params.set("includeShared", "true");
+          const data = await request<{ list: Data[] }>(`${encodeURIComponent(entity)}?${params}`);
           if (live) setRows(data.list || []);
         } else if (["OpportunitiesByStage", "OpportunitiesByLeadSource", "SalesByMonth", "SalesPipeline"].includes(item.name) && canAccessEntity(metadata, "Opportunity")) {
           const action = { OpportunitiesByStage: "reportByStage", OpportunitiesByLeadSource: "reportByLeadSource", SalesByMonth: "reportSalesByMonth", SalesPipeline: "reportSalesPipeline" }[item.name];
@@ -72,7 +76,7 @@ function DashletCard({ item, user, metadata, options, appSettings, onOpenRecord,
     }
     void load();
     return () => { live = false; };
-  }, [item.name, item.id, user.id, entity, options.folder, options.displayRecords, options.enabledScopeList, options.futureDays, options.includeShared, options.orderBy, options.order, options.dateFilter, options.dateFrom, options.dateTo, options.useLastStage, options.teamId, options.teamsIds, options.usersIds, metadata, refreshIndex]);
+  }, [item.name, item.id, user.id, entity, options.folder, options.displayRecords, options.enabledScopeList, options.futureDays, options.includeShared, options.orderBy, options.sortBy, options.sortDirection, options.order, options.primaryFilter, options.boolFilterList?.join(","), options.dateFilter, options.dateFrom, options.dateTo, options.useLastStage, options.teamId, options.teamsIds, options.usersIds, metadata, refreshIndex]);
   const title = options.title || (metadata as any).labels?.dashlets?.[item.name] || item.name;
   async function createPost() {
     if (!postText.trim()) return;
