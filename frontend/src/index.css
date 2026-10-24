@@ -282,6 +282,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-manager-editor { min-height: 350px; padding: 18px; }
 .field-manager-editor .settings-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 14px; }
 .field-manager-header-actions { display: flex; align-items: center; gap: 10px; }
+.localized-number-field input { font-variant-numeric: tabular-nums; }
 .field-attributes-dialog { width: min(760px, calc(100vw - 32px)); }
 .field-attributes-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 16px 22px; background: #fafbfe; }
 .field-attributes-summary > div { display: grid; gap: 5px; min-width: 0; }

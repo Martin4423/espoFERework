@@ -5443,6 +5443,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     return <fieldset className={`field-input range-field-input ${type === "rangeCurrency" ? "currency-range-field" : ""}`} disabled={fieldDisabled}><legend>{label}{(fromDef.required || toDef.required) && <i> *</i>}</legend><div className="range-field-controls">{endpoint("from", fromDef)}<span className="range-field-separator" aria-hidden="true">—</span>{endpoint("to", toDef)}{type === "rangeCurrency" && <label className="range-field-currency"><span>Měna</span><select aria-label={`${label} měna`} value={current.currency || currencyValue || defaultCurrency} onChange={(event) => onChange({ ...current, currency: event.target.value })}>{currencyList.map((currency) => <option key={currency} value={currency}>{currency} · {((metadata.app as any)?.currency?.symbolMap || {})[currency] || currency}</option>)}</select></label>}</div></fieldset>;
   }
   if (type === "currency") return <CurrencyFieldInput label={label} value={value} currency={currencyValue || defaultCurrency} currencies={currencyList} symbols={(metadata.app as any)?.currency?.symbolMap || {}} defaultCurrency={defaultCurrency} decimalPlaces={currencySettings.currencyDecimalPlaces} def={def} onChange={onChange} onCurrencyChange={onCurrencyChange}/>;
+  if (type === "int" || type === "float") return <LocalizedNumberField label={label} value={value} def={def} metadata={metadata} disabled={fieldDisabled} required={Boolean(def.required)} onChange={onChange}/>;
   if (name === "theme" && ["Settings", "Portal"].includes(entity)) {
     const themes = ((metadata as any).themes || {}) as Row;
     const themeOptions = Object.keys(themes).sort((a, b) => a === "EspoRtl" ? -1 : b === "EspoRtl" ? 1 : optionLabel(a).localeCompare(optionLabel(b), "cs"));
@@ -5982,6 +5983,45 @@ function formatNumericValue(value: unknown, def: FieldDef, metadata: Metadata): 
   if (thousandSeparator === decimalMark) thousandSeparator = "";
   if (thousandSeparator) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
   return parts.join(decimalMark);
+}
+
+function LocalizedNumberField({ label, value, def, metadata, disabled, required, onChange }: { label: string; value: unknown; def: FieldDef; metadata: Metadata; disabled: boolean; required: boolean; onChange: (value: number | null) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const decimalMark = String(metadata.appSettings?.decimalMark || ".");
+  let thousandSeparator = String(metadata.appSettings?.thousandSeparator ?? ",");
+  if (thousandSeparator === decimalMark) thousandSeparator = "";
+  const numberForInput = (raw: unknown) => {
+    if (raw == null || raw === "") return "";
+    const number = Number(raw);
+    if (!Number.isFinite(number)) return String(raw);
+    const places = def.type === "float" ? (def.decimalPlaces == null ? 10 : Math.max(0, Math.min(10, Number(def.decimalPlaces)))) : 0;
+    const rounded = places ? Math.round(number * 10 ** places) / 10 ** places : Math.round(number);
+    const [integer, fraction] = String(rounded).split(".");
+    const grouped = thousandSeparator ? integer.replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator) : integer;
+    return fraction ? `${grouped}${decimalMark}${fraction}` : grouped;
+  };
+  const [draft, setDraft] = useState(() => numberForInput(value));
+  const emittedValue = useRef<unknown>(value);
+  useEffect(() => {
+    if (Object.is(value, emittedValue.current)) return;
+    emittedValue.current = value;
+    setDraft(numberForInput(value));
+  }, [value, decimalMark, thousandSeparator, def.decimalPlaces, def.type]);
+  const parse = (raw: string) => {
+    let normalized = thousandSeparator ? raw.split(thousandSeparator).join("") : raw;
+    if (decimalMark !== ".") normalized = normalized.split(decimalMark).join(".");
+    if (!normalized.trim() || normalized === "-" || normalized === "." || normalized === "-.") return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+  const validate = (input: HTMLInputElement, parsed: number | null | undefined) => {
+    let message = "";
+    if (parsed !== undefined && parsed !== null && def.min != null && parsed < Number(def.min)) message = `Zadejte hodnotu alespoň ${def.min}.`;
+    else if (parsed !== undefined && parsed !== null && def.max != null && parsed > Number(def.max)) message = `Zadejte hodnotu nejvýše ${def.max}.`;
+    else if (parsed !== undefined && parsed !== null && def.type === "int" && !Number.isInteger(parsed)) message = "Zadejte celé číslo.";
+    input.setCustomValidity(message);
+  };
+  return <label className={`field-input localized-number-field ${required ? "required" : ""}`}><span>{label}{required && <i> *</i>}</span><input ref={inputRef} type="text" inputMode={def.type === "int" ? "numeric" : "decimal"} autoComplete="off" disabled={disabled} required={required} min={def.min} max={def.max} value={draft} onChange={(event) => { const raw = event.target.value; setDraft(raw); const parsed = parse(raw); validate(event.currentTarget, parsed); if (parsed !== undefined) { emittedValue.current = parsed; onChange(parsed); } }} onBlur={(event) => { const parsed = parse(draft); validate(event.currentTarget, parsed); if (parsed !== undefined && parsed !== null) setDraft(numberForInput(parsed)); }}/></label>;
 }
 
 function UrlFieldDisplay({ value, multiple = false, copyToClipboard = false }: { value: unknown; multiple?: boolean; copyToClipboard?: boolean }) {
