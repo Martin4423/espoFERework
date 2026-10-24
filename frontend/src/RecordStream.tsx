@@ -316,7 +316,11 @@ export function StreamItem({ note, metadata, reactions, currentUserId, busy, onR
   const author = note.createdByName || "EspoCRM";
   const isOwnPost = note.createdById && currentUserId === note.createdById;
   const noteEditAcl = aclLevel(metadata, "Note", "edit");
-  const canEditPost = type === "Post" && (noteEditAcl === "all" || Boolean(isOwnPost && noteEditAcl !== "no"));
+  const sessionUser = getSession()?.user as (Record<string, any> | undefined);
+  const userTeamIds: string[] = Array.isArray(sessionUser?.teamsIds) ? sessionUser.teamsIds.map(String) : [];
+  const noteTeamIds: string[] = Array.isArray(note.teamsIds) ? note.teamsIds.map(String) : [];
+  const isAdmin = sessionUser?.type === "admin" || sessionUser?.type === "super-admin";
+  const canEditPost = type === "Post" && (isAdmin || noteEditAcl === "all" || noteEditAcl === "yes" || Boolean(isOwnPost && noteEditAcl !== "no") || Boolean(noteEditAcl === "team" && userTeamIds.some((id) => noteTeamIds.includes(id))));
   const systemText: Record<string, string> = { Create: "vytvořil/a záznam", CreateRelated: "vytvořil/a související záznam", Update: "upravil/a záznam", Status: "změnil/a stav", Assign: "změnil/a přiřazení", Relate: "propojil/a záznam", Unrelate: "odpojil/a záznam", EmailReceived: "přijal/a e-mail", EmailSent: "odeslal/a e-mail" };
   const attachmentIds: string[] = note.attachmentsIds || [];
   const attachmentNames: Record<string, string> = note.attachmentsNames || {};
