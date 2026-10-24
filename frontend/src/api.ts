@@ -33,7 +33,7 @@ export type Metadata = {
   userAcl?: UserAcl;
   labels?: Record<string, { fields?: Record<string, string>; scopeNames?: Record<string, string>; scopeNamesPlural?: Record<string, string> }>;
 };
-export type LayoutItem = { name?: string; label?: string; fullWidth?: boolean; width?: number; widthPx?: number; hidden?: boolean; link?: boolean; notSortable?: boolean } | false;
+export type LayoutItem = { name?: string; label?: string; fullWidth?: boolean; width?: number; widthPx?: number; hidden?: boolean; link?: boolean; notSortable?: boolean; align?: "left" | "right" | "center" } | false;
 export type DetailLayoutPanel = { label?: string; rows?: LayoutItem[][]; tabBreak?: boolean; tabLabel?: string };
 
 export class ApiError extends Error {
