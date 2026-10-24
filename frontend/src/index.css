@@ -1263,7 +1263,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .dashlet-expanded-field.soft { opacity: .72; }
 .dashlet-expanded-field.small { font-size: 10px; }
 .personal-dashlet-row-actions { display: flex; flex: 0 0 auto; gap: 1px; opacity: .55; }
-.personal-dashlet-email-row:hover .personal-dashlet-row-actions, .personal-dashlet-row-actions:focus-within { opacity: 1; }
+.personal-dashlet-row:hover .personal-dashlet-row-actions, .personal-dashlet-row-actions:focus-within { opacity: 1; }
 .personal-dashlet-row-actions .icon-button { width: 25px; height: 25px; }
 .personal-dashlet-row-actions .icon-button.is-active { color: #c58b19; }
 .personal-dashlet-list strong { overflow: hidden; color: #39465e; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
