@@ -4348,7 +4348,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     return initial;
   });
   const [activeRecord, setActiveRecord] = useState<Row | undefined>(record);
-  const autoPublishDate = useRef(false);
+  const autoPublishDate = useRef<string | null>(null);
   const [dateTimeZone, setDateTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [changingAppSecret, setChangingAppSecret] = useState(!activeRecord);
   const [changingUserPassword, setChangingUserPassword] = useState(!record);
@@ -4718,6 +4718,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const emailFilterActions = values.isGlobal ? ["Skip"] : values.parent?.type === "User" ? ["Skip", "Move to Folder", "None"] : values.parent?.type === "InboundEmail" ? ["Skip", "Move to Group Folder"] : values.parent?.type === "EmailAccount" ? ["Skip"] : ["Skip"];
   function updateFieldValue(name: string, value: any) {
     setSaveNotice("");
+    if (entity === "KnowledgeBaseArticle" && name === "publishDate") autoPublishDate.current = null;
     setValues((old) => {
       const fieldDef = fieldMap.get(name);
       if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(fieldDef?.type || "")) {
@@ -4740,15 +4741,20 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
         return next;
       }
       if (entity === "KnowledgeBaseArticle" && name === "status") {
-        if (value === "Published" && !old.publishDate) {
-          autoPublishDate.current = true;
-          const today = new Date();
-          return { ...old, status: value, publishDate: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}` };
+        if (value === "Published") {
+          if (old.publishDate) { autoPublishDate.current = null; return { ...old, status: value }; }
+          const parts = new Intl.DateTimeFormat("en-CA", { timeZone: dateTimeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+          const dateParts = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+          const publishDate = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+          autoPublishDate.current = publishDate;
+          return { ...old, status: value, publishDate };
         }
         if (value !== "Published" && autoPublishDate.current) {
-          autoPublishDate.current = false;
-          return { ...old, status: value, publishDate: null };
+          const autoDate = autoPublishDate.current;
+          autoPublishDate.current = null;
+          return old.publishDate === autoDate ? { ...old, status: value, publishDate: null } : { ...old, status: value };
         }
+        autoPublishDate.current = null;
       }
       if (entity === "Template" && name === "entityType" && !activeRecord) {
         const previousType = String(old.entityType || "");
