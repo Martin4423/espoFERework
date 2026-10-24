@@ -2492,3 +2492,25 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .user-password-preview { margin: 0; }
 .user-password-preview input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 @media (max-width: 680px) { .user-password-input { align-items: stretch; flex-direction: column; } }
+
+.admin-tab-list-field { grid-column: 1 / -1; }
+.admin-tab-list-editor { display: grid; gap: 12px; }
+.admin-tab-list-items { display: grid; gap: 7px; }
+.admin-tab-list-item { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+.admin-tab-list-item-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 8px; background: var(--lavender); color: var(--primary); }
+.admin-tab-list-label { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.admin-tab-list-label strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.admin-tab-list-label small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; }
+.admin-tab-list-actions { display: flex; gap: 2px; }
+.admin-tab-divider-mark { width: 15px; height: 1px; background: currentColor; }
+.admin-tab-list-add { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.admin-tab-list-add select { min-width: 190px; flex: 1; }
+.admin-tab-edit-modal { display: grid; gap: 13px; }
+.admin-tab-edit-modal > label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.admin-tab-edit-modal > label input, .admin-tab-edit-modal > label select { width: 100%; }
+.admin-tab-edit-modal > .switch-row { display: flex; align-items: center; }
+.admin-tab-edit-modal > .switch-row span { color: var(--ink); }
+.admin-tab-group-items { display: grid; gap: 7px; color: var(--muted); font-size: 11px; }
+.admin-tab-group-items > div:not(.admin-tab-group-add) { display: flex; align-items: center; gap: 3px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); }
+.admin-tab-group-items > div > strong { flex: 1; font-size: 11px; }
+.admin-tab-group-add select { width: 100%; }
