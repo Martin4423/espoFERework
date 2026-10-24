@@ -12,6 +12,11 @@ const PAGE_SIZE = 20;
 
 export function ActivityView({ user, metadata, onBack }: { user: User; metadata: Metadata; onBack: () => void }) {
   const [mode, setMode] = useState<"stream" | "own">("stream");
+  const filterKey = (target: "stream" | "own") => `via:user-stream-filter:${user.id}:${target}`;
+  const storedFilter = (target: "stream" | "own"): "all" | "posts" | "updates" => {
+    try { const value = localStorage.getItem(filterKey(target)); return value === "posts" || value === "updates" ? value : "all"; } catch { return "all"; }
+  };
+  const [activityFilter, setActivityFilter] = useState<"all" | "posts" | "updates">(() => storedFilter("stream"));
   const [items, setItems] = useState<Note[]>([]);
   const [total, setTotal] = useState(-2);
   const [post, setPost] = useState("");
@@ -36,11 +41,13 @@ export function ActivityView({ user, metadata, onBack }: { user: User; metadata:
   const load = useCallback(async () => {
     setBusy(true); setError("");
     try {
-      const result = await request<Page<Note>>(`${url}?maxSize=${PAGE_SIZE}&offset=0`);
+      const params = new URLSearchParams({ maxSize: String(PAGE_SIZE), offset: "0" });
+      if (activityFilter !== "all") params.set("filter", activityFilter);
+      const result = await request<Page<Note>>(`${url}?${params}`);
       setItems(result.list || []); setTotal(result.total ?? -2);
     } catch (e) { setError(e instanceof Error ? e.message : "Aktivitu se nepodařilo načíst."); }
     finally { setBusy(false); }
-  }, [url]);
+  }, [url, activityFilter]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     let live = true;
@@ -93,7 +100,9 @@ export function ActivityView({ user, metadata, onBack }: { user: User; metadata:
   async function loadMore() {
     setLoadingMore(true); setError("");
     try {
-      const result = await request<Page<Note>>(`${url}?maxSize=${PAGE_SIZE}&offset=${items.length}`);
+      const params = new URLSearchParams({ maxSize: String(PAGE_SIZE), offset: String(items.length) });
+      if (activityFilter !== "all") params.set("filter", activityFilter);
+      const result = await request<Page<Note>>(`${url}?${params}`);
       setItems((old) => [...old, ...(result.list || []).filter((item) => !old.some((existing) => existing.id === item.id))]); setTotal(result.total ?? -2);
     } catch (e) { setError(e instanceof Error ? e.message : "Starší aktivitu se nepodařilo načíst."); }
     finally { setLoadingMore(false); }
@@ -124,7 +133,8 @@ export function ActivityView({ user, metadata, onBack }: { user: User; metadata:
   const targetLabels: Record<string, string> = { self: "Moje zeď", users: "Vybraní uživatelé", teams: "Vybrané týmy", portals: "Portály", all: "Všichni uživatelé" };
 
   return <div className="social-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Přehled</button><div className="eyebrow">STREAM A KOMUNIKACE</div><h1>Aktivita</h1><p>Příspěvky a aktualizace sdílené s vaším účtem.</p></div><button className="button subtle" onClick={() => void load()} disabled={busy}><RefreshCw size={14}/> Obnovit</button></div>
-    <div className="social-tabs"><button className={mode === "stream" ? "active" : ""} onClick={() => setMode("stream")}><Users size={14}/> Stream pro mě</button><button className={mode === "own" ? "active" : ""} onClick={() => setMode("own")}><Activity size={14}/> Moje příspěvky</button></div>
+    <div className="social-tabs"><button className={mode === "stream" ? "active" : ""} onClick={() => { setMode("stream"); setActivityFilter(storedFilter("stream")); }}><Users size={14}/> Stream pro mě</button><button className={mode === "own" ? "active" : ""} onClick={() => { setMode("own"); setActivityFilter(storedFilter("own")); }}><Activity size={14}/> Moje příspěvky</button></div>
+    <div className="stream-filter-tabs" role="group" aria-label="Filtrovat aktivitu">{([["all", "Vše"], ["posts", "Příspěvky"], ["updates", "Změny"]] as const).map(([key, label]) => <button type="button" key={key} className={activityFilter === key ? "active" : ""} aria-pressed={activityFilter === key} onClick={() => { setActivityFilter(key); try { if (key === "all") localStorage.removeItem(filterKey(mode)); else localStorage.setItem(filterKey(mode), key); } catch {} }}>{label}</button>)}</div>
     {error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
     <form className="surface activity-composer" onSubmit={(event) => void submitPost(event)}>{targetOptions.length > 1 && <label className="activity-audience"><span>Publikovat pro</span><select value={targetType} onChange={(event) => setTargetType(event.target.value)}>{targetOptions.map((target) => <option value={target} key={target}>{targetLabels[target]}</option>)}</select></label>}{["users", "teams", "portals"].includes(targetType) && <button type="button" className="button subtle activity-audience-picker" onClick={() => setAudiencePicker(targetType as "users" | "teams" | "portals")}>{targetLabels[targetType]}{audience[targetType as "users" | "teams" | "portals"].length ? ` · ${audience[targetType as "users" | "teams" | "portals"].length} vybráno` : " · vybrat…"}</button>}<textarea value={post} onChange={(event) => setPost(event.target.value)} onPaste={pasteAttachments} placeholder="Napište příspěvek…" rows={3}/>{files.length > 0 && <div className="stream-draft-files">{files.map((file) => <span key={file.id}>{file.name}<button type="button" onClick={() => void removeFile(file.id)} aria-label={`Odebrat ${file.name}`}><X size={12}/></button></span>)}</div>}{fileError && <small className="stream-file-error">{fileError}</small>}<div><label className="stream-add-file"><input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ""; }} disabled={uploading || posting}/><Paperclip size={14}/>{uploading ? "Nahrávám…" : "Přiložit soubor"}</label><small>{targetLabels[targetType]}</small><button className="button primary" disabled={posting || uploading || (!post.trim() && !files.length)}>{posting ? "Odesílám…" : "Publikovat"}<Send size={13}/></button></div></form>
     <section className="surface social-feed">{busy ? <div className="table-loading"><span className="spinner"/> Načítám aktivitu…</div> : items.length ? items.map((note) => <StreamItem key={note.id} note={note} reactions={reactions} currentUserId={user.id} busy={actionId === note.id || actionId.startsWith(`${note.id}:`)} onReact={react} onPin={() => {}} onRemove={remove} onEdit={edit} onQuote={quote} pinned={false} allowPin={false}/>) : <div className="stream-empty"><Activity size={22}/><span>Ve streamu zatím nejsou žádné příspěvky.</span></div>}{canLoadMore && !busy && <button className="stream-load-more" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Starší aktivita</button>}</section>
