@@ -91,7 +91,10 @@ function DashletCard({ item, user, metadata, options, appSettings, onOpenRecord,
           if (item.name === "SalesPipeline" && options.useLastStage) params.set("useLastStage", "true");
           if (item.name === "SalesPipeline" && options.teamId) params.set("teamId", options.teamId);
           const data = await request<Data>(`Opportunity/action/${action}?${params}`);
-          if (live) setRows(Object.entries(data || {}).map(([name, value]) => ({ name, value })));
+          const chartRows = item.name === "SalesPipeline" && Array.isArray(data?.dataList)
+            ? data.dataList.map((row: Data) => ({ name: (metadata.labels as any)?.Opportunity?.options?.stage?.[row.stage] || row.stageTranslated || row.stage || "", value: row.value }))
+            : Object.entries(data || {}).map(([name, value]) => ({ name: (metadata.labels as any)?.Opportunity?.options?.stage?.[name] || name, value }));
+          if (live) setRows(chartRows);
         } else if (live) setRows([]);
       } catch (cause) { if (live) setError(cause instanceof Error ? cause.message : "Obsah panelu nelze načíst."); }
       finally { if (live) setBusy(false); }
