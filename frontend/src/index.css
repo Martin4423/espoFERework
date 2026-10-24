@@ -881,6 +881,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .template-style-input .template-style-editor.is-disabled { opacity: .65; }
 .template-code-editor-loading { display: flex; min-height: 210px; align-items: center; justify-content: center; gap: 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
 .template-style-input small { color: var(--muted); line-height: 1.5; }
+.barcode-field-input { gap: 8px; }
+.barcode-input-control { display: grid; gap: 9px; }
+.barcode-input-preview { display: grid; gap: 7px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-muted, #f8f9fc); }
+.barcode-preview-label { color: var(--muted); font-size: 11px; font-weight: 650; }
+.barcode-visual { display: flex; min-height: 30px; align-items: center; justify-content: flex-start; gap: 8px; overflow: hidden; }
+.barcode-visual svg { display: block; max-width: 100%; height: auto; }
+.barcode-visual img { display: block; width: min(128px, 100%); height: auto; }
+.barcode-invalid { color: #bd3344; font-size: 11px; }
+.barcode-display { display: grid; justify-items: start; gap: 4px; max-width: 100%; }
+.barcode-value { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.barcode-loading { display: flex; min-height: 54px; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
 .field-input:has(textarea) { grid-column: 1 / -1; }
 .field-input select[multiple] { min-height: 96px; }
 .person-name-field { min-width: 0; grid-column: 1 / -1; margin: 0 0 14px; padding: 0; border: 0; }
