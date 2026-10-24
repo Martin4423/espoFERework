@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowDownToLine, ArrowLeft, ArrowRight, File, FileImage, FileText, Image as ImageIcon, Link2, LoaderCircle, RefreshCw, Search, Trash2, X } from "./Icons";
 import { canChangeEntity, downloadAttachment, entityLabel, getAttachmentPreviewUrl, request } from "./api";
 import type { Metadata } from "./api";
+import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
 
 type Attachment = Record<string, any> & { id: string; name?: string; type?: string; size?: number };
 const pageSize = 36;
@@ -28,6 +29,7 @@ function fileIcon(item: Attachment) {
 }
 
 export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata: Metadata; onOpenRecord: (entity: string, record: Attachment) => void }) {
+  const timeZone = useEspoTimeZone();
   const [rows, setRows] = useState<Attachment[]>([]);
   const [total, setTotal] = useState(0);
   const [categoryCounts, setCategoryCounts] = useState({ image: 0, document: 0 });
@@ -123,7 +125,7 @@ export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata:
         <label className="attachment-select"><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelected(item.id)} aria-label={`Vybrat ${item.name || "soubor"}`}/></label>
         <button type="button" className="attachment-file" onClick={() => showPreview(item)}><span className={`attachment-file-icon ${kindOf(item)}`}><Icon size={18}/></span><span><strong title={item.name}>{item.name || "Soubor bez názvu"}</strong><small>{item.type || "Neznámý typ"}</small></span></button>
         <span className="attachment-size">{formatSize(item.size)}</span><div className="attachment-related">{relatedEntity && (item.relatedId || item.parentId) ? <button type="button" onClick={() => void openRelated(item)}><Link2 size={13}/>{relatedName}</button> : <span>{relatedName}</span>}</div>
-        <time className="attachment-date">{item.createdAt ? new Date(item.createdAt).toLocaleDateString("cs-CZ") : "—"}</time><div className="attachment-actions"><button type="button" className="icon-button" title="Stáhnout" aria-label={`Stáhnout ${item.name || "soubor"}`} onClick={() => void downloadAttachment(item.id, item.name || "soubor")}><ArrowDownToLine size={15}/></button>{canDelete && <button type="button" className="icon-button danger-ghost" title="Smazat" aria-label={`Smazat ${item.name || "soubor"}`} disabled={deleting} onClick={() => void removeOne(item)}><Trash2 size={14}/></button>}</div>
+        <time className="attachment-date" dateTime={item.createdAt || undefined}>{formatEspoDateTime(item.createdAt, timeZone)}</time><div className="attachment-actions"><button type="button" className="icon-button" title="Stáhnout" aria-label={`Stáhnout ${item.name || "soubor"}`} onClick={() => void downloadAttachment(item.id, item.name || "soubor")}><ArrowDownToLine size={15}/></button>{canDelete && <button type="button" className="icon-button danger-ghost" title="Smazat" aria-label={`Smazat ${item.name || "soubor"}`} disabled={deleting} onClick={() => void removeOne(item)}><Trash2 size={14}/></button>}</div>
       </article>; })}</div> : <div className="attachment-empty"><span><File size={20}/></span><strong>{search ? "Žádné soubory nenalezeny" : "Zatím tu nejsou žádné přílohy"}</strong><small>{search ? "Zkuste jiný název nebo změňte filtr." : "Soubory se objeví po přiložení k záznamům v CRM."}</small></div>}
       <footer className="attachment-pagination"><span>Zobrazeno {total ? (offset + 1).toLocaleString("cs-CZ") : 0}–{Math.min(offset + pageSize, total).toLocaleString("cs-CZ")} z {total.toLocaleString("cs-CZ")}</span><div><button type="button" className="button subtle" disabled={offset <= 0 || busy} onClick={() => setOffset(Math.max(0, offset - pageSize))}><ArrowLeft size={13}/>Předchozí</button><b>{page} / {pageCount}</b><button type="button" className="button subtle" disabled={offset + pageSize >= total || busy} onClick={() => setOffset(offset + pageSize)}>Další<ArrowRight size={13}/></button></div></footer>
     </section>
