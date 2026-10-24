@@ -58,11 +58,11 @@ export default function AdminFieldManager({ metadata, onBack }: { metadata: Meta
   const canEditField = Boolean(liveMetadata.scopes[scope]?.customizable && liveMetadata.scopes[scope]?.entityManager?.fields !== false && !nativeFieldDefs.customizationDisabled);
   const supportsLogic = Boolean(field && canEditField && !creating && !nativeFieldDefs.disabled && !nativeFieldDefs.utility && !nativeFieldDefs.dynamicLogicDisabled && !nativeFieldDefs.layoutDetailDisabled);
   const typeIsReadOnly = Boolean(liveMetadata.fields?.[field?.type || ""]?.readOnly || nativeFieldDefs.readOnly);
-  const canEditLogicRequired = supportsLogic && !typeIsReadOnly && paramDefs.some((param) => param.name === "required") && !nativeFieldDefs.dynamicLogicRequiredDisabled;
-  const canEditLogicReadOnly = supportsLogic && !typeIsReadOnly && !nativeFieldDefs.dynamicLogicReadOnlyDisabled;
-  const canEditLogicInvalid = supportsLogic && !typeIsReadOnly && !nativeFieldDefs.dynamicLogicInvalidDisabled;
-  const canEditLogicOptions = supportsLogic && Boolean(liveMetadata.fields?.[field?.type || ""]?.dynamicLogicOptions) && !nativeFieldDefs.dynamicLogicOptionsDisabled;
-  const canEditLogicReadOnlySaved = supportsLogic && !typeIsReadOnly && !nativeFieldDefs.dynamicLogicReadOnlySavedDisabled;
+  const canEditLogicRequired = supportsLogic && !typeIsReadOnly && !data.readOnly && paramDefs.some((param) => param.name === "required") && !nativeFieldDefs.dynamicLogicRequiredDisabled;
+  const canEditLogicReadOnly = supportsLogic && !typeIsReadOnly && !data.readOnly && !nativeFieldDefs.dynamicLogicReadOnlyDisabled;
+  const canEditLogicInvalid = supportsLogic && !typeIsReadOnly && !data.readOnly && !nativeFieldDefs.dynamicLogicInvalidDisabled;
+  const canEditLogicOptions = supportsLogic && !data.readOnly && Boolean(liveMetadata.fields?.[field?.type || ""]?.dynamicLogicOptions) && !nativeFieldDefs.dynamicLogicOptionsDisabled;
+  const canEditLogicReadOnlySaved = supportsLogic && !typeIsReadOnly && !data.readOnly && !nativeFieldDefs.dynamicLogicReadOnlySavedDisabled;
 
   useEffect(() => { if (!scopes.includes(scope) && scopes[0]) setScope(scopes[0]); }, [scopes, scope]);
   useEffect(() => { setFieldName(""); setFieldSearch(""); setField(null); setData({}); setOriginalData({}); setDynamicLogic({}); setOriginalDynamicLogic({}); setCreating(false); setError(""); }, [scope]);
