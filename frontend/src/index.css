@@ -60,6 +60,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .login-bottom span { margin: 0 5px; color: #c7cdd7; }
 .inline-error { background: #fff0f0; color: #bd4248; border: 1px solid #f6d6d7; padding: 10px 12px; border-radius: 8px; font-size: 12px; margin: 8px 0 12px; }
 
+@media (max-width: 900px) {
+  .login-page { grid-template-columns: minmax(0, 1fr); }
+  .login-story { min-height: 240px; padding: 22px 24px; }
+  .story-copy { margin: 32px 0 16px; padding: 0; }
+  .story-copy h1 { font-size: 36px; letter-spacing: -1.8px; }
+  .story-copy p { display: none; }
+  .login-side { min-height: max(380px, calc(100vh - 240px)); padding: 25px 24px 65px; }
+  .login-bottom { bottom: 20px; }
+}
+
 /* App frame */
 .app-shell { min-height: 100vh; display: flex; }
 .sidebar { position: fixed; z-index: 50; inset: 0 auto 0 0; width: 248px; display: flex; flex-direction: column; color: #cbd2e0; background: var(--nav); padding: 23px 14px 16px; }

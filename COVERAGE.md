@@ -41,3 +41,5 @@ Do not mark the frontend replacement complete because generic CRUD renders for a
 
 
 - Record editor date-time inputs display the saved EspoCRM user time zone and convert edits back to UTC before saving, including Meeting date fields.
+
+- Login is responsive through tablet widths: at 900 px and below, the two-column sign-in page stacks into a single column to prevent horizontal overflow.
