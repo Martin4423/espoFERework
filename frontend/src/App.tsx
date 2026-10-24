@@ -1581,7 +1581,7 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
   useEffect(() => {
     let live = true;
     setBusy(true);
-    request<Row>(`Email/${initial.id}`).then(async (data) => { if (!live) return; setRecord(data); if (!data.isRead && data.status !== "Draft") { await request("Email/inbox/read", { method: "POST", body: JSON.stringify({ id: initial.id }) }); setRecord((old) => ({ ...old, isRead: true })); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Zprávu se nepodařilo načíst.")).finally(() => live && setBusy(false));
+    request<Row>(`Email/${initial.id}`).then(async (data) => { if (!live) return; setRecord(data); if (!data.isRead && data.status !== "Draft") { await request("Email/inbox/read", { method: "POST", body: JSON.stringify({ id: initial.id }) }); if (!live) return; setRecord((old) => ({ ...old, isRead: true })); onChanged(); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Zprávu se nepodařilo načíst.")).finally(() => live && setBusy(false));
     return () => { live = false; };
   }, [initial.id]);
   useEffect(() => {
