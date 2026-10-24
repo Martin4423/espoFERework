@@ -3720,7 +3720,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   const showComplexModified = entity !== "User" && ((auditFieldReadable("modifiedAt") && Boolean(record.modifiedAt)) || (auditFieldReadable("modifiedBy") && Boolean(record.modifiedById))) && (Boolean(record.modifiedById) || record.modifiedAt !== record.createdAt);
   const canEditRecord = !record.deleted && !["AuthLogRecord", "EmailQueueItem", "LeadCaptureLogRecord"].includes(entity) && canChangeEntity(metadata, entity, "edit") && !metadata.clientDefs?.[entity]?.editDisabled;
   const canDeleteRecord = !record.deleted && canChangeEntity(metadata, entity, "delete") && !metadata.clientDefs?.[entity]?.removeDisabled;
-  const canDuplicateRecord = !record.deleted && !["LeadCaptureLogRecord", "Job"].includes(entity) && canCreateEntity(metadata, entity) && !metadata.clientDefs?.[entity]?.duplicateDisabled;
+  const canDuplicateRecord = !record.deleted && !["LeadCaptureLogRecord", "Job", "Email", "ScheduledJob", "Import"].includes(entity) && canCreateEntity(metadata, entity) && !metadata.clientDefs?.[entity]?.duplicateDisabled;
   const canPrintPdf = !record.deleted && Array.isArray(metadata.appParams?.templateEntityTypeList) && metadata.appParams.templateEntityTypeList.includes(entity);
   const currencyFields = Object.entries(fields).filter(([name, def]) => readableFieldPermissions[name]?.edit !== "no" && readableFieldPermissions[name]?.read !== "no" && def.type === "currency" && !def.readOnly && !def.disabled && !def.notStorable && !def.utility && !def.hidden);
   const canConvertCurrency = canEditRecord && !metadata.clientDefs?.[entity]?.convertCurrencyDisabled && (metadata.appSettings?.currencyList?.length || 0) > 1 && currencyFields.length > 0;
