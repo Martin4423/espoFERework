@@ -1,16 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CircleHelp, Clock3, LifeBuoy, Search } from "./Icons";
-import { entityLabel, entityList, request } from "./api";
+import { entityLabel, request } from "./api";
 import type { Metadata, User } from "./api";
+import { portalEntities } from "./portalEntities";
 
 type Row = Record<string, any>;
 type PortalSection = { entity: string; list: Row[]; total: number };
-
-export function portalEntities(metadata: Metadata) {
-  return entityList(metadata)
-    .filter((name) => metadata.scopes[name]?.aclPortal && !metadata.scopes[name]?.disabled)
-    .sort((a, b) => (metadata.scopes[a]?.order ?? 999) - (metadata.scopes[b]?.order ?? 999) || entityLabel(metadata, a, true).localeCompare(entityLabel(metadata, b, true), "cs"));
-}
 
 export default function PortalHome({ metadata, user, portalName = "Klientský portál", onOpenEntity, onOpenRecord, onAvailableChange }: {
   metadata: Metadata;

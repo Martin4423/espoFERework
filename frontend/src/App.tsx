@@ -1,39 +1,46 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { ChangeEvent, ComponentType, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, History, Inbox as InboxIcon, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, type LucideIcon } from "./Icons";
 import DOMPurify from "dompurify";
 import cronstrue from "cronstrue";
 import "cronstrue/locales/cs";
 import EspoIcon from "./EspoIcon";
-import RecordStream from "./RecordStream";
-import RecordRelationships from "./RecordRelationships";
 import type { KanbanGroup, KanbanLayoutItem } from "./KanbanBoard";
-import OAuthConnectionPanel from "./OAuthConnectionPanel";
-import WysiwygEditor from "./WysiwygEditor";
-import DashboardTemplateDeploy from "./DashboardTemplateDeploy";
-import CampaignMailMergeAction from "./CampaignMailMergeAction";
-import SaveConflictDialog from "./SaveConflictDialog";
-import DuplicateCheckDialog from "./DuplicateCheckDialog";
-import CurrencyConversionDialog from "./CurrencyConversionDialog";
-import ImagePreviewDialog from "./ImagePreviewDialog";
-import ImageCropDialog from "./ImageCropDialog";
-import SelectRecordsDialog from "./SelectRecordsDialog";
-import TextPreviewDialog from "./TextPreviewDialog";
-import CategoryTreeDialog from "./CategoryTreeDialog";
-import CategoryNavigation from "./CategoryNavigation";
-import OAuthAuthorizationParams from "./OAuthAuthorizationParams";
-import AdminTabListEditor from "./AdminTabListEditor";
-import AdminUserLoginHistory from "./AdminUserLoginHistory";
-import MergeRecordsDialog from "./MergeRecordsDialog";
 import { conditionGroupMatches } from "./dynamicLogicRuntime";
-import PersonalDataDialog from "./PersonalDataDialog";
-import FollowersDialog from "./FollowersDialog";
-import PortalHome, { portalEntities } from "./PortalHome";
-import MeetingScheduler from "./MeetingScheduler";
+import { portalEntities } from "./portalEntities";
 import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, completeSecondStepLogin, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getEditorFields, getFormFields, getListFields, getSession, login, logout, request, restoreSession, uploadAttachment } from "./api";
 import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, PendingSecondStep, Session, User } from "./api";
 
 const ImportCenter = lazy(() => import("./ImportCenter"));
+const PortalHome = lazy(() => import("./PortalHome"));
+const RecordStream = lazy(() => import("./RecordStream"));
+const RecordRelationships = lazy(() => import("./RecordRelationships"));
+const WysiwygEditor = lazy(() => import("./WysiwygEditor"));
+function lazyWithFallback<Props extends object>(loader: () => Promise<{ default: ComponentType<Props> }>) {
+  const Component = lazy(loader);
+  return function LazyFeature(props: Props) {
+    return <Suspense fallback={<div className="table-loading lazy-chunk-loading" role="status"><span className="spinner"/>Načítám funkci…</div>}><Component {...props}/></Suspense>;
+  };
+}
+const OAuthConnectionPanel = lazyWithFallback(() => import("./OAuthConnectionPanel"));
+const DashboardTemplateDeploy = lazyWithFallback(() => import("./DashboardTemplateDeploy"));
+const CampaignMailMergeAction = lazyWithFallback(() => import("./CampaignMailMergeAction"));
+const SaveConflictDialog = lazyWithFallback(() => import("./SaveConflictDialog"));
+const DuplicateCheckDialog = lazyWithFallback(() => import("./DuplicateCheckDialog"));
+const CurrencyConversionDialog = lazyWithFallback(() => import("./CurrencyConversionDialog"));
+const ImagePreviewDialog = lazyWithFallback(() => import("./ImagePreviewDialog"));
+const ImageCropDialog = lazyWithFallback(() => import("./ImageCropDialog"));
+const SelectRecordsDialog = lazyWithFallback(() => import("./SelectRecordsDialog"));
+const TextPreviewDialog = lazyWithFallback(() => import("./TextPreviewDialog"));
+const CategoryTreeDialog = lazyWithFallback(() => import("./CategoryTreeDialog"));
+const CategoryNavigation = lazyWithFallback(() => import("./CategoryNavigation"));
+const OAuthAuthorizationParams = lazyWithFallback(() => import("./OAuthAuthorizationParams"));
+const AdminTabListEditor = lazyWithFallback(() => import("./AdminTabListEditor"));
+const AdminUserLoginHistory = lazyWithFallback(() => import("./AdminUserLoginHistory"));
+const MergeRecordsDialog = lazyWithFallback(() => import("./MergeRecordsDialog"));
+const PersonalDataDialog = lazyWithFallback(() => import("./PersonalDataDialog"));
+const FollowersDialog = lazyWithFallback(() => import("./FollowersDialog"));
+const MeetingScheduler = lazyWithFallback(() => import("./MeetingScheduler"));
 const AttachmentCenter = lazy(() => import("./AttachmentCenter"));
 const ExportDialog = lazy(() => import("./ExportDialog"));
 const LastViewedView = lazy(() => import("./LastViewedView"));
@@ -2653,7 +2660,7 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
     <div className="modal-heading"><div><span className="eyebrow">{initial.id ? "KONCEPT E-MAILU" : "NOVÁ ZPRÁVA"}</span><h2>{initial.id ? "Upravit koncept" : "Napsat e-mail"}</h2></div><button type="button" className="icon-button" onClick={closeComposer} aria-label="Zavřít"><X size={17}/></button></div>
     {draftLoading ? <div className="table-loading"><span className="spinner"/>Načítám koncept…</div> : <div className="email-compose-fields">
       {templates.length > 0 && <label>Šablona<select value={templateId} onChange={(e) => void applyTemplate(e.target.value)}><option value="">Bez šablony</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}{recipientEntities.length > 1 && <label>Adresář kontaktů<select value={recipientEntity} onChange={(event) => setRecipientEntity(event.target.value)}>{recipientEntities.map((entity: string) => <option key={entity} value={entity}>{entityLabel(metadata, entity, true)}</option>)}</select></label>}
-      {recipientInput("to", "Komu", to, setTo)}{recipientInput("cc", "Kopie", cc, setCc)}{recipientInput("bcc", "Skrytá kopie", bcc, setBcc)}<label>Předmět<input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)} /></label><div className="email-compose-body"><div className="email-compose-body-head"><span>Zpráva</span><label><input type="checkbox" checked={isHtml} onChange={(e) => toggleHtmlFormat(e.target.checked)}/> Formátovaný text</label></div>{isHtml ? <WysiwygEditor value={body} htmlMode entity="Email" field="body" onChange={(value) => { setBody(value); setBodyChanged(true); }}/> : <textarea rows={10} value={body} onChange={(e) => { setBody(e.target.value); setBodyChanged(true); }} />}{signature && <small>Po odeslání bude připojen váš podpis z osobního nastavení.</small>}</div>
+      {recipientInput("to", "Komu", to, setTo)}{recipientInput("cc", "Kopie", cc, setCc)}{recipientInput("bcc", "Skrytá kopie", bcc, setBcc)}<label>Předmět<input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)} /></label><div className="email-compose-body"><div className="email-compose-body-head"><span>Zpráva</span><label><input type="checkbox" checked={isHtml} onChange={(e) => toggleHtmlFormat(e.target.checked)}/> Formátovaný text</label></div>{isHtml ? <Suspense fallback={<div className="table-loading" role="status"><span className="spinner"/>Načítám textový editor…</div>}><WysiwygEditor value={body} htmlMode entity="Email" field="body" onChange={(value) => { setBody(value); setBodyChanged(true); }}/></Suspense> : <textarea rows={10} value={body} onChange={(e) => { setBody(e.target.value); setBodyChanged(true); }} />}{signature && <small>Po odeslání bude připojen váš podpis z osobního nastavení.</small>}</div>
       <label>Odeslat později<input type="datetime-local" value={sendAt} min={dateTimeLocalValue(new Date(Date.now() + 60000))} onChange={(e) => setSendAt(e.target.value)} /></label>
       <label>Přílohy<input type="file" multiple onChange={(e) => { void addFiles(e.target.files); e.currentTarget.value = ""; }} /></label>
       {(uploading || attachments.length > 0) && <div className="email-attachments">{uploading && <span>Nahrávám přílohy…</span>}{attachments.map((item) => <span key={item.id}><Paperclip size={12}/>{item.name}<button type="button" aria-label={`Odebrat ${item.name}`} onClick={() => setAttachments((current) => current.filter((attachment) => attachment.id !== item.id))}><X size={12}/></button></span>)}</div>}
@@ -2880,9 +2887,9 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     {!record.deleted && entity === "Meeting" && (metadata.clientDefs?.Meeting?.bottomPanels?.detail || []).some((panel: any) => panel.name === "scheduler") && <MeetingScheduler metadata={metadata} userIds={record.usersIds || []} userNames={record.usersNames} assignedUserId={record.assignedUserId} assignedUserName={record.assignedUserName} dateStart={record.isAllDay ? record.dateStartDate : record.dateStart} dateEnd={record.isAllDay ? record.dateEndDate : record.dateEnd} allDay={Boolean(record.isAllDay)} entityId={record.id}/>}
     {!record.deleted && entity === "User" && record.type === "api" && <section className="detail-panel"><div className="drawer-section-title">API PŘÍSTUP</div><div className="user-api-credentials">{[["Metoda ověření", record.authMethod || "ApiKey"], ["API klíč", record.apiKey], ...(record.authMethod === "Hmac" ? [["Tajný klíč", record.secretKey]] : [])].filter(([, value]) => Boolean(value)).map(([label, value]) => <div key={String(label)}><span><small>{label}</small><code>{String(value)}</code></span><button className="button subtle" onClick={() => void navigator.clipboard.writeText(String(value))}>Kopírovat</button></div>)}</div></section>}
     {!record.deleted && entity === "User" && isAdminViewer && <AdminUserLoginHistory userId={record.id}/>}
-    {!record.deleted && <RecordRelationships entity={entity} record={record} metadata={metadata} onOpenRecord={onOpenRelated} onOpenTaskList={(scope, where) => onOpenEntity(scope, where)} onComposeEmail={onComposeEmail} renderActivityEditor={(scope, initialValues, onActivitySaved, onActivityClose) => <RecordEditor key={`${scope}-${initialValues.id || "new"}`} entity={scope} fields={getEditorFields(metadata, scope)} metadata={metadata} record={initialValues.id ? initialValues : undefined} initialValues={initialValues} onClose={onActivityClose} onSaved={onActivitySaved}/>}/>}
+    {!record.deleted && <Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/>Načítám související záznamy…</div>}><RecordRelationships entity={entity} record={record} metadata={metadata} onOpenRecord={onOpenRelated} onOpenTaskList={(scope, where) => onOpenEntity(scope, where)} onComposeEmail={onComposeEmail} renderActivityEditor={(scope, initialValues, onActivitySaved, onActivityClose) => <RecordEditor key={`${scope}-${initialValues.id || "new"}`} entity={scope} fields={getEditorFields(metadata, scope)} metadata={metadata} record={initialValues.id ? initialValues : undefined} initialValues={initialValues} onClose={onActivityClose} onSaved={onActivitySaved}/>}/></Suspense>}
     {!record.deleted && entity === "OAuthAccount" && <OAuthConnectionPanel record={record} onChanged={(next) => { setRecord(next); onChanged(next); }}/>}
-    {!record.deleted && aclLevel(metadata, entity, "stream") !== "no" && <RecordStream entity={entity} record={record} metadata={metadata} onOpenNote={(note) => { void request<Row>(`Note/${encodeURIComponent(note.id)}`).then((fresh) => onOpenRelated("Note", fresh)).catch(() => onOpenRelated("Note", note)); }}/>}
+    {!record.deleted && aclLevel(metadata, entity, "stream") !== "no" && <Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/>Načítám aktivitu…</div>}><RecordStream entity={entity} record={record} metadata={metadata} onOpenNote={(note) => { void request<Row>(`Note/${encodeURIComponent(note.id)}`).then((fresh) => onOpenRelated("Note", fresh)).catch(() => onOpenRelated("Note", note)); }}/></Suspense>}
     <div className="drawer-meta"><span>Vytvořeno</span><b>{formatDate(record.createdAt)}</b><span>Naposledy upraveno</span><b>{formatDate(record.modifiedAt)}</b></div>
   </aside>
   {mapAddress && <div className="modal-backdrop address-map-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMapAddress(null)}><section className="record-modal address-map-modal"><div className="modal-heading"><div><span className="eyebrow">MAPA ADRESY</span><h2>{addressText(mapAddress)}</h2></div><button className="icon-button" onClick={() => setMapAddress(null)} aria-label="Zavřít"><X size={17}/></button></div><GoogleAddressMap address={mapAddress} apiKey={String(metadata.appSettings?.googleMapsApiKey || "")} mapId={String(metadata.appSettings?.googleMapsMapId || "")}/><a className="button subtle" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText(mapAddress))}`} target="_blank" rel="noreferrer">Otevřít větší mapu <ArrowRight size={14}/></a></section></div>}
@@ -4100,7 +4107,7 @@ function HtmlFieldEditor({ entity, metadata, value, onChange, htmlMode = true, f
   return <div className="html-field-editor">
     {preview && htmlMode
       ? <div className="html-editor-preview" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }) }}/>
-       : htmlMode ? <WysiwygEditor value={html} htmlMode entity={entity} field={fieldName} disabled={disabled} onChange={onChange} onRegisterInsert={(insert) => { richInsert.current = insert; }}/> : <textarea ref={editor} aria-label="Text e-mailu" rows={9} value={html} disabled={disabled} onChange={(event) => onChange(event.target.value)} spellCheck/>}
+       : htmlMode ? <Suspense fallback={<div className="table-loading" role="status"><span className="spinner"/>Načítám textový editor…</div>}><WysiwygEditor value={html} htmlMode entity={entity} field={fieldName} disabled={disabled} onChange={onChange} onRegisterInsert={(insert) => { richInsert.current = insert; }}/></Suspense> : <textarea ref={editor} aria-label="Text e-mailu" rows={9} value={html} disabled={disabled} onChange={(event) => onChange(event.target.value)} spellCheck/>}
     {htmlMode && <div className="html-editor-preview-toggle"><button type="button" className={preview ? "selected" : ""} onClick={() => setPreview((current) => !current)}><Eye size={14}/>{preview ? "Upravit HTML" : "Náhled"}</button></div>}
     {tokenList.length > 0 && <details className="email-template-tokens"><summary>Vložit zástupný symbol</summary><div className="email-token-picker"><select aria-label="Typ záznamu" value={placeholderScope} onChange={(event) => setPlaceholderScope(event.target.value)}>{placeholderScopes.map((scope) => <option key={scope} value={scope}>{entityLabel(metadata, scope)}</option>)}</select><select aria-label="Pole záznamu" value={placeholderField} onChange={(event) => setPlaceholderField(event.target.value)}>{placeholderFields.map(([field, label]) => <option key={field} value={field}>{label}</option>)}</select><button type="button" disabled={!placeholderScope || !placeholderField} onClick={() => insertToken(`{${placeholderScope}.${placeholderField}}`)}>Vložit pole</button></div><div>{tokenList.map((token) => <button type="button" key={token} onClick={() => insertToken(token)}>{token}</button>)}</div><small>Hodnoty záznamů se při použití šablony načtou z Nadřazeného záznamu. Zástupné symboly se vloží na pozici kurzoru; odkazy pro odhlášení a potvrzení odběru používejte v odpovídajících kampaních.</small></details>}
   </div>;
