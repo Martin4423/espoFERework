@@ -3864,7 +3864,7 @@ function MassEmailSmtpAccountField({ metadata, def, values, onChange }: { metada
       else if (key.startsWith("inboundEmail:")) {
         const id = key.slice("inboundEmail:".length);
         const item = options.find((candidate) => candidate.key === key);
-        onChange({ smtpAccount: key, inboundEmailId: id, inboundEmailName: item?.emailAddress || values.inboundEmailName || id });
+        onChange({ smtpAccount: key, inboundEmailId: id, inboundEmailName: item?.emailAddress || values.inboundEmailName || id, fromAddress: item?.emailAddress || values.fromAddress || "", fromName: item?.fromName ?? values.fromName ?? "" });
       } else {
         const item = options.find((candidate) => candidate.key === key);
         onChange({ smtpAccount: key, inboundEmailId: null, inboundEmailName: null, fromAddress: item?.emailAddress || "", fromName: item?.fromName || "" });
