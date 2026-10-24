@@ -1117,6 +1117,11 @@ function AdminSettings({ metadata, onBack, focus = "all" }: { metadata: Metadata
   }
   async function save() {
     if (settings.thousandSeparator && settings.decimalMark && settings.thousandSeparator === settings.decimalMark) { setError((metadata.labels as any)?.Admin?.messages?.thousandSeparatorEqualsDecimalMark || "Oddělovač tisíců nesmí být stejný jako oddělovač desetinných míst."); return; }
+    if (focus === "currency") {
+      const rates = settings.currencyRates && typeof settings.currencyRates === "object" ? settings.currencyRates as Record<string, unknown> : {};
+      const invalidRate = Object.entries(rates).find(([, rate]) => rate !== "" && (!Number.isFinite(Number(rate)) || Number(rate) <= 0));
+      if (invalidRate) { setError(`Kurz měny ${invalidRate[0]} musí být kladné číslo větší než nula.`); return; }
+    }
     if (focus === "outboundEmails" && settings.smtpServer && (!Number.isInteger(Number(settings.smtpPort)) || Number(settings.smtpPort) < 1 || Number(settings.smtpPort) > 65535)) { setError("Zadejte platný SMTP port od 1 do 65535."); return; }
     if (focus === "outboundEmails" && settings.smtpServer && settings.smtpAuth && !String(settings.smtpUsername || "").trim()) { setError("Při zapnutém SMTP ověřování je uživatelské jméno povinné."); return; }
     const emailAddressPattern = /^[-!#$%&'*+/=?^_`{|}~A-Za-z0-9]+(?:\.[-!#$%&'*+/=?^_`{|}~A-Za-z0-9]+)*@([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]$/;
@@ -4241,7 +4246,8 @@ function SettingsEmailAddressField({ name, metadata, value, suggestInbound, onCh
 function CurrencyRatesEditor({ metadata, currencies, baseCurrency, value, onChange }: { metadata: Metadata; currencies: string[]; baseCurrency: string; value: any; onChange: (value: Record<string, number>) => void }) {
   const labels = metadata.app?.currency?.symbolMap || {};
   const rates = value && !Array.isArray(value) && typeof value === "object" ? value as Record<string, number> : {};
-  return <div className="field-input currency-rates-editor"><span>{fieldLabel("currencyRates", metadata.entityDefs.Settings.fields?.currencyRates, "Settings", metadata)}</span><div className="currency-rate-list">{currencies.filter((currency) => currency !== baseCurrency).map((currency) => <label key={currency}><span><b>{currency}</b><small>{labels[currency] || currency} za 1 {baseCurrency}</small></span><input type="number" min="0.000001" step="any" value={rates[currency] ?? 1} onChange={(event) => onChange({ ...rates, [currency]: Number(event.target.value) })}/></label>)}</div></div>;
+  const otherCurrencies = currencies.filter((currency) => currency !== baseCurrency);
+  return <div className="field-input currency-rates-editor"><span>{fieldLabel("currencyRates", metadata.entityDefs.Settings.fields?.currencyRates, "Settings", metadata)}</span><p className="field-hint">Zadejte, kolik jednotek dané měny odpovídá jedné jednotce základní měny ({baseCurrency || "není nastavena"}). Kurz musí být kladný.</p>{otherCurrencies.length ? <div className="currency-rate-list">{otherCurrencies.map((currency) => <label key={currency}><span id={`currency-rate-label-${currency}`}><b>{currency}</b><small>{labels[currency] || currency} za 1 {baseCurrency}</small></span><input type="number" inputMode="decimal" required min="0.000001" step="any" aria-labelledby={`currency-rate-label-${currency}`} aria-describedby={`currency-rate-help-${currency}`} value={rates[currency] ?? 1} onChange={(event) => onChange({ ...rates, [currency]: Number(event.target.value) })}/><small id={`currency-rate-help-${currency}`} className="sr-only">Zadejte kladný kurz pro {currency} vůči {baseCurrency}.</small></label>)}</div> : <div className="currency-rate-empty"><strong>Není co převádět</strong><span>{baseCurrency ? `Základní měna ${baseCurrency} je jedinou povolenou měnou.` : "Nejprve nastavte základní měnu a seznam povolených měn."}</span></div>}</div>;
 }
 
 function HtmlFieldEditor({ entity, metadata, value, onChange, htmlMode = true, fieldName, disabled = false }: { entity: string; metadata: Metadata; value: unknown; onChange: (value: string) => void; htmlMode?: boolean; fieldName: string; disabled?: boolean }) {
