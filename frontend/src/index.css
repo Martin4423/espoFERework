@@ -684,6 +684,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .stream-starred { color: #b4873f !important; }
 .stream-composer { margin-bottom: 17px; padding: 11px; border: 1px solid #e9eaf1; border-radius: 9px; background: #fff; }
 .stream-composer.is-internal { border-color: #ead6aa; background: #fffdf8; }
+.stream-draft-restored { display: inline-flex; align-items: center; margin: 0 0 7px; padding: 4px 7px; border-radius: 5px; background: #eef4fb; color: #56708d; font-size: 9px; font-weight: 600; }
 .stream-internal-notice { display: flex; align-items: flex-start; gap: 8px; margin: 3px 0 7px; padding: 8px 9px; border: 1px solid #f0e4c8; border-radius: 7px; background: #fff7e7; color: #8b6b31; }
 .stream-internal-notice > svg { flex: 0 0 auto; margin-top: 1px; }
 .stream-internal-notice > span { display: grid; gap: 2px; }

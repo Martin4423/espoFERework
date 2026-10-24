@@ -10,6 +10,17 @@ import { useDialogFocus } from "./useDialogFocus";
 
 export type Note = Record<string, any>;
 type Page = { list?: Note[]; total?: number; pinnedList?: Note[] };
+type StreamAttachment = { id: string; name: string; type: string };
+
+function readStreamDraftAttachments(key: string): StreamAttachment[] {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(key) || "null");
+    if (Array.isArray(saved)) return saved.filter((item) => item && typeof item.id === "string");
+    if (!saved || !Array.isArray(saved.idList)) return [];
+    return saved.idList.filter((id: unknown): id is string => typeof id === "string").map((id: string) => ({ id, name: saved.names?.[id] || "Příloha", type: saved.types?.[id] || "" }));
+  } catch { return []; }
+}
+
 function StreamImageAttachment({ id, name, onOpen }: { id: string; name: string; onOpen: () => void }) {
   const [src, setSrc] = useState("");
   useEffect(() => {
@@ -42,13 +53,15 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
   const session = getSession();
   const timeZone = useEspoTimeZone();
   const filterStorageKey = `via:stream-filter:${entity}`;
+  const postStorageKey = `stream-post-${entity}-${record.id}`;
+  const attachmentsStorageKey = `stream-post-attachments-${entity}-${record.id}`;
   const [streamFilter, setStreamFilter] = useState<"all" | "posts" | "updates">(() => {
     try { const value = localStorage.getItem(filterStorageKey); return value === "posts" || value === "updates" ? value : "all"; } catch { return "all"; }
   });
   const [notes, setNotes] = useState<Note[]>([]);
   const [pinned, setPinned] = useState<Note[]>([]);
   const [total, setTotal] = useState(0);
-  const [post, setPost] = useState("");
+  const [post, setPost] = useState(() => { try { return sessionStorage.getItem(postStorageKey) || ""; } catch { return ""; } });
   const internalModeStorageKey = `stream-post-is-internal-${entity}-${record.id}`;
   const allowInternalNotes = entity !== "User" && getSession()?.user.type !== "portal" && Boolean(metadata.clientDefs?.[entity]?.allowInternalNotes) && Boolean(metadata.entityDefs?.Note?.fields?.isInternal);
   const [isInternal, setIsInternal] = useState(() => {
@@ -58,7 +71,8 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
       return stored == null ? Boolean(metadata.entityDefs?.Note?.fields?.isInternal?.default) : stored === "true";
     } catch { return Boolean(metadata.entityDefs?.Note?.fields?.isInternal?.default); }
   });
-  const [attachments, setAttachments] = useState<Array<{ id: string; name: string; type: string }>>([]);
+  const [attachments, setAttachments] = useState<StreamAttachment[]>(() => readStreamDraftAttachments(attachmentsStorageKey));
+  const [draftRestored, setDraftRestored] = useState(() => Boolean(post.trim() || attachments.length));
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -90,7 +104,8 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
   const [streamPostsError, setStreamPostsError] = useState("");
   const streamPostsDialogRef = useDialogFocus<HTMLElement>(() => setStreamPostsOpen(false), !streamPostsBusy);
   const [audience, setAudience] = useState<{ users: Array<{ id: string; name: string }>; teams: Array<{ id: string; name: string }>; portals: Array<{ id: string; name: string }> }>({ users: [], teams: [], portals: [] });
-  const draftAttachmentIds = useRef<string[]>([]);
+  const draftStateRef = useRef({ post, attachments });
+  draftStateRef.current = { post, attachments };
   const postInput = useRef<HTMLTextAreaElement>(null);
   const mentionRange = useRef<[number, number] | null>(null);
   const mentionPermission = metadata.userAcl?.mentionPermission;
@@ -131,7 +146,19 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
   }, [entity, record.id, streamFilter]);
 
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => () => { void Promise.allSettled(draftAttachmentIds.current.map((id) => request(`Attachment/${encodeURIComponent(id)}`, { method: "DELETE" }))); }, []);
+  useEffect(() => {
+    const saveDraft = () => {
+      try {
+        const draft = draftStateRef.current;
+        const postValue = postInput.current?.value ?? draft.post;
+        if (postValue) sessionStorage.setItem(postStorageKey, postValue); else sessionStorage.removeItem(postStorageKey);
+        if (draft.attachments.length) sessionStorage.setItem(attachmentsStorageKey, JSON.stringify({ idList: draft.attachments.map((item) => item.id), names: Object.fromEntries(draft.attachments.map((item) => [item.id, item.name])), types: Object.fromEntries(draft.attachments.map((item) => [item.id, item.type])) }));
+        else sessionStorage.removeItem(attachmentsStorageKey);
+      } catch {}
+    };
+    window.addEventListener("beforeunload", saveDraft);
+    return () => { window.removeEventListener("beforeunload", saveDraft); saveDraft(); };
+  }, [postStorageKey, attachmentsStorageKey]);
   useEffect(() => {
     let live = true;
     request<Note>("Settings").then((settings) => {
@@ -171,12 +198,13 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
         : targetType === "teams" ? { teamsIds: recipients.map((item) => item.id), teamsNames: Object.fromEntries(recipients.map((item) => [item.id, item.name])) }
         : targetType === "portals" ? { portalsIds: recipients.map((item) => item.id), portalsNames: Object.fromEntries(recipients.map((item) => [item.id, item.name])) } : {};
       await request("Note", { method: "POST", body: JSON.stringify({ parentType: entity, parentId: record.id, targetType, ...audienceData, type: "Post", isInternal: allowInternalNotes && isInternal, post: post.trim() || null, attachmentsIds: attachments.map((item) => item.id), attachmentsNames: Object.fromEntries(attachments.map((item) => [item.id, item.name])), attachmentsTypes: Object.fromEntries(attachments.map((item) => [item.id, item.type])) }) });
-      try { sessionStorage.removeItem(internalModeStorageKey); } catch {}
+      draftStateRef.current = { post: "", attachments: [] };
+      try { sessionStorage.removeItem(internalModeStorageKey); sessionStorage.removeItem(postStorageKey); sessionStorage.removeItem(attachmentsStorageKey); } catch {}
       if (followEntityOnStreamPost && !followed) {
         try { await request(`${encodeURIComponent(entity)}/${encodeURIComponent(record.id)}/subscription`, { method: "PUT" }); setFollowed(true); }
         catch { setError("Příspěvek byl zveřejněn, ale automatické sledování záznamu se nepodařilo zapnout."); }
       }
-      draftAttachmentIds.current = []; setAttachments([]); setPost(""); setTargetType("self"); setAudience({ users: [], teams: [], portals: [] }); await load();
+      setAttachments([]); setPost(""); setDraftRestored(false); setTargetType("self"); setAudience({ users: [], teams: [], portals: [] }); await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Příspěvek se nepodařilo publikovat."); }
     finally { setPosting(false); }
   }
@@ -188,9 +216,11 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
       const uploaded: Array<{ id: string; name: string; type: string }> = [];
       for (const file of Array.from(list)) {
         const item = await uploadAttachment(file, "Note", "attachments", true);
-        uploaded.push(item); draftAttachmentIds.current.push(item.id);
+        uploaded.push(item);
       }
-      setAttachments((old) => [...old, ...uploaded]);
+      const next = [...draftStateRef.current.attachments, ...uploaded];
+      draftStateRef.current.attachments = next;
+      setAttachments(next);
     } catch (e) { setFileError(e instanceof Error ? e.message : "Přílohu se nepodařilo nahrát."); }
     finally { setUploading(false); }
   }
@@ -207,8 +237,9 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
   }
 
   async function removeDraftAttachment(id: string) {
-    setAttachments((old) => old.filter((item) => item.id !== id));
-    draftAttachmentIds.current = draftAttachmentIds.current.filter((item) => item !== id);
+    const next = draftStateRef.current.attachments.filter((item) => item.id !== id);
+    draftStateRef.current.attachments = next;
+    setAttachments(next);
     await request(`Attachment/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
   }
 
@@ -310,7 +341,7 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
     <div className="record-stream-heading"><div><h3><Activity size={15}/> Aktivita</h3><span>{total} záznamů</span></div><div className="record-stream-actions">{entity !== "User" && <><button type="button" className="button subtle" onClick={() => void loadStreamPosts()} title="Zobrazit všechny příspěvky"><MessageSquare size={14}/>Příspěvky</button><button type="button" className="button subtle" onClick={() => void loadStreamAttachments()} title="Zobrazit všechny přílohy aktivity"><Paperclip size={14}/>Přílohy</button></>}<button className={`stream-toggle ${followed ? "is-on" : ""}`} onClick={() => void toggleSubscription("subscription")} disabled={Boolean(actionId) || !canFollow} title={followed ? "Přestat sledovat" : "Sledovat záznam"}>{followed ? <Check size={14}/> : <Activity size={14}/>} {followed ? "Sledujete" : "Sledovat"}</button><button className={`icon-button ${starred ? "stream-starred" : ""}`} onClick={() => void toggleSubscription("starSubscription")} disabled={Boolean(actionId)} title={starred ? "Odebrat z oblíbených" : "Přidat do oblíbených"}><Star size={15} fill={starred ? "currentColor" : "none"}/></button><button className="icon-button" onClick={() => void load()} disabled={busy} title="Obnovit aktivitu"><RefreshCw size={14}/></button></div></div>
     <div className="stream-filter-tabs" role="group" aria-label="Filtrovat aktivitu">{([["all", "Vše"], ["posts", "Příspěvky"], ["updates", "Změny"]] as const).map(([key, label]) => <button type="button" key={key} className={streamFilter === key ? "active" : ""} aria-pressed={streamFilter === key} onClick={() => { setStreamFilter(key); try { if (key === "all") localStorage.removeItem(filterStorageKey); else localStorage.setItem(filterStorageKey, key); } catch {} }} disabled={busy && streamFilter === key}>{label}</button>)}</div>
     {error && <div className="stream-error">{error}<button onClick={() => void load()}>Načíst znovu</button></div>}
-    <form className={`stream-composer ${isInternal ? "is-internal" : ""}`} onSubmit={(event) => void submitPost(event)}>{targetOptions.length > 1 && <label className="activity-audience"><span>Publikovat pro</span><select value={targetType} onChange={(event) => setTargetType(event.target.value)}>{targetOptions.map((target) => <option value={target} key={target}>{targetLabels[target]}</option>)}</select></label>}{["users", "teams", "portals"].includes(targetType) && <button type="button" className="button subtle activity-audience-picker" onClick={() => setAudiencePicker(targetType as "users" | "teams" | "portals")}>{targetLabels[targetType]}{audience[targetType as "users" | "teams" | "portals"].length ? ` · ${audience[targetType as "users" | "teams" | "portals"].length} vybráno` : " · vybrat…"}</button>}{isInternal && <div className="stream-internal-notice" role="status"><Shield size={14}/><span><strong>Interní poznámka</strong><small>Uvidí ji pouze uživatelé s přístupem do CRM.</small></span></div>}<div className="stream-composer-input"><textarea ref={postInput} value={post} onChange={(event) => handlePostChange(event.target.value, event.currentTarget.selectionStart)} onPaste={pasteAttachments} onKeyDown={handleComposerKeyDown} rows={2} placeholder={isInternal ? "Napište interní poznámku…" : "Sdílejte novinku…"}/>{mentionUsers.length > 0 && <div className="stream-mention-menu" role="listbox">{mentionUsers.map((user, index) => <button type="button" role="option" aria-selected={index === mentionIndex} className={index === mentionIndex ? "active" : ""} key={user.id} onMouseDown={(event) => event.preventDefault()} onClick={() => insertMention(user)}><span>{String(user.name || user.userName || "?").slice(0, 1).toUpperCase()}</span><strong>{user.name || user.userName}</strong><small>@{user.userName}</small></button>)}</div>}</div>{attachments.length > 0 && <div className="stream-draft-files">{attachments.map((item) => <span key={item.id}>{item.name}<button type="button" onClick={() => void removeDraftAttachment(item.id)} aria-label={`Odebrat ${item.name}`}><X size={12}/></button></span>)}</div>}{fileError && <div className="stream-file-error">{fileError}</div>}<div><label className="stream-add-file"><input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ""; }} disabled={uploading || posting}/><Paperclip size={14}/>{uploading ? "Nahrávám…" : "Přiložit soubor"}</label>{allowInternalNotes && <button type="button" className={`stream-internal-toggle ${isInternal ? "active" : ""}`} aria-pressed={isInternal} onClick={() => { const next = !isInternal; setIsInternal(next); try { sessionStorage.setItem(internalModeStorageKey, String(next)); } catch {} }}><Shield size={13}/>{isInternal ? "Interní" : "Interní poznámka"}</button>}<small>{targetLabels[targetType]}</small><button className="button primary" disabled={posting || uploading || (!post.trim() && !attachments.length)}>{posting ? "Odesílám…" : "Publikovat"}<Send size={13}/></button></div></form>
+    <form className={`stream-composer ${isInternal ? "is-internal" : ""}`} onSubmit={(event) => void submitPost(event)}>{targetOptions.length > 1 && <label className="activity-audience"><span>Publikovat pro</span><select value={targetType} onChange={(event) => setTargetType(event.target.value)}>{targetOptions.map((target) => <option value={target} key={target}>{targetLabels[target]}</option>)}</select></label>}{["users", "teams", "portals"].includes(targetType) && <button type="button" className="button subtle activity-audience-picker" onClick={() => setAudiencePicker(targetType as "users" | "teams" | "portals")}>{targetLabels[targetType]}{audience[targetType as "users" | "teams" | "portals"].length ? ` · ${audience[targetType as "users" | "teams" | "portals"].length} vybráno` : " · vybrat…"}</button>}{draftRestored && <div className="stream-draft-restored" role="status">Obnovený koncept{attachments.length ? ` · ${attachments.length} příloh` : ""}</div>}{isInternal && <div className="stream-internal-notice" role="status"><Shield size={14}/><span><strong>Interní poznámka</strong><small>Uvidí ji pouze uživatelé s přístupem do CRM.</small></span></div>}<div className="stream-composer-input"><textarea ref={postInput} value={post} onChange={(event) => handlePostChange(event.target.value, event.currentTarget.selectionStart)} onPaste={pasteAttachments} onKeyDown={handleComposerKeyDown} rows={2} placeholder={isInternal ? "Napište interní poznámku…" : "Sdílejte novinku…"}/>{mentionUsers.length > 0 && <div className="stream-mention-menu" role="listbox">{mentionUsers.map((user, index) => <button type="button" role="option" aria-selected={index === mentionIndex} className={index === mentionIndex ? "active" : ""} key={user.id} onMouseDown={(event) => event.preventDefault()} onClick={() => insertMention(user)}><span>{String(user.name || user.userName || "?").slice(0, 1).toUpperCase()}</span><strong>{user.name || user.userName}</strong><small>@{user.userName}</small></button>)}</div>}</div>{attachments.length > 0 && <div className="stream-draft-files">{attachments.map((item) => <span key={item.id}>{item.name}<button type="button" onClick={() => void removeDraftAttachment(item.id)} aria-label={`Odebrat ${item.name}`}><X size={12}/></button></span>)}</div>}{fileError && <div className="stream-file-error">{fileError}</div>}<div><label className="stream-add-file"><input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ""; }} disabled={uploading || posting}/><Paperclip size={14}/>{uploading ? "Nahrávám…" : "Přiložit soubor"}</label>{allowInternalNotes && <button type="button" className={`stream-internal-toggle ${isInternal ? "active" : ""}`} aria-pressed={isInternal} onClick={() => { const next = !isInternal; setIsInternal(next); try { sessionStorage.setItem(internalModeStorageKey, String(next)); } catch {} }}><Shield size={13}/>{isInternal ? "Interní" : "Interní poznámka"}</button>}<small>{targetLabels[targetType]}</small><button className="button primary" disabled={posting || uploading || (!post.trim() && !attachments.length)}>{posting ? "Odesílám…" : "Publikovat"}<Send size={13}/></button></div></form>
     {pinned.length > 0 && <div className="stream-pinned"><div className="stream-subheading"><Pin size={13}/> Připnuté příspěvky</div>{pinned.map((note) => <StreamItem key={`pin-${note.id}`} note={note} metadata={metadata} reactions={reactions} currentUserId={session?.user.id} busy={actionId === note.id} onReact={toggleReaction} onPin={togglePin} onRemove={removeNote} onEdit={editNote} onQuote={quoteReply} onOpen={onOpenNote} pinned avatarsDisabled={Boolean(metadata.appSettings?.avatarsDisabled)}/>)}</div>}
     <div className="stream-list">{busy ? <div className="stream-loading"><span className="spinner"/> Načítám aktivitu…</div> : notes.length ? notes.map((note) => <StreamItem key={note.id} note={note} metadata={metadata} reactions={reactions} currentUserId={session?.user.id} busy={actionId === note.id || actionId.startsWith(`${note.id}:`)} onReact={toggleReaction} onPin={togglePin} onRemove={removeNote} onEdit={editNote} onQuote={quoteReply} onOpen={onOpenNote} pinned={pinnedIds.has(note.id)} avatarsDisabled={Boolean(metadata.appSettings?.avatarsDisabled)}/>) : <div className="stream-empty"><MessageSquare size={20}/><span>Zatím tu nejsou žádné příspěvky ani změny.</span></div>}</div>
     {notes.length > 0 && notes.length < total && <button className="stream-load-more" onClick={() => void loadOlder()} disabled={loadingMore}>{loadingMore ? <span className="spinner"/> : <ArrowDown size={14}/>} Starší aktivita ({notes.length} z {total})</button>}
