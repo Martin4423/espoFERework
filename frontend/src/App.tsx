@@ -1,30 +1,15 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, CSSProperties, FormEvent, PointerEvent as ReactPointerEvent } from "react";
 import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, History, Inbox as InboxIcon, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, type LucideIcon } from "./Icons";
 import DOMPurify from "dompurify";
 import cronstrue from "cronstrue";
 import "cronstrue/locales/cs";
 import EspoIcon from "./EspoIcon";
-import ImportCenter from "./ImportCenter";
-import AttachmentCenter from "./AttachmentCenter";
-import ExportDialog from "./ExportDialog";
-import LastViewedView from "./LastViewedView";
-import ActionHistoryCenter from "./ActionHistoryCenter";
-import AdminFieldManager from "./AdminFieldManager";
-import AdminLayoutManager from "./AdminLayoutManager";
-import AdminSystemTools from "./AdminSystemTools";
-import AdminEntityManager from "./AdminEntityManager";
-import AdminLinkManager from "./AdminLinkManager";
-import AdminLabelManager from "./AdminLabelManager";
 import RecordStream from "./RecordStream";
 import RecordRelationships from "./RecordRelationships";
-import KanbanBoard, { type KanbanGroup, type KanbanLayoutItem } from "./KanbanBoard";
+import type { KanbanGroup, KanbanLayoutItem } from "./KanbanBoard";
 import OAuthConnectionPanel from "./OAuthConnectionPanel";
 import WysiwygEditor from "./WysiwygEditor";
-import { ActivityView, NotificationCenter, NotificationPanel } from "./SocialViews";
-import { UserPreferencesView, UserSecurityView } from "./UserAccount";
-import PersonalDashboard from "./PersonalDashboard";
-import DashboardLayoutEditor from "./DashboardLayoutEditor";
 import DashboardTemplateDeploy from "./DashboardTemplateDeploy";
 import CampaignMailMergeAction from "./CampaignMailMergeAction";
 import SaveConflictDialog from "./SaveConflictDialog";
@@ -37,12 +22,7 @@ import TextPreviewDialog from "./TextPreviewDialog";
 import CategoryTreeDialog from "./CategoryTreeDialog";
 import CategoryNavigation from "./CategoryNavigation";
 import OAuthAuthorizationParams from "./OAuthAuthorizationParams";
-import { AdminExtensions, AdminUpgrade } from "./AdminPackages";
-import AdminIntegrations from "./AdminIntegrations";
-import AdminFormulaSandbox from "./AdminFormulaSandbox";
-import AdminTemplateManager from "./AdminTemplateManager";
 import AdminTabListEditor from "./AdminTabListEditor";
-import AdminAuthTokens from "./AdminAuthTokens";
 import AdminUserLoginHistory from "./AdminUserLoginHistory";
 import MergeRecordsDialog from "./MergeRecordsDialog";
 import { conditionGroupMatches } from "./dynamicLogicRuntime";
@@ -51,6 +31,32 @@ import FollowersDialog from "./FollowersDialog";
 import PortalHome, { portalEntities } from "./PortalHome";
 import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, completeSecondStepLogin, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getEditorFields, getFormFields, getListFields, getSession, login, logout, request, restoreSession, uploadAttachment } from "./api";
 import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, PendingSecondStep, Session, User } from "./api";
+
+const ImportCenter = lazy(() => import("./ImportCenter"));
+const AttachmentCenter = lazy(() => import("./AttachmentCenter"));
+const ExportDialog = lazy(() => import("./ExportDialog"));
+const LastViewedView = lazy(() => import("./LastViewedView"));
+const ActionHistoryCenter = lazy(() => import("./ActionHistoryCenter"));
+const AdminFieldManager = lazy(() => import("./AdminFieldManager"));
+const AdminLayoutManager = lazy(() => import("./AdminLayoutManager"));
+const AdminSystemTools = lazy(() => import("./AdminSystemTools"));
+const AdminEntityManager = lazy(() => import("./AdminEntityManager"));
+const AdminLinkManager = lazy(() => import("./AdminLinkManager"));
+const AdminLabelManager = lazy(() => import("./AdminLabelManager"));
+const KanbanBoard = lazy(() => import("./KanbanBoard"));
+const ActivityView = lazy(() => import("./SocialViews").then((module) => ({ default: module.ActivityView })));
+const NotificationCenter = lazy(() => import("./SocialViews").then((module) => ({ default: module.NotificationCenter })));
+const NotificationPanel = lazy(() => import("./SocialViews").then((module) => ({ default: module.NotificationPanel })));
+const UserPreferencesView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserPreferencesView })));
+const UserSecurityView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserSecurityView })));
+const PersonalDashboard = lazy(() => import("./PersonalDashboard"));
+const DashboardLayoutEditor = lazy(() => import("./DashboardLayoutEditor"));
+const AdminExtensions = lazy(() => import("./AdminPackages").then((module) => ({ default: module.AdminExtensions })));
+const AdminUpgrade = lazy(() => import("./AdminPackages").then((module) => ({ default: module.AdminUpgrade })));
+const AdminIntegrations = lazy(() => import("./AdminIntegrations"));
+const AdminFormulaSandbox = lazy(() => import("./AdminFormulaSandbox"));
+const AdminTemplateManager = lazy(() => import("./AdminTemplateManager"));
+const AdminAuthTokens = lazy(() => import("./AdminAuthTokens"));
 
 type Row = Record<string, any>;
 type AddressParts = { street?: string; city?: string; state?: string; postalCode?: string; country?: string };
@@ -836,9 +842,9 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
     {mobileNav && <button className="scrim" onClick={() => setMobileNav(false)} aria-label="Zavřít nabídku"/>}
     <section className="main-shell">
       <header className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Otevřít nabídku"><Menu size={19}/></button><div className="breadcrumbs"><span>{isPortalUser ? portalName : "ViaCRM"}</span><b>/</b><strong>{accountPage === "preferences" ? "Moje preference" : accountPage === "security" ? "Zabezpečení" : notificationsOpen ? "Oznámení" : lastViewedOpen ? "Naposledy zobrazené" : activityOpen ? "Aktivita" : adminOpen ? "Administrace" : calendarOpen ? "Kalendář" : entity ? entityLabel(metadata, entity, true) : "Přehled"}{record && <><b>/</b><strong>{recordFieldDisplayValue(entity || "", "name", record) || record.subject || "Detail"}</strong></>}</strong></div>
-      <div className="top-actions">{quickCreateScopes.length > 0 && <div className="quick-create-menu" ref={quickCreateMenuRef}><button type="button" className={`quick-create-trigger ${quickCreateOpen ? "selected" : ""}`} aria-label="Rychlé vytvoření" title="Rychlé vytvoření" aria-haspopup="menu" aria-expanded={quickCreateOpen} onClick={() => setQuickCreateOpen((open) => !open)}><Plus size={17}/><span>Vytvořit</span></button>{quickCreateOpen && <div className="quick-create-dropdown" role="menu"><div className="quick-create-heading">Rychle vytvořit</div>{quickCreateScopes.map((scope) => <button type="button" role="menuitem" key={scope} onClick={() => openQuickCreate(scope)}><span className="nav-icon"><EntityIcon name={scope}/></span>{scope === "Email" ? "E-mail" : entityLabel(metadata, scope)}</button>)}</div>}</div>}<button className="global-search-trigger" onClick={() => setGlobalSearchOpen(true)} title="Vyhledat v CRM" aria-label="Vyhledat v CRM"><Search size={16}/><span>Hledat v CRM</span><kbd>⌘ K</kbd></button>{!isPortalUser && <button className={`last-viewed-trigger ${lastViewedOpen ? "selected" : ""}`} onClick={openLastViewed} title="Naposledy zobrazené" aria-label="Naposledy zobrazené"><Clock3 size={17}/></button>}<button className="notification-trigger" onClick={() => setNotificationPanelOpen((open) => !open)} title="Oznámení" aria-label={`Oznámení${unreadNotifications ? `, ${unreadNotifications} nepřečtených` : ""}`} aria-haspopup="dialog" aria-expanded={notificationPanelOpen}><Bell size={17}/>{unreadNotifications > 0 && <span>{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}</button>{notificationPanelOpen && <NotificationPanel onClose={() => setNotificationPanelOpen(false)} onOpenList={openNotifications} onOpenRecord={(scope, id) => { setNotificationPanelOpen(false); void openNotificationRecord(scope, id); }} onUnreadChange={refreshNotificationCount}/>}<div className="connection"><span/> CRM online</div><div className="user-account-menu"><button className="user-menu" onClick={() => setAccountMenuOpen((open) => !open)} aria-expanded={accountMenuOpen} aria-haspopup="menu" title="Nabídka účtu"><span className="avatar">{(user.name || "U").slice(0, 1).toUpperCase()}</span><span className="user-name">{user.name}</span><span className="chevron">⌄</span></button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-dropdown-head"><span className="avatar">{(user.name || "U").slice(0, 1).toUpperCase()}</span><span><strong>{user.name}</strong><small>{user.userName}</small></span></div><button role="menuitem" onClick={() => openAccountPage("preferences")}><Settings size={15}/>Moje preference</button><button role="menuitem" onClick={() => openAccountPage("security")}><Shield size={15}/>Zabezpečení</button><div className="account-dropdown-divider"/><button role="menuitem" className="account-logout" onClick={() => { setAccountMenuOpen(false); onLogout(); }}><ArrowLeft size={15}/>Odhlásit se</button></div>}</div></div>
+      <div className="top-actions">{quickCreateScopes.length > 0 && <div className="quick-create-menu" ref={quickCreateMenuRef}><button type="button" className={`quick-create-trigger ${quickCreateOpen ? "selected" : ""}`} aria-label="Rychlé vytvoření" title="Rychlé vytvoření" aria-haspopup="menu" aria-expanded={quickCreateOpen} onClick={() => setQuickCreateOpen((open) => !open)}><Plus size={17}/><span>Vytvořit</span></button>{quickCreateOpen && <div className="quick-create-dropdown" role="menu"><div className="quick-create-heading">Rychle vytvořit</div>{quickCreateScopes.map((scope) => <button type="button" role="menuitem" key={scope} onClick={() => openQuickCreate(scope)}><span className="nav-icon"><EntityIcon name={scope}/></span>{scope === "Email" ? "E-mail" : entityLabel(metadata, scope)}</button>)}</div>}</div>}<button className="global-search-trigger" onClick={() => setGlobalSearchOpen(true)} title="Vyhledat v CRM" aria-label="Vyhledat v CRM"><Search size={16}/><span>Hledat v CRM</span><kbd>⌘ K</kbd></button>{!isPortalUser && <button className={`last-viewed-trigger ${lastViewedOpen ? "selected" : ""}`} onClick={openLastViewed} title="Naposledy zobrazené" aria-label="Naposledy zobrazené"><Clock3 size={17}/></button>}<button className="notification-trigger" onClick={() => setNotificationPanelOpen((open) => !open)} title="Oznámení" aria-label={`Oznámení${unreadNotifications ? `, ${unreadNotifications} nepřečtených` : ""}`} aria-haspopup="dialog" aria-expanded={notificationPanelOpen}><Bell size={17}/>{unreadNotifications > 0 && <span>{unreadNotifications > 99 ? "99+" : unreadNotifications}</span>}</button>{notificationPanelOpen && <Suspense fallback={null}><NotificationPanel onClose={() => setNotificationPanelOpen(false)} onOpenList={openNotifications} onOpenRecord={(scope, id) => { setNotificationPanelOpen(false); void openNotificationRecord(scope, id); }} onUnreadChange={refreshNotificationCount}/></Suspense>}<div className="connection"><span/> CRM online</div><div className="user-account-menu"><button className="user-menu" onClick={() => setAccountMenuOpen((open) => !open)} aria-expanded={accountMenuOpen} aria-haspopup="menu" title="Nabídka účtu"><span className="avatar">{(user.name || "U").slice(0, 1).toUpperCase()}</span><span className="user-name">{user.name}</span><span className="chevron">⌄</span></button>{accountMenuOpen && <div className="account-dropdown" role="menu"><div className="account-dropdown-head"><span className="avatar">{(user.name || "U").slice(0, 1).toUpperCase()}</span><span><strong>{user.name}</strong><small>{user.userName}</small></span></div><button role="menuitem" onClick={() => openAccountPage("preferences")}><Settings size={15}/>Moje preference</button><button role="menuitem" onClick={() => openAccountPage("security")}><Shield size={15}/>Zabezpečení</button><div className="account-dropdown-divider"/><button role="menuitem" className="account-logout" onClick={() => { setAccountMenuOpen(false); onLogout(); }}><ArrowLeft size={15}/>Odhlásit se</button></div>}</div></div>
       </header>
-      <main className="content-area">{accountPage === "preferences"
+      <main className="content-area"><Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/> Připravuji obrazovku…</div>}>{accountPage === "preferences"
         ? <UserPreferencesView metadata={metadata} user={preferencesTarget || user} onBack={() => { const target = preferencesTarget; setAccountPage(null); setPreferencesTarget(null); if (target) { setEntity("User"); setRecord(target as Row); } }} />
         : accountPage === "security"
         ? <UserSecurityView user={user} onBack={() => setAccountPage(null)} onLogout={onLogout} />
@@ -907,7 +913,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : isPortalUser && Array.isArray(portalSettings.dashboardLayout) && portalSettings.dashboardLayout.length ? <Dashboard entities={navEntities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} layoutOverride={portalSettings.dashboardLayout} optionsOverride={portalSettings.dashletsOptions} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openQuickCreate} onComposeEmail={() => {}} />
         : isPortalUser ? <PortalHome metadata={metadata} user={user} portalName={portalName} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onAvailableChange={updatePortalScopes} />
         : <Dashboard entities={entities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openDashboardCreate} onComposeEmail={() => setEmailDraft({})} />}
-      </main>
+      </Suspense></main>
       {record && entity === "Email" && !isPortalUser ? <EmailDrawer record={record} metadata={metadata} canCreateDocument={canCreateEntity(metadata, "Document")} canCreateFilter={canCreateEntity(metadata, "EmailFilter")} onClose={() => setRecord(null)} onChanged={() => setEmailRefresh((n) => n + 1)} onReply={(draft) => setEmailDraft(draft)} onOpenRecord={(next) => setRecord(next)} onOpenEntityRecord={(scope, row) => { setEntityFixedWhere([]); setEntity(scope); setRecord(row); }} onCreateFilter={(address) => { setRecord(null); setEntityFixedWhere([]); setEntity("EmailFilter"); setEmailFilterDraft({ from: address, name: address }); }} /> : record && entity && <RecordDrawer entity={entity} record={record} metadata={metadata} onClose={() => setRecord(null)} onChanged={(next) => setRecord(next)} onOpenRelated={(relatedEntity, relatedRecord) => { setEntityFixedWhere([]); setEntity(relatedEntity); setRecord(relatedRecord); }} onOpenPreferences={openPreferencesFor} onOpenEmailAccounts={openEmailAccountsFor} onOpenEntity={(name) => openEntity(name)} onOpenCalendar={openCalendarFor} onComposeEmail={(draft) => setEmailDraft(draft)} />}
       {emailFilterDraft && entity === "EmailFilter" && <RecordEditor entity="EmailFilter" fields={getEditorFields(metadata, "EmailFilter")} metadata={metadata} initialValues={emailFilterDraft} onClose={() => setEmailFilterDraft(null)} onSaved={() => { setEmailFilterDraft(null); setEmailRefresh((n) => n + 1); }} />}
       {quickCreateScope && <RecordEditor entity={quickCreateScope} fields={getEditorFields(metadata, quickCreateScope).filter(([name, def]) => (quickCreateLayout?.scope !== quickCreateScope || quickCreateLayout.names.includes(name)) && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.read !== "no" && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.edit !== "no" && !def.hidden && !def.utility && !def.disabled)} metadata={metadata} initialValues={quickCreateInitialValues} onClose={() => { setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); }} onSaved={(created) => { const scope = quickCreateScope; const fromDashboard = quickCreateFromDashboard; setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); if (fromDashboard) setDashboardRefreshKey((value) => value + 1); else { openEntity(scope); setRecord(created); } }}/>}
@@ -2671,7 +2677,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     catch { setError("Odkaz se nepodařilo zkopírovat. Zkopírujte jej z pole formuláře."); }
   }
 
-  if (entity === "LayoutSet" && layoutSetEditorOpen) return <div className="layoutset-editor-layer"><AdminLayoutManager metadata={metadata} layoutSetId={record.id} layoutSetName={record.name} layoutList={record.layoutList || []} onBack={() => setLayoutSetEditorOpen(false)}/></div>;
+  if (entity === "LayoutSet" && layoutSetEditorOpen) return <div className="layoutset-editor-layer"><Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/> Otevírám rozložení…</div>}><AdminLayoutManager metadata={metadata} layoutSetId={record.id} layoutSetName={record.name} layoutList={record.layoutList || []} onBack={() => setLayoutSetEditorOpen(false)}/></Suspense></div>;
   return <><button className="drawer-backdrop" onClick={onClose} aria-label="Zavřít detail"/><aside className="record-drawer"><div className="drawer-top"><span className="eyebrow">{entityLabel(metadata, entity, true).toUpperCase()} · DETAIL</span><div>{!record.deleted && aclLevel(metadata, entity, "stream") !== "no" && <button className="icon-button" onClick={() => setFollowersOpen(true)} title="Zobrazit sledující" aria-label="Zobrazit sledující"><Users size={15}/></button>}{canEditRecord && <button className="icon-button" onClick={() => setEditor(true)} title="Upravit"><FileText size={15}/></button>}{canDeleteRecord && <button className="icon-button danger-ghost" onClick={() => void remove()} disabled={busy} title="Smazat"><Trash2 size={15}/></button>}<button className="icon-button" onClick={onClose} title="Zavřít"><X size={17}/></button></div></div>
     <div className={`drawer-title ${record.deleted ? "deleted-record-title" : ""}`}><span className="drawer-avatar">{String(recordFieldDisplayValue(entity, "name", record) || record.subject || "?").slice(0, 1).toUpperCase()}</span><div><h2>{recordFieldDisplayValue(entity, "name", record) || record.subject || [record.firstName, record.lastName].filter(Boolean).join(" ") || "Záznam"}</h2><p>{record.deleted ? "Smazaný záznam · " : ""}{entityLabel(metadata, entity)}{record.accountName ? ` · ${record.accountName}` : ""}</p></div></div>
     {error && <div className="inline-error">{error}</div>}{userNotice && <div className="save-confirm"><Check size={14}/>{userNotice}</div>}
