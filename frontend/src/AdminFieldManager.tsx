@@ -46,14 +46,14 @@ export default function AdminFieldManager({ metadata, onBack }: { metadata: Meta
   const listedParams = nativeFieldDefs.fieldManagerParamList || field?.fieldManagerParamList;
   const globalRestrictions = (liveMetadata as any).entityAcl?.[scope]?.fields?.[fieldName] || {};
   const effectiveType = creating ? createType : field?.type || "";
-  const baseParamDefs = rawParamDefs.filter((param) => (!listedParams || listedParams.includes(param.name)) && !nativeFieldDefs[`customization${param.name.charAt(0).toUpperCase()}${param.name.slice(1)}Disabled`] && !(globalRestrictions.readOnly && param.name === "required"));
+  const baseParamDefs = rawParamDefs.filter((param) => (!listedParams || listedParams.includes(param.name)) && !nativeFieldDefs[`customization${param.name.charAt(0).toUpperCase()}${param.name.slice(1)}Disabled`] && !(globalRestrictions.readOnly && param.name === "required") && !(param.name === "createButton" && ["assignedUser", "assignedUsers", "teams", "collaborators"].includes(fieldName)) && !(param.name === "autocompleteOnEmpty" && fieldName === "assignedUser"));
   const extraParamDefs = (nativeFieldDefs.fieldManagerAdditionalParamList || field?.fieldManagerAdditionalParamList || []).map((item: Data) => ({ ...item, type: item.view === "views/admin/field-manager/fields/not-actual-options" ? "multiEnum" : item.view === "crm:views/opportunity/admin/field-manager/fields/probability-map" ? "jsonObject" : item.type || effectiveType || "varchar" }));
   if (effectiveType && !["foreign", "autoincrement"].includes(effectiveType) && !nativeFieldDefs.customizationInlineEditDisabledDisabled && !nativeFieldDefs.customizationDisabled) extraParamDefs.push({ name: "inlineEditDisabled", type: "bool" });
   const hasPersonalData = Boolean((liveMetadata.scopes[scope] as any)?.hasPersonalData && (liveMetadata.fields?.[effectiveType] as any)?.personalData);
   if (hasPersonalData) extraParamDefs.push({ name: "isPersonalData", type: "bool" });
   const hasTooltip = !nativeFieldDefs.customizationTooltipTextDisabled && !nativeFieldDefs.customizationDisabled;
   if (hasTooltip) extraParamDefs.push({ name: "tooltipText", type: "text", rowsMin: 2 });
-  const paramDefs = [...baseParamDefs, ...extraParamDefs.filter((param: Data) => !baseParamDefs.some((base) => base.name === param.name))];
+  const paramDefs = nativeFieldDefs.customizationDisabled || globalRestrictions.forbidden ? [] : [...baseParamDefs, ...extraParamDefs.filter((param: Data) => !baseParamDefs.some((base) => base.name === param.name))];
   const canAddField = liveMetadata.scopes[scope]?.entityManager?.addField !== false;
   const canEditField = Boolean(liveMetadata.scopes[scope]?.customizable && liveMetadata.scopes[scope]?.entityManager?.fields !== false && !nativeFieldDefs.customizationDisabled);
   const supportsLogic = Boolean(field && canEditField && !creating && !nativeFieldDefs.disabled && !nativeFieldDefs.utility && !nativeFieldDefs.dynamicLogicDisabled && !nativeFieldDefs.layoutDetailDisabled);
