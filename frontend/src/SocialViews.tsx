@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClipboardEvent, FormEvent } from "react";
-import { Activity, ArrowDown, ArrowLeft, Bell, Check, ChevronRight, LoaderCircle, Paperclip, RefreshCw, Send, Trash2, Users, X } from "./Icons";
+import { Activity, ArrowDown, ArrowLeft, Bell, Check, ChevronRight, Globe, LoaderCircle, Paperclip, RefreshCw, Search, Send, Trash2, Users, X } from "./Icons";
 import { canAccessEntity, request, uploadAttachment } from "./api";
 import type { Metadata, User } from "./api";
 import { StreamItem, type Note } from "./RecordStream";
@@ -187,6 +187,69 @@ export function ActivityView({ user, metadata, onBack }: { user: User; metadata:
     <form className="surface activity-composer" onSubmit={(event) => void submitPost(event)}>{targetOptions.length > 1 && <label className="activity-audience"><span>Publikovat pro</span><select value={targetType} onChange={(event) => setTargetType(event.target.value)}>{targetOptions.map((target) => <option value={target} key={target}>{targetLabels[target]}</option>)}</select></label>}{["users", "teams", "portals"].includes(targetType) && <button type="button" className="button subtle activity-audience-picker" onClick={() => setAudiencePicker(targetType as "users" | "teams" | "portals")}>{targetLabels[targetType]}{audience[targetType as "users" | "teams" | "portals"].length ? ` · ${audience[targetType as "users" | "teams" | "portals"].length} vybráno` : " · vybrat…"}</button>}<textarea value={post} onChange={(event) => setPost(event.target.value)} onPaste={pasteAttachments} placeholder="Napište příspěvek…" rows={3}/>{files.length > 0 && <div className="stream-draft-files">{files.map((file) => <span key={file.id}>{file.name}<button type="button" onClick={() => void removeFile(file.id)} aria-label={`Odebrat ${file.name}`}><X size={12}/></button></span>)}</div>}{fileError && <small className="stream-file-error">{fileError}</small>}<div><label className="stream-add-file"><input type="file" multiple onChange={(event) => { void addFiles(event.target.files); event.currentTarget.value = ""; }} disabled={uploading || posting}/><Paperclip size={14}/>{uploading ? "Nahrávám…" : "Přiložit soubor"}</label><small>{targetLabels[targetType]}</small><button className="button primary" disabled={posting || uploading || (!post.trim() && !files.length)}>{posting ? "Odesílám…" : "Publikovat"}<Send size={13}/></button></div></form>
     <section className="surface social-feed">{busy ? <div className="table-loading"><span className="spinner"/> Načítám aktivitu…</div> : items.length ? items.map((note) => <StreamItem key={note.id} note={note} reactions={reactions} currentUserId={user.id} busy={actionId === note.id || actionId.startsWith(`${note.id}:`)} onReact={react} onPin={() => {}} onRemove={remove} onEdit={edit} onQuote={quote} pinned={false} allowPin={false}/>) : <div className="stream-empty"><Activity size={22}/><span>Ve streamu zatím nejsou žádné příspěvky.</span></div>}{canLoadMore && !busy && <button className="stream-load-more" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Starší aktivita</button>}</section>
     {audiencePicker && <SelectRecordsDialog entity={pickerEntity} metadata={metadata} multiple selectedIds={selectedAudience.map((item) => item.id)} selectedRows={selectedAudience} primaryFilter={audiencePicker === "users" ? portalPermission === "yes" && messagePermission === "no" ? "activePortal" : "active" : undefined} boolFilterList={audiencePicker === "users" && messagePermission === "team" ? ["onlyMyTeam"] : []} filterList={audiencePicker === "users" && portalPermission === "yes" ? messagePermission === "no" ? ["activePortal"] : ["active", "activePortal"] : []} onClose={() => setAudiencePicker("")} onSelect={(rows) => { setAudience((old) => ({ ...old, [audiencePicker]: rows.map((row) => ({ id: row.id, name: row.name || row.userName || row.id })) })); setAudiencePicker(""); }}/ >}
+  </div>;
+}
+
+export function GlobalStreamView({ user, metadata, onBack, onOpenRecord }: { user: User; metadata: Metadata; onBack: () => void; onOpenRecord: (scope: string, id: string) => void }) {
+  const [items, setItems] = useState<Note[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [filter, setFilter] = useState<"all" | "posts" | "updates">("all");
+  const [queryDraft, setQueryDraft] = useState("");
+  const [query, setQuery] = useState("");
+  const [reactions, setReactions] = useState<string[]>(["Like"]);
+  const [busyId, setBusyId] = useState("");
+  const [busy, setBusy] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState("");
+  const pageSize = 20;
+  const where = useMemo(() => filter === "all" ? [] : [{ type: filter === "posts" ? "equals" : "notEquals", attribute: "type", value: "Post" }], [filter]);
+  const load = useCallback(async (append = false, beforeNumber?: number) => {
+    if (!canAccessEntity(metadata, "GlobalStream")) { setItems([]); setHasMore(false); setError("Nemáte oprávnění číst globální stream."); setBusy(false); setLoadingMore(false); return; }
+    if (append) setLoadingMore(true); else setBusy(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ maxSize: String(pageSize), orderBy: "number", order: "desc" });
+      if (append && beforeNumber != null) params.set("beforeNumber", String(beforeNumber));
+      if (query) params.set("q", query);
+      if (where.length) params.set("where", JSON.stringify(where));
+      const result = await request<Page<Note>>(`GlobalStream?${params}`);
+      const list = result.list || [];
+      setItems((old) => append ? [...old, ...list.filter((item) => !old.some((current) => current.id === item.id))] : list);
+      setHasMore(list.length === pageSize);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Globální stream se nepodařilo načíst.");
+      if (!append) { setItems([]); setHasMore(false); }
+    } finally { setBusy(false); setLoadingMore(false); }
+  }, [query, where, metadata]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let live = true;
+    request<Record<string, any>>("Settings").then((settings) => { if (live && Array.isArray(settings.availableReactions)) setReactions(settings.availableReactions); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  async function react(note: Note, type: string) {
+    setBusyId(`${note.id}:${type}`);
+    try { const own = (note.myReactions || []).includes(type); await request(`Note/${encodeURIComponent(note.id)}/myReactions/${encodeURIComponent(type)}`, { method: own ? "DELETE" : "POST", ...(own ? {} : { body: JSON.stringify({}) }) }); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Reakci se nepodařilo uložit."); }
+    finally { setBusyId(""); }
+  }
+  async function remove(note: Note) {
+    if (!window.confirm("Opravdu odstranit tento příspěvek?")) return;
+    setBusyId(note.id);
+    try { await request(`Note/${encodeURIComponent(note.id)}`, { method: "DELETE" }); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Příspěvek se nepodařilo odstranit."); }
+    finally { setBusyId(""); }
+  }
+  async function edit(note: Note, post: string) {
+    setBusyId(note.id);
+    try { await request(`Note/${encodeURIComponent(note.id)}`, { method: "PUT", body: JSON.stringify({ post }) }); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Příspěvek se nepodařilo upravit."); throw cause; }
+    finally { setBusyId(""); }
+  }
+  return <div className="social-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Přehled</button><div className="eyebrow">STREAM A KOMUNIKACE</div><h1><Globe size={22}/> Globální stream</h1><p>Veřejné a týmové příspěvky dostupné vašemu účtu.</p></div><button className="button subtle" onClick={() => void load()} disabled={busy}><RefreshCw size={14}/> Obnovit</button></div>
+    <form className="surface global-stream-toolbar" onSubmit={(event) => { event.preventDefault(); setQuery(queryDraft.trim()); }}><label className="global-stream-search"><Search size={15}/><input value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} placeholder="Hledat ve streamu"/><button className="button subtle" disabled={busy}>Hledat</button></label><div className="stream-filter-tabs" role="group" aria-label="Filtrovat globální stream">{([ ["all", "Vše"], ["posts", "Příspěvky"], ["updates", "Změny"] ] as const).map(([key, label]) => <button type="button" key={key} className={filter === key ? "active" : ""} aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}</button>)}</div></form>
+    {error && <div className="table-error" role="alert">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
+    <section className="surface social-feed">{busy ? <div className="table-loading"><span className="spinner"/> Načítám globální stream…</div> : items.length ? items.map((note) => <StreamItem key={note.id} note={note} reactions={reactions} currentUserId={user.id} busy={busyId === note.id || busyId.startsWith(`${note.id}:`)} onReact={react} onPin={() => {}} onRemove={remove} onEdit={edit} onQuote={() => {}} allowQuote={false} pinned={false} allowPin={false} onOpen={(item) => onOpenRecord("Note", item.id)} onOpenParent={(item) => { const scope = item.parentType || item.entityType; const id = item.parentId || item.entityId; if (scope && id) onOpenRecord(scope, id); }}/>) : <div className="stream-empty"><Activity size={22}/><span>{query || filter !== "all" ? "Pro zadané hledání nejsou ve streamu žádné záznamy." : "Globální stream zatím neobsahuje žádné záznamy."}</span></div>}{hasMore && !busy && <button className="stream-load-more" onClick={() => void load(true, Number(items.at(-1)?.number))} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Starší aktivita</button>}</section>
   </div>;
 }
 

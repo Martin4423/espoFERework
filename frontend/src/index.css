@@ -1099,6 +1099,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .global-search-trigger:hover { border-color: #dcd9f6; color: #7069ca; background: #faf9ff; }
 .global-search-trigger kbd,.global-search-input kbd,.global-search-footer kbd { padding: 2px 5px; border: 1px solid #e7e9ef; border-radius: 4px; background: white; color: #9aa3b2; font: 8px Inter,sans-serif; }
 .social-view { max-width: 1050px; margin: 0 auto; }
+.global-stream-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -4px 0 14px; padding: 8px 10px; }
+.global-stream-search { display: flex; align-items: center; gap: 8px; min-width: 180px; flex: 1; color: #8a94a6; }
+.global-stream-search input { min-width: 0; flex: 1; height: 32px; border: 0; outline: 0; color: var(--ink); background: transparent; font: inherit; font-size: 11px; }
+.global-stream-search .button { min-height: 29px; padding: 0 9px; font-size: 10px; }
+.global-stream-toolbar .stream-filter-tabs { flex: none; margin: 0; }
 .social-tabs { display: flex; gap: 4px; width: fit-content; margin: -4px 0 17px; padding: 4px; border-radius: 9px; background: #f0f1f6; }
 .social-tabs button { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: #778399; font: inherit; font-size: 10px; cursor: pointer; }
 .social-tabs button.active { background: #fff; color: #5f59bc; box-shadow: 0 1px 4px #252b4012; font-weight: 700; }
@@ -2740,6 +2745,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .stream-filter-tabs button { min-height:29px; padding:5px 11px; border:0; border-radius:6px; color:var(--muted); background:transparent; font-size:11px; cursor:pointer; }
 .stream-filter-tabs button.active { color:var(--ink); background:var(--surface); box-shadow:0 1px 3px rgba(22,31,52,.12); font-weight:650; }
 .stream-filter-tabs button:disabled { cursor:default; }
+@media(max-width:640px) { .global-stream-toolbar { align-items: stretch; flex-direction: column; } .global-stream-search { min-height: 36px; } .global-stream-toolbar .stream-filter-tabs { width: 100%; } .global-stream-toolbar .stream-filter-tabs button { flex: 1; } }
 .account-sessions { margin-top: 16px; padding: 18px; }
 .account-session-list { display: grid; gap: 8px; }
 .account-session-list article { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px; border: 1px solid #e6e9f0; border-radius: 8px; background: #fbfcfe; }
