@@ -2659,6 +2659,23 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .image-crop-controls input { flex: 1; accent-color: #526db0; }
 .image-crop-controls span { width: 42px; color: var(--muted, #778198); text-align: right; font-size: 10px; }
 .relationship-open-picker { width: fit-content; min-height: 32px; }
+.meeting-acceptance-actions { padding: 0 0 16px; border: 0; }
+.meeting-acceptance-action { justify-content: flex-start; }
+.meeting-acceptance-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted, #8a93a3); }
+.meeting-acceptance-dot.success { background: #2e9b68; }
+.meeting-acceptance-dot.danger { background: #d65353; }
+.meeting-acceptance-dot.warning { background: #d59b2d; }
+.meeting-acceptance-backdrop { z-index: 215; }
+.meeting-acceptance-dialog { width: min(440px, calc(100vw - 28px)); }
+.meeting-acceptance-dialog .modal-heading p { margin: 5px 0 0; color: var(--muted, #778198); font-size: 11px; }
+.meeting-acceptance-options { display: grid; gap: 8px; padding: 2px 22px 16px; }
+.meeting-acceptance-option { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line, #e5e9f0); border-radius: 9px; background: var(--surface, #fff); color: var(--text, #303c54); text-align: left; cursor: pointer; }
+.meeting-acceptance-option:hover, .meeting-acceptance-option.selected { border-color: var(--accent, #526db0); background: color-mix(in srgb, var(--accent, #526db0) 8%, white); }
+.meeting-acceptance-option.success { --acceptance-color: #26865b; }
+.meeting-acceptance-option.danger { --acceptance-color: #c74747; }
+.meeting-acceptance-option.warning { --acceptance-color: #a97819; }
+.meeting-acceptance-option { color: var(--acceptance-color, var(--text, #303c54)); }
+.meeting-acceptance-dialog > .inline-error { margin: 0 22px 12px; }
 .select-records-backdrop { z-index: 190; }
 .select-records-dialog { display: flex; flex-direction: column; width: min(940px, calc(100vw - 28px)); max-height: min(780px, calc(100vh - 24px)); padding: 14px; border: 1px solid var(--line, #e5e9f0); border-radius: 13px; background: var(--surface, #fff); box-shadow: 0 22px 70px #17233a44; }
 .select-records-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 8px; }
