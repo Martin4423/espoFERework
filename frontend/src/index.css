@@ -338,6 +338,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .system-info-card .settings-card-head { padding: 0 0 12px; }
 .system-info-card .settings-card-head h2 { display: flex; align-items: center; gap: 7px; }
 .system-check-list { display: grid; }
+.system-requirement-groups { display: grid; gap: 14px; }
+.system-requirement-group h3 { margin: 0; padding: 10px 14px 7px; color: #627089; font: 700 10px Manrope,sans-serif; text-transform: uppercase; letter-spacing: .06em; }
+.system-requirement-group .system-check-list { border-top: 1px solid #eef0f4; }
+.system-requirement-group .system-check-row { display: grid; grid-template-columns: 8px minmax(120px,1fr) minmax(130px,auto); }
+.system-requirement-group .system-check-label small { display: block; margin-top: 3px; }
+.system-requirement-group .system-check-value { display: grid; gap: 3px; text-align: right; }
+.system-check-value small { color: #8490a5; font-size: 9px; }
+.system-check-value .requirement-pass-label { color: #348767; }
+.system-check-value .requirement-fail-label { color: #bd6268; }
+.system-requirement-help { padding: 12px 14px; border-top: 1px solid #eef0f4; text-align: right; }
+.system-requirement-help a { color: #7069ca; font-size: 10px; font-weight: 600; text-decoration: none; }
+.system-requirement-help a:hover { text-decoration: underline; }
 .system-check-row { display: flex; align-items: center; gap: 9px; min-height: 45px; border-top: 1px solid #f0f1f4; }
 .requirement-dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: #a7afbc; }
 .requirement-dot.pass { background: #50ad87; }

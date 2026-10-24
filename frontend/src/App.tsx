@@ -881,7 +881,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : entity === "__layout-manager__"
         ? <AdminLayoutManager metadata={metadata} onBack={openAdmin} />
         : entity === "__system-tools__"
-        ? <AdminSystemTools onBack={openAdmin} />
+        ? <AdminSystemTools metadata={metadata} onBack={openAdmin} />
         : entity === "__entity-manager__"
         ? <AdminEntityManager metadata={metadata} onBack={openAdmin} />
         : entity === "__link-manager__"
