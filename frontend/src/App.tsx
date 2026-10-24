@@ -1853,6 +1853,10 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   const readCalendarPreference = () => { try { return JSON.parse(localStorage.getItem(calendarPreferenceKey) || "null") as Row | null; } catch { return null; } };
   const [anchor, setAnchor] = useState(() => new Date());
   const [calendarTimeZone, setCalendarTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  const [firstDayOfWeek, setFirstDayOfWeek] = useState(() => {
+    const value = Number((metadata.appSettings as any)?.weekStart ?? 1);
+    return Number.isInteger(value) && value >= 0 && value <= 6 ? value : 1;
+  });
   const [activeScopes, setActiveScopes] = useState<string[]>(() => { const stored = readCalendarPreference()?.scopes; return Array.isArray(stored) ? stored.filter((item): item is string => typeof item === "string" && scopes.includes(item)) : scopes; });
   const [calendarUsers, setCalendarUsers] = useState<Array<{ id: string; name: string }>>(() => { const stored = readCalendarPreference()?.users; return Array.isArray(stored) ? stored.filter((item): item is { id: string; name: string } => Boolean(item && typeof item.id === "string" && typeof item.name === "string")) : []; });
   const [calendarTeams, setCalendarTeams] = useState<Array<{ id: string; name: string }>>(() => { const stored = readCalendarPreference()?.teams; return Array.isArray(stored) ? stored.filter((item): item is { id: string; name: string } => Boolean(item && typeof item.id === "string" && typeof item.name === "string")) : []; });
@@ -1877,7 +1881,11 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
     if (!currentUserId) return;
     let live = true;
     request<Row>(`Preferences/${encodeURIComponent(currentUserId)}`).then((preferences) => {
-      if (!live || typeof preferences.timeZone !== "string" || !preferences.timeZone) return;
+      if (!live) return;
+      const systemWeekStart = Number((metadata.appSettings as any)?.weekStart ?? 1);
+      const preferenceWeekStart = Number(preferences.weekStart);
+      setFirstDayOfWeek(Number.isInteger(preferenceWeekStart) && preferenceWeekStart >= 0 && preferenceWeekStart <= 6 ? preferenceWeekStart : Number.isInteger(systemWeekStart) && systemWeekStart >= 0 && systemWeekStart <= 6 ? systemWeekStart : 1);
+      if (typeof preferences.timeZone !== "string" || !preferences.timeZone) return;
       try {
         new Intl.DateTimeFormat("en", { timeZone: preferences.timeZone });
         setCalendarTimeZone(preferences.timeZone);
@@ -1893,18 +1901,17 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   }, []);
   const weekStart = useMemo(() => {
     const day = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
-    day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+    day.setDate(day.getDate() - ((day.getDay() - firstDayOfWeek + 7) % 7));
     return day;
-  }, [anchor]);
+  }, [anchor, firstDayOfWeek]);
   const range = useMemo(() => {
     if (viewMode === "day") { const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate()); const end = new Date(start); end.setDate(end.getDate() + 1); return { start, end, days: [start] }; }
-    if (viewMode === "month") { const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1); start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1); end.setDate(end.getDate() + (7 - ((end.getDay() + 6) % 7)) % 7); const days: Date[] = []; for (const date = new Date(start); date < end; date.setDate(date.getDate() + 1)) days.push(new Date(date)); return { start, end, days }; }
-    const start = viewMode === "week" || viewMode === "timeline" ? weekStart : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
-    if (viewMode === "agenda") start.setDate(start.getDate() - 3);
+    if (viewMode === "month") { const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1); start.setDate(start.getDate() - ((start.getDay() - firstDayOfWeek + 7) % 7)); const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1); end.setDate(end.getDate() + ((firstDayOfWeek - end.getDay() + 7) % 7)); const days: Date[] = []; for (const date = new Date(start); date < end; date.setDate(date.getDate() + 1)) days.push(new Date(date)); return { start, end, days }; }
+    const start = viewMode === "week" || viewMode === "timeline" || viewMode === "agenda" ? new Date(weekStart) : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
     const end = new Date(start); end.setDate(end.getDate() + (viewMode === "week" || viewMode === "timeline" ? 7 : viewMode === "agenda" ? 7 : 1));
     const days: Date[] = []; for (const date = new Date(start); date < end; date.setDate(date.getDate() + 1)) days.push(new Date(date));
     return { start, end, days };
-  }, [anchor, viewMode, weekStart]);
+  }, [anchor, viewMode, weekStart, firstDayOfWeek]);
   const calendarTodayKey = dateKeyInTimeZone(new Date(), calendarTimeZone);
   const todayAnchor = () => {
     const [year, month, day] = calendarTodayKey.split("-").map(Number);
@@ -2004,6 +2011,11 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   }, [from, to, scopeParam, refreshIndex, userId, canSelectCalendarUsers, effectiveTeamIdList, userIdList]);
 
   const days = range.days;
+  const weekdayLabels = Array.from({ length: 7 }, (_, index) => {
+    const weekdayIndex = (firstDayOfWeek + index) % 7;
+    const name = new Intl.DateTimeFormat("cs-CZ", { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 7 + weekdayIndex))).replace(/\.$/, "");
+    return name.charAt(0).toLocaleUpperCase("cs-CZ") + name.slice(1);
+  });
   useEffect(() => {
     if (activeCalendarSlot.dayIndex >= days.length) setActiveCalendarSlot({ dayIndex: 0, slot: 0 });
   }, [activeCalendarSlot.dayIndex, days.length]);
@@ -2172,7 +2184,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
       <details className="calendar-shortcuts"><summary>Klávesové zkratky</summary><div className="calendar-shortcut-list"><span><kbd>←</kbd><kbd>→</kbd><span>Předchozí / další období</span></span><span><kbd>Home</kbd><span>Přejít na dnešek</span></span><span><kbd>1</kbd>–<kbd>5</kbd><span>Přepnout zobrazení</span></span>{scopes.some((scope) => ["Meeting", "Call", "Task"].includes(scope)) && <span><kbd>Ctrl</kbd> + <kbd>Space</kbd><span>Vytvořit aktivitu</span></span>}</div></details>
       <div className="calendar-filters">{scopes.map((scope) => <button key={scope} className={`calendar-filter ${activeScopes.includes(scope) ? "selected" : ""} ${eventTone[scope] || "other"}`} style={calendarColors[scope] ? ({ "--calendar-event-color": calendarColors[scope] } as CSSProperties) : undefined} onClick={() => setActiveScopes((current) => current.includes(scope) ? current.filter((item) => item !== scope) : [...current, scope])}><i/>{entityLabel(metadata, scope, true)}</button>)}</div>
       {error && <div className="table-error">{error}<button onClick={() => setAnchor(new Date(anchor))}>Zkusit znovu</button></div>}
-      {viewMode === "timeline" ? timelineGrid : <div className={`calendar-week-grid calendar-${viewMode}-grid`}>{viewMode === "month" && ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"].map((day) => <div className="calendar-month-weekday" key={day}>{day}</div>)}{days.map((day) => <section className={`calendar-day ${dayKey(day) === calendarTodayKey ? "today" : ""} ${viewMode === "month" && day.getMonth() !== anchor.getMonth() ? "outside-month" : ""} ${draggedEvent ? "calendar-drop-target" : ""}`} key={dayKey(day)} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); const moving = draggedEvent; setDraggedEvent(null); if (moving) void moveCalendarEvent(moving, day); }}><header><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: viewMode === "month" ? "short" : "long", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><b>{day.getDate()}</b></header><div className={`calendar-day-events ${creatableActivityScopes.length ? "calendar-day-events-creatable" : ""}`} onClick={() => !busy && beginCreateAt(dayKey(day))} title={creatableActivityScopes.length ? "Kliknutím vytvoříte aktivitu pro tento den" : undefined}>{busy ? <div className="calendar-day-loading"/> : dayEvents(day).length ? dayEvents(day).map((event) => <button draggable={!movingEvent && canChangeEntity(metadata, event.scope, "edit")} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-event ${eventTone[event.scope] || "other"}`} style={calendarEventStyle(event)} key={`${event.scope}-${event.recordId || event.id}`} onClick={(nativeEvent) => { nativeEvent.stopPropagation(); onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name }); }}><span>{prettyTimeForDay(event, day)}</span><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}{event.status ? ` · ${event.status}` : ""}</small></button>) : <span className="calendar-empty">—</span>}</div></section>)}</div>}
+      {viewMode === "timeline" ? timelineGrid : <div className={`calendar-week-grid calendar-${viewMode}-grid`}>{viewMode === "month" && weekdayLabels.map((day) => <div className="calendar-month-weekday" key={day}>{day}</div>)}{days.map((day) => <section className={`calendar-day ${dayKey(day) === calendarTodayKey ? "today" : ""} ${viewMode === "month" && day.getMonth() !== anchor.getMonth() ? "outside-month" : ""} ${draggedEvent ? "calendar-drop-target" : ""}`} key={dayKey(day)} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); const moving = draggedEvent; setDraggedEvent(null); if (moving) void moveCalendarEvent(moving, day); }}><header><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: viewMode === "month" ? "short" : "long", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><b>{day.getDate()}</b></header><div className={`calendar-day-events ${creatableActivityScopes.length ? "calendar-day-events-creatable" : ""}`} onClick={() => !busy && beginCreateAt(dayKey(day))} title={creatableActivityScopes.length ? "Kliknutím vytvoříte aktivitu pro tento den" : undefined}>{busy ? <div className="calendar-day-loading"/> : dayEvents(day).length ? dayEvents(day).map((event) => <button draggable={!movingEvent && canChangeEntity(metadata, event.scope, "edit")} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-event ${eventTone[event.scope] || "other"}`} style={calendarEventStyle(event)} key={`${event.scope}-${event.recordId || event.id}`} onClick={(nativeEvent) => { nativeEvent.stopPropagation(); onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name }); }}><span>{prettyTimeForDay(event, day)}</span><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}{event.status ? ` · ${event.status}` : ""}</small></button>) : <span className="calendar-empty">—</span>}</div></section>)}</div>}
       <div className="calendar-footer"><span>{busy ? "Načítám aktivity…" : `${calendarActivityCount} aktivit v období`}</span><span title={`Časová zóna účtu EspoCRM: ${calendarTimeZone}`}>{movingEvent ? "Přesouvám událost…" : `Událost přetáhněte na jiný den. Časy podle nastavení účtu EspoCRM · ${calendarTimeZone}.`}</span></div>
     </section>
     {createEntity && <RecordEditor entity={createEntity} fields={getEditorFields(metadata, createEntity)} metadata={metadata} initialValues={createInitialValues} onClose={() => setCreateEntity(null)} onSaved={() => { setCreateEntity(null); setCreateInitialValues({}); setRefreshIndex((n) => n + 1); }} />}
