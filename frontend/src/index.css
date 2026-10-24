@@ -1125,11 +1125,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .notification-row { display: flex; align-items: center; gap: 4px; padding: 0 13px; border-bottom: 1px solid #eef0f4; }
 .notification-row:last-child { border-bottom: 0; }
 .notification-row.is-unread { background: #f7f7ff; }
+.notification-row:hover { background: #f5f4ff; }
 .notification-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; padding: 13px 2px; border: 0; background: transparent; color: #8792a4; text-align: left; cursor: pointer; }
 .notification-icon { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border-radius: 9px; background: #f0efff; color: #6d67c9; }
 .notification-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .notification-copy strong { overflow: hidden; color: #45516a; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .notification-copy > span, .notification-copy time { color: #939daf; font-size: 9px; }
+.notification-copy > span { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.45; }
 .notification-unread-dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: #766fe0; }
 .notification-remove { display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #a1a9b7; cursor: pointer; }
 .notification-remove:hover { background: #fff0f0; color: #b85c65; }

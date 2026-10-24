@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClipboardEvent, FormEvent } from "react";
-import { Activity, ArrowDown, ArrowLeft, Bell, Check, ChevronRight, Globe, LoaderCircle, Paperclip, RefreshCw, Search, Send, Trash2, Users, X } from "./Icons";
-import { canAccessEntity, request, uploadAttachment } from "./api";
+import { Activity, ArrowDown, ArrowLeft, Bell, Check, ChevronRight, Globe, LoaderCircle, Mail, MessageSquare, Paperclip, RefreshCw, Search, Send, Trash2, UserRound, Users, X } from "./Icons";
+import { canAccessEntity, entityLabel, request, uploadAttachment } from "./api";
 import type { Metadata, User } from "./api";
 import { StreamItem, type Note } from "./RecordStream";
 import SelectRecordsDialog from "./SelectRecordsDialog";
@@ -10,10 +10,44 @@ type Page<T> = { list?: T[]; total?: number };
 type NotificationItem = Record<string, any>;
 const PAGE_SIZE = 20;
 
-function notificationTitle(item: NotificationItem) {
-  if (item.noteData?.post) return item.noteData.post;
+function notificationTitle(item: NotificationItem, metadata: Metadata) {
+  const data = item.data || {};
+  const note = item.noteData || {};
+  const actor = note.createdByName || item.createdByName || data.userName;
+  const entityType = data.entityType || item.relatedParentType || item.relatedType;
   if (item.message) return item.message;
-  return ({ Note: "Nová aktivita", MentionInPost: "Zmínka v příspěvku", UserReaction: "Reakce na příspěvek", Assign: "Záznam vám byl přiřazen", EmailReceived: "Nový e-mail", EntityRemoved: "Záznam byl odstraněn" } as Record<string, string>)[item.type] || item.type || "Oznámení";
+  if (item.type === "Note") return actor ? `Nová aktivita od ${actor}` : "Nová aktivita";
+  if (item.type === "MentionInPost") return actor ? `${actor} vás zmínil/a v příspěvku` : "Zmínka v příspěvku";
+  if (item.type === "UserReaction") {
+    const reaction = (metadata.labels as any)?.Global?.reactions?.[data.type] || data.type;
+    return actor ? `${actor} reagoval/a na příspěvek${reaction ? ` · ${reaction}` : ""}` : "Reakce na příspěvek";
+  }
+  if (item.type === "Assign") return entityType ? `Byl vám přiřazen ${entityLabel(metadata, entityType)}` : "Záznam vám byl přiřazen";
+  if (item.type === "EmailReceived") return "Nový e-mail";
+  if (item.type === "EntityRemoved") return actor ? `${actor} odstranil/a záznam` : "Záznam byl odstraněn";
+  if (item.type === "System") return data.message || "Systémové oznámení";
+  return item.type || "Oznámení";
+}
+
+function notificationDetail(item: NotificationItem, metadata: Metadata) {
+  const data = item.data || {};
+  const note = item.noteData || {};
+  const entityType = data.entityType || note.parentType || item.relatedParentType || item.relatedType;
+  const entityName = data.entityName || note.parentName || item.relatedParentName;
+  const post = String(note.post || "").replace(/\s+/g, " ").trim();
+  if (["Note", "MentionInPost", "UserReaction"].includes(item.type)) return post || (entityName && entityType ? `${entityLabel(metadata, entityType)} · ${entityName}` : "Otevřít související příspěvek");
+  if (item.type === "Assign" || item.type === "EntityRemoved") return [entityName, entityType ? entityLabel(metadata, entityType) : ""].filter(Boolean).join(" · ") || "Otevřít související záznam";
+  if (item.type === "EmailReceived") return [data.emailName || data.subject, data.personEntityName || data.fromString].filter(Boolean).join(" · ") || "Otevřít doručený e-mail";
+  if (item.type === "Message") return data.message || item.message || "";
+  return entityName && entityType ? `${entityLabel(metadata, entityType)} · ${entityName}` : item.type || "";
+}
+
+function NotificationTypeIcon({ type }: { type: string }) {
+  if (type === "EmailReceived") return <Mail size={14}/>;
+  if (type === "Assign" || type === "EntityRemoved") return <UserRound size={14}/>;
+  if (type === "Note" || type === "MentionInPost" || type === "UserReaction") return <MessageSquare size={14}/>;
+  if (type === "System") return <Activity size={14}/>;
+  return <Bell size={14}/>;
 }
 
 function openNotification(item: NotificationItem, onOpenRecord: (scope: string, id: string) => void) {
@@ -26,7 +60,7 @@ function openNotification(item: NotificationItem, onOpenRecord: (scope: string, 
   if (scope && id) onOpenRecord(scope, id);
 }
 
-export function NotificationPanel({ onClose, onOpenList, onOpenRecord, onUnreadChange }: { onClose: () => void; onOpenList: () => void; onOpenRecord: (scope: string, id: string) => void; onUnreadChange: () => void }) {
+export function NotificationPanel({ metadata, onClose, onOpenList, onOpenRecord, onUnreadChange }: { metadata: Metadata; onClose: () => void; onOpenList: () => void; onOpenRecord: (scope: string, id: string) => void; onUnreadChange: () => void }) {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [busy, setBusy] = useState(true);
   const [working, setWorking] = useState(false);
@@ -53,7 +87,7 @@ export function NotificationPanel({ onClose, onOpenList, onOpenRecord, onUnreadC
   return <div className="notification-popover-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="notification-popover surface" role="dialog" aria-modal="true" aria-label="Oznámení" onMouseDown={(event) => event.stopPropagation()}>
     <header><div><strong>Oznámení</strong><small>Poslední upozornění na vašem účtu</small></div><button type="button" className="button subtle" onClick={() => void markAllRead()} disabled={working}><Check size={13}/>Označit vše</button></header>
     {error && <div className="table-error">{error}<button type="button" onClick={() => void load()}>Zkusit znovu</button></div>}
-    <div className="notification-popover-list">{busy ? <div className="table-loading"><span className="spinner"/>Načítám oznámení…</div> : items.length ? items.map((item) => <article className={`notification-row ${item.read ? "is-read" : "is-unread"}`} key={item.id}><button className="notification-main" onClick={() => { openNotification(item, onOpenRecord); onClose(); }}><span className="notification-icon"><Bell size={14}/></span><span className="notification-copy"><strong>{notificationTitle(item)}</strong><span>{item.createdByName || item.type || "CRM"}</span><time>{item.createdAt ? new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(item.createdAt).replace(" ", "T"))) : ""}</time></span>{!item.read && <i className="notification-unread-dot"/>}</button><button type="button" className="notification-remove" aria-label="Odstranit oznámení" disabled={working} onClick={() => void remove(item)}><Trash2 size={13}/></button></article>) : <div className="stream-empty"><Bell size={20}/><span>Nemáte žádná oznámení.</span></div>}</div>
+    <div className="notification-popover-list">{busy ? <div className="table-loading"><span className="spinner"/>Načítám oznámení…</div> : items.length ? items.map((item) => <article className={`notification-row ${item.read ? "is-read" : "is-unread"}`} key={item.id}><button className="notification-main" onClick={() => { openNotification(item, onOpenRecord); onClose(); }}><span className="notification-icon"><NotificationTypeIcon type={item.type}/></span><span className="notification-copy"><strong>{notificationTitle(item, metadata)}</strong><span>{notificationDetail(item, metadata)}</span><time>{item.createdAt ? new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(item.createdAt).replace(" ", "T"))) : ""}</time></span>{!item.read && <i className="notification-unread-dot"/>}</button><button type="button" className="notification-remove" aria-label="Odstranit oznámení" disabled={working} onClick={() => void remove(item)}><Trash2 size={13}/></button></article>) : <div className="stream-empty"><Bell size={20}/><span>Nemáte žádná oznámení.</span></div>}</div>
     <footer><button type="button" onClick={() => { onClose(); onOpenList(); }}>Zobrazit všechna oznámení<ChevronRight size={14}/></button></footer>
   </section></div>;
 }
@@ -253,7 +287,7 @@ export function GlobalStreamView({ user, metadata, onBack, onOpenRecord }: { use
   </div>;
 }
 
-export function NotificationCenter({ onBack, onOpenRecord, onUnreadChange }: { onBack: () => void; onOpenRecord: (scope: string, id: string) => void; onUnreadChange: () => void }) {
+export function NotificationCenter({ metadata, onBack, onOpenRecord, onUnreadChange }: { metadata: Metadata; onBack: () => void; onOpenRecord: (scope: string, id: string) => void; onUnreadChange: () => void }) {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [busy, setBusy] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -284,7 +318,7 @@ export function NotificationCenter({ onBack, onOpenRecord, onUnreadChange }: { o
   }
   async function remove(item: NotificationItem) {
     setRemoving(item.id); setError("");
-    try { await request(`Notification/${encodeURIComponent(item.id)}`, { method: "DELETE" }); setItems((old) => old.filter((entry) => entry.id !== item.id)); }
+    try { await request(`Notification/${encodeURIComponent(item.id)}`, { method: "DELETE" }); setItems((old) => old.filter((entry) => entry.id !== item.id)); onUnreadChange(); }
     catch (e) { setError(e instanceof Error ? e.message : "Oznámení se nepodařilo odstranit."); }
     finally { setRemoving(""); }
   }
@@ -293,6 +327,6 @@ export function NotificationCenter({ onBack, onOpenRecord, onUnreadChange }: { o
   }
   return <div className="social-view notification-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Přehled</button><div className="eyebrow">CENTRUM UPOZORNĚNÍ</div><h1>Oznámení</h1><p>Upozornění přiřazená vašemu účtu.</p></div><div className="notification-actions"><button className="button subtle" onClick={() => setRefreshKey((value) => value + 1)} disabled={busy}><RefreshCw size={14}/> Obnovit</button><button className="button primary" onClick={() => void markAllRead()} disabled={marking}>{marking ? "Označuji…" : "Označit vše jako přečtené"}<Check size={14}/></button></div></div>
     {error && <div className="table-error">{error}<button onClick={() => setRefreshKey((value) => value + 1)}>Zkusit znovu</button></div>}
-    <section className="surface notification-list">{busy ? <div className="table-loading"><span className="spinner"/> Načítám oznámení…</div> : items.length ? items.map((item) => { const note = item.noteData || {}; const author = note.createdByName || item.createdByName; const scope = note.parentType || item.relatedType; return <article className={`notification-row ${item.read ? "is-read" : "is-unread"}`} key={item.id}><button className="notification-main" onClick={() => open(item)}><span className="notification-icon"><Bell size={15}/></span><span className="notification-copy"><strong>{notificationTitle(item)}</strong><span>{author ? `${author} · ` : ""}{scope || item.type || "CRM"}</span><time>{item.createdAt ? new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(item.createdAt).replace(" ", "T"))) : ""}</time></span>{!item.read && <i className="notification-unread-dot"/>}<ChevronRight size={15}/></button><button className="notification-remove" onClick={() => void remove(item)} disabled={removing === item.id} title="Odstranit oznámení"><Trash2 size={14}/></button></article>; }) : <div className="stream-empty"><Bell size={22}/><span>Nemáte žádná nová oznámení.</span></div>}{hasMore && !busy && <button className="stream-load-more" onClick={() => void load(items.length)} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Načíst starší oznámení</button>}</section>
+    <section className="surface notification-list">{busy ? <div className="table-loading"><span className="spinner"/> Načítám oznámení…</div> : items.length ? items.map((item) => <article className={`notification-row ${item.read ? "is-read" : "is-unread"}`} key={item.id}><button className="notification-main" onClick={() => open(item)}><span className="notification-icon"><NotificationTypeIcon type={item.type}/></span><span className="notification-copy"><strong>{notificationTitle(item, metadata)}</strong><span>{notificationDetail(item, metadata)}</span><time>{item.createdAt ? new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(item.createdAt).replace(" ", "T"))) : ""}</time></span>{!item.read && <i className="notification-unread-dot"/>}<ChevronRight size={15}/></button><button className="notification-remove" onClick={() => void remove(item)} disabled={removing === item.id} aria-label="Odstranit oznámení" title="Odstranit oznámení"><Trash2 size={14}/></button></article>) : <div className="stream-empty"><Bell size={22}/><span>Nemáte žádná nová oznámení.</span></div>}{hasMore && !busy && <button className="stream-load-more" onClick={() => void load(items.length)} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Načíst starší oznámení</button>}</section>
   </div>;
 }
