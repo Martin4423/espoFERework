@@ -3604,6 +3604,8 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   function updateFieldValue(name: string, value: any) {
     setValues((old) => {
       if (entity === "EmailAccount" && name === "assignedUser") return { ...old, assignedUser: value, emailFolder: "" };
+      if (entity === "EmailAccount" && name === "security") return { ...old, security: value, port: value === "SSL" ? 993 : 143 };
+      if (entity === "EmailAccount" && name === "smtpSecurity") return { ...old, smtpSecurity: value, smtpPort: value === "SSL" ? 465 : value === "TLS" ? 587 : 25 };
       if (entity === "Opportunity" && name === "stage") {
         const probabilityMap = (metadata.entityDefs?.Opportunity?.fields?.stage as any)?.probabilityMap || {};
         const probability = probabilityMap[String(value)];
@@ -3775,6 +3777,13 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       if (name === "targetUserPosition") def = { ...def, options: ["", ...targetUserPositionOptions] };
       const required = (values.status === "Active" && values.useImap && ["username", "port", "host", "monitoredFolders"].includes(name)) || (values.useSmtp && ["smtpHost", "smtpPort"].includes(name)) || (values.useSmtp && values.smtpAuth && name === "smtpUsername") || (roundRobin && name === "team") || (directAssignment && name === "assignToUser");
       if (required || (["username", "port", "host", "monitoredFolders", "smtpHost", "smtpPort", "smtpUsername", "team", "assignToUser"].includes(name) && !required)) def = { ...def, required };
+    }
+    if (entity === "EmailAccount") {
+      if (record && name === "fetchSince" && Boolean(values.fetchData?.lastUID)) def = { ...def, readOnly: true };
+      const accountUserType = String(getSession()?.user.type || "");
+      if (name === "assignedUser" && accountUserType !== "admin" && accountUserType !== "super-admin") def = { ...def, readOnly: true };
+      const required = (values.status === "Active" && values.useImap && ["username", "port", "host", "monitoredFolders"].includes(name)) || (values.useSmtp && ["smtpHost", "smtpPort"].includes(name)) || (values.useSmtp && values.smtpAuth && name === "smtpUsername");
+      if (required || ["username", "port", "host", "monitoredFolders", "smtpHost", "smtpPort", "smtpUsername"].includes(name)) def = { ...def, required };
     }
     if (entity === "Template" && name === "entityType" && record) def = { ...def, readOnly: true };
     if (entity === "EmailFilter") {
