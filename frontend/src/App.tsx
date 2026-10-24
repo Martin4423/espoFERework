@@ -2748,6 +2748,19 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
     const value = Array.isArray(condition.value) ? condition.value : condition.value;
     const typed = (input: string | undefined) => numeric && input !== "" && input != null ? Number(input) : input;
     const ids = Array.isArray(value) ? value : value ? [value] : [];
+    if (type === "email" && ["isEmpty", "isNotEmpty"].includes(condition.operator)) {
+      return [{ type: condition.operator === "isEmpty" ? "isNull" : "isNotNull", attribute }];
+    }
+    if (type === "phone") {
+      const numericSearch = Boolean(metadata.appSettings?.phoneNumberNumericSearch ?? metadata.appParams?.phoneNumberNumericSearch);
+      const phoneAttribute = numericSearch ? `${attribute}Numeric` : attribute;
+      if (condition.operator === "isEmpty" || condition.operator === "isNotEmpty") return [{ type: condition.operator === "isEmpty" ? "isNull" : "isNotNull", attribute: phoneAttribute }];
+      if (["startsWith", "contains", "equals", "endsWith", "like", "notContains", "notEquals", "notLike"].includes(condition.operator)) {
+        const originalValue = String(condition.value ?? "").trim();
+        const searchValue = numericSearch ? originalValue.replace(/[^0-9]/g, "") : originalValue;
+        return searchValue ? [{ type: condition.operator, attribute: phoneAttribute, value: searchValue }] : [];
+      }
+    }
     if (isVarcharColumnField(attribute, def)) {
       if (condition.operator === "isEmpty") return [{ type: "or", value: [{ type: "columnIsNull", field: attribute }, { type: "columnEquals", field: attribute, value: "" }] }];
       if (condition.operator === "isNotEmpty") return [{ type: "and", value: [{ type: "columnNotEquals", field: attribute, value: "" }, { type: "columnIsNotNull", field: attribute, value: null }] }];
