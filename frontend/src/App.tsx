@@ -82,6 +82,39 @@ type FilterCondition = { field: string; operator: string; value: string | string
 type SaveConflictField = { name: string; label: string; current: unknown; actual: unknown; original: unknown };
 type PortalBranding = { name?: string; applicationName?: string; companyLogoId?: string; theme?: string; themeParams?: { navbar?: string } };
 
+const adminRouteTargets: Record<string, string> = {
+  settings: "__settings__", extensions: "__extensions__", integrations: "__integrations__", upgrade: "__upgrade__",
+  authentication: "__auth-settings__", notifications: "__notification-settings__", "formula-sandbox": "__formula-sandbox__",
+  "template-manager": "__template-manager__", "auth-tokens": "__auth-tokens__", "ui-settings": "__ui-settings__",
+  "outbound-settings": "__outbound-settings__", "inbound-settings": "__inbound-settings__", "jobs-settings": "__jobs-settings__",
+  "api-users": "__api-users__", "portal-users": "__portal-users__", "field-manager": "__field-manager__",
+  "layout-manager": "__layout-manager__", "system-tools": "__system-tools__", "entity-manager": "__entity-manager__",
+  "link-manager": "__link-manager__", "label-manager": "__label-manager__", "currency-settings": "__currency-settings__",
+  "sms-settings": "__sms-settings__", import: "__import__",
+};
+const adminTargetRoutes = Object.fromEntries(Object.entries(adminRouteTargets).map(([route, target]) => [target, route]));
+function decodeRoutePart(value?: string) { if (!value) return ""; try { return decodeURIComponent(value); } catch { return value; } }
+type ParsedWorkspaceRoute =
+  | { kind: "home" | "calendar" | "activity" | "globalstream" | "notifications" | "lastviewed" }
+  | { kind: "admin"; target?: string }
+  | { kind: "account"; page: "preferences" | "security"; userId?: string }
+  | { kind: "entity"; entity: string; id?: string };
+function parseWorkspaceHash(hash: string): ParsedWorkspaceRoute {
+  const parts = hash.replace(/^#/, "").replace(/^\//, "").split("/").filter(Boolean).map(decodeRoutePart);
+  if (!parts.length || parts[0] === "Home") return { kind: "home" };
+  if (parts[0] === "Admin") return { kind: "admin", target: parts[1] ? adminRouteTargets[parts[1]] || parts[1] : undefined };
+  if (parts[0] === "Calendar") return { kind: "calendar" };
+  if (parts[0] === "Activity") return { kind: "activity" };
+  if (parts[0] === "GlobalStream") return { kind: "globalstream" };
+  if (parts[0] === "Notifications") return { kind: "notifications" };
+  if (parts[0] === "LastViewed") return { kind: "lastviewed" };
+  if (parts[0] === "Account" && ["preferences", "security"].includes(parts[1])) return { kind: "account", page: parts[1] as "preferences" | "security" };
+  if (parts[0] === "User" && parts[1] === "view" && parts[3] === "preferences") return { kind: "account", page: "preferences" as const, userId: parts[2] };
+  if (parts[1] === "view" && parts[2]) return { kind: "entity", entity: parts[0], id: parts[2] };
+  if (parts[1] === "list" || parts.length === 1) return { kind: "entity", entity: parts[0] };
+  return { kind: "home" };
+}
+
 let googleMapsApiPromise: Promise<void> | null = null;
 function loadGoogleMapsApi(apiKey: string): Promise<void> {
   const google = (window as any).google;
@@ -761,6 +794,9 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   useEffect(() => { if (!(["EmailAccount", "Task"].includes(entity || "")) && entityFixedWhere.length) setEntityFixedWhere([]); }, [entity, entityFixedWhere]);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const firstRouteSync = useRef(true);
+  const routeLoadSequence = useRef(0);
+  const routePendingRecord = useRef(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [record, setRecord] = useState<Row | null>(null);
   const [emailDraft, setEmailDraft] = useState<Row | null>(null);
@@ -894,6 +930,61 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
     setEntity(scope); setCalendarOpen(false); setAdminOpen(false); setActivityOpen(false); setGlobalStreamOpen(false); setNotificationsOpen(false); setMobileNav(false);
     try { setRecord(await request<Row>(`${encodeURIComponent(scope)}/${encodeURIComponent(id)}`)); } catch { setRecord(null); }
   }
+  function workspaceRoute() {
+    if (accountPage) return preferencesTarget ? `#User/view/${encodeURIComponent(preferencesTarget.id)}/preferences` : `#Account/${accountPage}`;
+    if (entity && adminTargetRoutes[entity]) return `#Admin/${adminTargetRoutes[entity]}`;
+    if (adminOpen) return "#Admin";
+    if (entity) return record?.id ? `#${encodeURIComponent(entity)}/view/${encodeURIComponent(record.id)}` : `#${encodeURIComponent(entity)}`;
+    if (calendarOpen) return "#Calendar";
+    if (activityOpen) return "#Activity";
+    if (globalStreamOpen) return "#GlobalStream";
+    if (notificationsOpen) return "#Notifications";
+    if (lastViewedOpen) return "#LastViewed";
+    return "#Home";
+  }
+  async function applyWorkspaceRoute(hash: string) {
+    const sequence = ++routeLoadSequence.current;
+    const route = parseWorkspaceHash(hash);
+    setAboutOpen(false); setAccountMenuOpen(false); setNotificationPanelOpen(false); setQuickCreateOpen(false); setQuickCreateScope(null); setMobileNav(false);
+    setEntity(null); setRecord(null); setEntityFixedWhere([]); setCalendarOpen(false); setCalendarUser(null); setAdminOpen(false); setActivityOpen(false); setGlobalStreamOpen(false); setNotificationsOpen(false); setLastViewedOpen(false); setAccountPage(null); setPreferencesTarget(null);
+    routePendingRecord.current = (route.kind === "entity" && Boolean(route.id)) || (route.kind === "account" && Boolean(route.userId));
+    if (route.kind === "admin") {
+      if (user.type === "admin" || user.type === "super-admin") {
+        if (route.target) setEntity(route.target); else setAdminOpen(true);
+      }
+    } else if (route.kind === "calendar") setCalendarOpen(true);
+    else if (route.kind === "activity" && !isPortalUser) setActivityOpen(true);
+    else if (route.kind === "globalstream" && !isPortalUser && canAccessEntity(metadata, "GlobalStream")) setGlobalStreamOpen(true);
+    else if (route.kind === "notifications") setNotificationsOpen(true);
+    else if (route.kind === "lastviewed" && !isPortalUser) setLastViewedOpen(true);
+    else if (route.kind === "account") {
+      setAccountPage(route.page);
+      if (route.userId && (user.type === "admin" || user.type === "super-admin")) {
+        try { const target = await request<User>(`User/${encodeURIComponent(route.userId)}`); if (sequence === routeLoadSequence.current) setPreferencesTarget(target); }
+        catch { if (sequence === routeLoadSequence.current) setAccountPage(null); }
+      }
+    } else if (route.kind === "entity" && metadata.entityDefs?.[route.entity] && canAccessEntity(metadata, route.entity)) {
+      setEntity(route.entity);
+      if (route.id) {
+        try { const loaded = await request<Row>(`${encodeURIComponent(route.entity)}/${encodeURIComponent(route.id)}`); if (sequence === routeLoadSequence.current) setRecord(loaded); }
+        catch { if (sequence === routeLoadSequence.current) setRecord(null); }
+      }
+    }
+    if (sequence === routeLoadSequence.current) routePendingRecord.current = false;
+  }
+  useEffect(() => {
+    const onPopState = () => { void applyWorkspaceRoute(window.location.hash); };
+    if (window.location.hash) void applyWorkspaceRoute(window.location.hash);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+  useEffect(() => {
+    if (firstRouteSync.current) { firstRouteSync.current = false; return; }
+    if (routePendingRecord.current) return;
+    const next = workspaceRoute();
+    if (!window.location.hash && next === "#Home") return;
+    if (window.location.hash !== next) window.history.pushState({ viaCrm: true }, "", `${window.location.pathname}${window.location.search}${next}`);
+  }, [entity, record?.id, calendarOpen, adminOpen, activityOpen, globalStreamOpen, notificationsOpen, lastViewedOpen, accountPage, preferencesTarget?.id]);
   return <div className={`app-shell ${!isPortalUser && sidebarCollapsed ? "sidebar-collapsed" : ""} ${isPortalUser ? `portal-theme-${portalTheme.toLowerCase()} portal-navbar-${portalNavbar} ${portalDirection === "rtl" ? "portal-rtl" : ""}` : ""}`} style={portalStyle} dir={isPortalUser ? portalDirection : undefined}>
     <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
       <div className="brand sidebar-brand">{portalLogoUrl ? <img className="portal-brand-logo" src={portalLogoUrl} alt=""/> : <span className="brand-mark">{isPortalUser ? portalName.slice(0, 1).toUpperCase() : "v"}</span>}<span>{isPortalUser ? portalName : <>via<span className="brand-light">crm</span></>}</span><button className="sidebar-close" onClick={() => setMobileNav(false)} aria-label="Zavřít nabídku"><X size={17}/></button>{!isPortalUser && <button type="button" className="sidebar-collapse-toggle" onClick={toggleSidebarCollapsed} aria-label={sidebarCollapsed ? "Rozbalit navigaci" : "Zúžit navigaci"} title={sidebarCollapsed ? "Rozbalit navigaci" : "Zúžit navigaci"}>{sidebarCollapsed ? <ChevronRight size={15}/> : <ChevronLeft size={15}/>}</button>}</div>
