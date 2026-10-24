@@ -41,6 +41,12 @@ function zonedDateTime(date: string, timeZone: string) {
   return result;
 }
 
+function shiftDateKey(value: string, days: number) {
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return "";
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
 function parseDate(value: string | undefined, allDay: boolean | undefined, timeZone: string) {
   if (!value) return NaN;
   if (allDay) return zonedDateTime(value.slice(0, 10), timeZone);
@@ -95,7 +101,9 @@ export default function MeetingScheduler({ metadata, userIds = [], userNames: su
 
   const meetingStart = parseDate(dateStart, allDay, timeZone);
   const parsedMeetingEnd = parseDate(dateEnd, allDay, timeZone);
-  const meetingEnd = Number.isFinite(parsedMeetingEnd) && allDay ? parsedMeetingEnd + DAY : parsedMeetingEnd;
+  const meetingEnd = Number.isFinite(parsedMeetingEnd) && allDay && dateEnd
+    ? zonedDateTime(shiftDateKey(dateEnd, 1), timeZone)
+    : parsedMeetingEnd;
   const duration = Number.isFinite(meetingStart) && Number.isFinite(meetingEnd) && meetingEnd > meetingStart ? Math.max(meetingEnd - meetingStart, HOUR) : HOUR;
   const baseWindow = Math.min(Math.max(duration * 7, 8 * HOUR), MAX_WINDOW);
   const windowSize = Math.min(baseWindow * zoom, MAX_WINDOW);
