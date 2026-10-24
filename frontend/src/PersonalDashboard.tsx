@@ -92,22 +92,22 @@ function DashletChart({ name, rows, currency }: { name: string; rows: Data[]; cu
       angle += total ? Math.max(0, Number(row.value) || 0) / total * 360 : 0;
       return `${chartColors[index % chartColors.length]} ${start}deg ${angle}deg`;
     });
-    return <div className="dashlet-pie-chart"><div className="dashlet-pie" role="img" aria-label={`Rozdělení podle zdroje, celkem ${formatValue(total)}`} style={{ background: total ? `conic-gradient(${segments.join(",")})` : "#e8eaf0" }}/><div className="dashlet-chart-legend">{rows.map((row, index) => <div key={`${row.name}-${index}`}><i style={{ background: chartColors[index % chartColors.length] }}/><span>{row.name || "Bez zdroje"}</span><strong>{formatValue(row.value)}</strong></div>)}</div></div>;
+    return <div className="dashlet-pie-chart"><div className="dashlet-pie" role="img" aria-label={`Rozdělení podle zdroje, celkem ${formatValue(total)}`} style={{ background: total ? `conic-gradient(${segments.join(",")})` : "#e8eaf0" }}/><div className="dashlet-chart-legend" role="list" aria-label="Hodnoty podle zdroje">{rows.map((row, index) => { const value = Math.max(0, Number(row.value) || 0); const share = total ? Math.round(value / total * 100) : 0; const label = row.name || "Bez zdroje"; return <div key={`${row.name}-${index}`} role="listitem" tabIndex={0} title={`${label}: ${formatValue(row.value)} · ${share} %`} aria-label={`${label}, ${formatValue(row.value)}, ${share} procent`}><i style={{ background: chartColors[index % chartColors.length] }}/><span>{label} <small>{share} %</small></span><strong>{formatValue(row.value)}</strong></div>; })}</div></div>;
   }
 
   if (name === "SalesByMonth") return <div className="dashlet-month-chart">{rows.map((row, index) => {
     const parsed = /^\d{4}-\d{2}/.test(String(row.name)) ? new Date(`${String(row.name).slice(0, 7)}-01T00:00:00`) : null;
     const label = parsed && !Number.isNaN(parsed.getTime()) ? new Intl.DateTimeFormat("cs-CZ", { month: "short" }).format(parsed) : String(row.name || "");
     const value = Number(row.value) || 0;
-    return <div className="dashlet-month-column" key={`${row.name}-${index}`} title={`${row.name}: ${formatValue(value)}`}><strong>{formatValue(value)}</strong><i><b style={{ height: `${Math.max(2, value / maxValue * 100)}%`, background: chartColors[index % chartColors.length] }}/></i><small>{label}</small></div>;
+    return <div className="dashlet-month-column" key={`${row.name}-${index}`} title={`${row.name}: ${formatValue(value)}`} role="img" aria-label={`${label}: ${formatValue(value)}`} tabIndex={0}><strong>{formatValue(value)}</strong><i><b style={{ height: `${Math.max(2, value / maxValue * 100)}%`, background: chartColors[index % chartColors.length] }}/></i><small>{label}</small></div>;
   })}</div>;
 
   if (name === "SalesPipeline") return <div className="dashlet-funnel-chart">{rows.map((row, index) => {
     const width = total ? Math.max(34, Number(row.value) / maxValue * 100) : 34;
-    return <div className="dashlet-funnel-row" key={`${row.name}-${index}`}><div className="dashlet-funnel-segment" style={{ width: `${width}%`, background: chartColors[index % chartColors.length] }}><span>{row.name}</span><strong>{formatValue(row.value)}</strong></div></div>;
+    return <div className="dashlet-funnel-row" key={`${row.name}-${index}`}><div className="dashlet-funnel-segment" style={{ width: `${width}%`, background: chartColors[index % chartColors.length] }} role="img" aria-label={`${row.name}: ${formatValue(row.value)}`} tabIndex={0} title={`${row.name}: ${formatValue(row.value)}`}><span>{row.name}</span><strong>{formatValue(row.value)}</strong></div></div>;
   })}</div>;
 
-  return <div className="personal-chart-list">{rows.map((row, index) => <div key={`${row.name}-${index}`} title={`${row.name}: ${formatValue(row.value)}`}><span><strong>{row.name}</strong><b>{formatValue(row.value)}</b></span><i><em style={{ width: `${Math.max(2, (Number(row.value) / maxValue) * 100)}%`, background: chartColors[index % chartColors.length] }}/></i></div>)}</div>;
+  return <div className="personal-chart-list">{rows.map((row, index) => <div key={`${row.name}-${index}`} title={`${row.name}: ${formatValue(row.value)}`} role="img" aria-label={`${row.name}: ${formatValue(row.value)}`} tabIndex={0}><span><strong>{row.name}</strong><b>{formatValue(row.value)}</b></span><i><em style={{ width: `${Math.max(2, (Number(row.value) / maxValue) * 100)}%`, background: chartColors[index % chartColors.length] }}/></i></div>)}</div>;
 }
 
 function DashletCard({ item, user, metadata, options, appSettings, timeZone, refreshKey, onOpenRecord, onComposeEmail, onCreateRecord }: { item: Dashlet; user: User; metadata: Metadata; options: Data; appSettings: Data; timeZone: string; refreshKey: number; onOpenRecord: (scope: string, record: Data) => void; onComposeEmail: () => void; onCreateRecord: (scope: string) => void }) {
