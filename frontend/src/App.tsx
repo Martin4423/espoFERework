@@ -5296,6 +5296,16 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const [imageCropFile, setImageCropFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState("");
   const type = def.type || "varchar";
+  const addressCountryData = (metadata.appParams?.addressCountryData || {}) as { list?: string[]; preferredList?: string[] };
+  const suggestionsForAddressPart = (part: string) => {
+    if (part === "city") return (metadata.appParams?.addressCityList || []) as string[];
+    if (part === "state") return (metadata.appParams?.addressStateList || []) as string[];
+    if (part === "country") return [...new Set([...(addressCountryData.preferredList || []), ...(addressCountryData.list || [])])];
+    return [];
+  };
+  const standaloneAddressPart = String(def.view || "").split("/").pop()?.replace("address-", "");
+  const addressSuggestions = ["city", "state", "country"].includes(String(standaloneAddressPart)) ? suggestionsForAddressPart(String(standaloneAddressPart)) : [];
+  const addressSuggestionsId = `suggestions-${entity}-${name}`.replace(/[^a-zA-Z0-9_-]/g, "-");
   const fieldTimeZone = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const noteMessagePermission = String((metadata.userAcl as any)?.messagePermission || "");
   const notePortalPermission = String((metadata.userAcl as any)?.portalPermission || "");
@@ -5543,7 +5553,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   if (type === "address") {
     const current = value || {};
     const parts = [["street", "Ulice"], ["city", "Město"], ["state", "Kraj / stát"], ["postalCode", "PSČ"], ["country", "Země"]];
-    return <fieldset className="field-input address-input" disabled={fieldDisabled}><legend>{inputLabel}</legend><div className="address-input-grid">{parts.map(([key, caption]) => <label key={key} className={key === "street" ? "address-street" : ""}><span>{caption}</span><input value={current[key] || ""} required={key === "street" && def.required} disabled={fieldDisabled} onChange={(event) => onChange({ ...current, [key]: event.target.value })}/></label>)}</div></fieldset>;
+    return <fieldset className="field-input address-input" disabled={fieldDisabled}><legend>{inputLabel}</legend><div className="address-input-grid">{parts.map(([key, caption]) => { const suggestions = suggestionsForAddressPart(key); const listId = `suggestions-${entity}-${name}-${key}`.replace(/[^a-zA-Z0-9_-]/g, "-"); return <label key={key} className={key === "street" ? "address-street" : ""}><span>{caption}</span><input value={current[key] || ""} list={suggestions.length ? listId : undefined} required={key === "street" && def.required} disabled={fieldDisabled} onChange={(event) => onChange({ ...current, [key]: event.target.value })}/>{suggestions.length > 0 && <datalist id={listId}>{suggestions.map((option) => <option key={option} value={option}/>)}</datalist>}</label>; })}</div></fieldset>;
   }
   if (type === "personName") {
     const current = value || {};
@@ -5675,7 +5685,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
       : type === "arrayInt" ? <select id={`field-${name}`} disabled={Boolean(def.readOnly || def.disabled)} multiple size={Math.min(Math.max(dynamicEnumOptions.length, 3), 7)} value={Array.isArray(value) ? value.map(String) : []} onChange={(e) => { const selected = Array.from(e.currentTarget.selectedOptions, (option) => option.value); onChange(selected.map(Number).filter(Number.isFinite)); }}>{dynamicEnumOptions.map((option) => <option key={option} value={String(option)}>{optionLabel(option)}</option>)}</select>
       : type === "checklist" ? <div className="checklist-field">{resolvedOptions.options.map((option) => { const checked = Array.isArray(value) && value.map(String).includes(String(option)); const limitReached = Number(def.maxCount) > 0 && (Array.isArray(value) ? value.length : 0) >= Number(def.maxCount); return <label key={option}><input type="checkbox" disabled={Boolean(def.readOnly || def.disabled) || (!checked && limitReached)} checked={checked} onChange={(event) => onChange(event.target.checked ? [...(Array.isArray(value) ? value : []), option] : (Array.isArray(value) ? value : []).filter((item) => String(item) !== String(option)))}/>{optionLabel(option)}</label>; })}</div>
       : ["text", "wysiwyg", "jsonObject", "jsonArray", "array", "urlMultiple"].includes(type) ? <textarea {...controlProps} rows={type === "text" || type === "wysiwyg" ? 3 : 5} value={typeof value === "string" ? value : value == null ? "" : Array.isArray(value) ? value.join("\n") : JSON.stringify(value, null, 2)} placeholder={["array", "urlMultiple"].includes(type) ? "Jedna hodnota na řádek" : ["jsonObject", "jsonArray"].includes(type) ? "{}" : undefined}/>
-      : <input {...controlProps} onChange={handleControlChange} type={type === "date" ? "date" : ["datetime", "datetimeOptional"].includes(type) ? "datetime-local" : type === "password" ? "password" : type === "colorpicker" ? "color" : type === "email" ? "email" : type === "url" ? "url" : type === "phone" ? "tel" : ["int", "float", "currency"].includes(type) ? "number" : "text"} value={type === "datetime" || type === "datetimeOptional" ? formatEspoDateTimeInput(String(value || ""), fieldTimeZone) : value ?? ""} step={type === "float" || type === "currency" ? "any" : undefined} autoComplete={type === "password" ? "new-password" : undefined} />}
+      : <><input {...controlProps} list={addressSuggestions.length ? addressSuggestionsId : undefined} onChange={handleControlChange} type={type === "date" ? "date" : ["datetime", "datetimeOptional"].includes(type) ? "datetime-local" : type === "password" ? "password" : type === "colorpicker" ? "color" : type === "email" ? "email" : type === "url" ? "url" : type === "phone" ? "tel" : ["int", "float", "currency"].includes(type) ? "number" : "text"} value={type === "datetime" || type === "datetimeOptional" ? formatEspoDateTimeInput(String(value || ""), fieldTimeZone) : value ?? ""} step={type === "float" || type === "currency" ? "any" : undefined} autoComplete={type === "password" ? "new-password" : undefined} />{addressSuggestions.length > 0 && <datalist id={addressSuggestionsId}>{addressSuggestions.map((option) => <option key={option} value={option}/>)}</datalist>}</>}
   </label>;
 }
 
