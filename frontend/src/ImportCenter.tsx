@@ -156,13 +156,41 @@ export default function ImportCenter({ metadata, onOpenRecord }: { metadata: Met
   const timezoneOptions: string[] = (metadata.app as any)?.timeZoneList || ["UTC", "Europe/Prague", "Europe/London", "Europe/Berlin", "America/New_York", "America/Los_Angeles", "Asia/Tokyo"];
   const currencyOptions: string[] = (metadata.app as any)?.currency?.list || [];
   const attributeOptions = useMemo(() => {
-    const result: { name: string; label: string }[] = [{ name: "", label: "— Přeskočit sloupec —" }, { name: "id", label: "ID záznamu" }];
+    const options = new Map<string, string>([["id", "ID záznamu"]]);
+    const allowedFieldList = new Set(["createdAt", "createdBy"]);
+    const fieldAcl = metadata.userAcl?.fieldTable?.[entity] || {};
+    const add = (name: string, label: string) => { if (name && !options.has(name)) options.set(name, label); };
     for (const [name, def] of Object.entries(fields)) {
-      if (def.importDisabled || def.disabled || def.readOnly || def.notStorable || def.utility || def.type === "foreign" && !def.relateOnImport) continue;
-      result.push({ name, label: fieldLabel(name, def, entity, metadata) });
-      if (def.type === "link") { result.push({ name: `${name}Name`, label: `${fieldLabel(name, def, entity, metadata)} · název` }); result.push({ name: `${name}Id`, label: `${fieldLabel(name, def, entity, metadata)} · ID` }); }
+      if (fieldAcl[name]?.edit === "no") continue;
+      if (!allowedFieldList.has(name) && (def.importDisabled || def.disabled && !def.importNotDisabled)) continue;
+      if (def.type === "foreign" && !def.relateOnImport) continue;
+      const label = fieldLabel(name, def, entity, metadata);
+      const typeList: string[] = Array.isArray(def.typeList) ? def.typeList : [];
+      if (def.type === "phone") {
+        add(name, label);
+        typeList.forEach((type) => add(`${name}${type.replace(/\s/g, "_").replace(/^./, (char) => char.toUpperCase())}`, `${label} · ${type}`));
+        continue;
+      }
+      if (def.type === "email") ["2", "3", "4"].forEach((suffix) => add(`${name}${suffix}`, `${label} · ${suffix}`));
+      if (def.type === "link") {
+        add(`${name}Name`, `${label} · název`);
+        add(`${name}Id`, `${label} · ID`);
+      }
+      if (def.type === "personName") add(name, label);
+      const typeDef = metadata.fields?.[def.type || ""];
+      const actualFields: string[] = Array.isArray(typeDef?.actualFields) ? typeDef.actualFields : [];
+      const naming = typeDef?.naming || "suffix";
+      const actualAttributes = actualFields.length
+        ? actualFields.map((part) => !part ? name : naming === "prefix" ? `${part}${name[0].toUpperCase()}${name.slice(1)}` : `${name}${part[0].toUpperCase()}${part.slice(1)}`)
+        : [name];
+      [...actualAttributes, ...((def.additionalAttributeList as string[] | undefined) || [])].forEach((attribute) => {
+        const suffix = attribute.startsWith(name) ? attribute.slice(name.length) : "";
+        const subLabel = suffix ? suffix.replace(/^./, (char) => char.toLowerCase()).replace(/([a-z])([A-Z])/g, "$1 $2") : "";
+        add(attribute, subLabel ? `${label} · ${subLabel}` : label);
+      });
     }
-    return result;
+    const sorted = [...options].map(([name, label]) => ({ name, label })).sort((a, b) => a.label.localeCompare(b.label, "cs-CZ"));
+    return [{ name: "", label: "— Přeskočit sloupec —" }, ...sorted];
   }, [fields, entity, metadata]);
   const loadHistory = useCallback(async () => {
     setBusy(true); setError("");
