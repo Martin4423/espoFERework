@@ -574,6 +574,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .actions-col { width: 46px; text-align: right!important; }
 .records-table td.actions-col:has(.email-folder-order-action) { width: 76px; min-width: 76px; }
 .email-folder-order-action { width: 28px; height: 28px; }
+.records-table td.actions-col:has(.kb-article-order-action) { width: 154px; min-width: 154px; white-space: nowrap; }
+.kb-article-order-action { width: 27px; height: 28px; margin-left: 1px; }
+.kb-article-order-action:hover:not(:disabled) { color: var(--primary); background: #f3f1ff; }
 .row-more { border: 0; background: transparent; color: #9fa9b8; font-size: 15px; letter-spacing: 1px; cursor: pointer; }
 .table-footer { height: 50px; display: flex; justify-content: space-between; align-items: center; padding: 0 17px; border-top: 1px solid var(--line); color: #9ba5b4; font-size: 9px; }
 .table-footer b { color: #647087; font-weight: 600; }
