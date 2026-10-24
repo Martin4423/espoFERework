@@ -541,6 +541,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-surface { overflow: hidden; }
 .calendar-toolbar { min-height: 61px; display: flex; align-items: center; justify-content: space-between; padding: 0 17px; border-bottom: 1px solid var(--line); }
 .calendar-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+.calendar-shortcuts { border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 94%, var(--accent) 6%); }
+.calendar-shortcuts summary { width: fit-content; padding: 7px 17px; color: var(--muted); font-size: 10px; cursor: pointer; }
+.calendar-shortcuts summary:hover, .calendar-shortcuts summary:focus-visible { color: var(--accent); }
+.calendar-shortcuts summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.calendar-shortcut-list { display: flex; flex-wrap: wrap; gap: 7px 20px; padding: 0 17px 10px; color: var(--muted); font-size: 10px; }
+.calendar-shortcut-list > span { display: inline-flex; align-items: center; gap: 4px; }
+.calendar-shortcut-list kbd { min-width: 20px; padding: 2px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--surface); color: var(--text); font: inherit; font-size: 9px; text-align: center; }
 .calendar-shared-view-select { max-width: 155px; min-height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 11px; }
 .url-field-display { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
 .url-field-display a { color: var(--accent, #625bd7); overflow-wrap: anywhere; text-decoration: none; }
