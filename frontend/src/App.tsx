@@ -4358,6 +4358,8 @@ function PortalScopeListEditor({ name, label, value, metadata, disabled, onChang
 function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}, onColumnsChange, primaryId, onPrimaryChange, onChange, onUploading, onUploaded, onError, relatedContext, currencyValue, onCurrencyChange, themeParamsValue, onThemeParamsChange, timeZone }: { entity: string; metadata: Metadata; name: string; def: FieldDef; value: any; columns?: Row; onColumnsChange?: (columns: Row) => void; primaryId?: string; onPrimaryChange?: (id: string, label?: string) => void; onChange: (value: any) => void; onUploading?: (value: boolean) => void; onUploaded?: (id: string) => void; onError?: (message: string) => void; relatedContext?: Row; currencyValue?: string; onCurrencyChange?: (currency: string) => void; themeParamsValue?: Row; onThemeParamsChange?: (value: Row) => void; timeZone?: string }) {
   const def = nativeForeignFieldDef(metadata, entity, inputDef);
   const [options, setOptions] = useState<Row[]>([]);
+  const [teamPositionOptions, setTeamPositionOptions] = useState<Record<string, string[]>>({});
+  const [teamPositionLoading, setTeamPositionLoading] = useState<Record<string, boolean>>({});
   const [parentEntity, setParentEntity] = useState(value?.type || "");
   const [relationSearch, setRelationSearch] = useState("");
   const [relationPick, setRelationPick] = useState("");
@@ -4456,6 +4458,25 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const currentId = type === "linkParent" ? value?.id : type === "linkMultiple" ? "" : value;
   const selectedRelationIds: string[] = type === "linkMultiple" && Array.isArray(value) ? value : [];
   const selectedRelationKey = selectedRelationIds.join(",");
+  useEffect(() => {
+    if (entity !== "User" || name !== "teams" || !selectedRelationIds.length) {
+      setTeamPositionOptions({}); setTeamPositionLoading({}); return;
+    }
+    let live = true;
+    const ids = [...selectedRelationIds];
+    setTeamPositionLoading(Object.fromEntries(ids.map((id) => [id, true])));
+    void Promise.all(ids.map(async (id) => {
+      try {
+        const team = await request<Row>(`Team/${encodeURIComponent(id)}`);
+        return [id, Array.isArray(team.positionList) ? team.positionList.map(String) : []] as const;
+      } catch { return [id, []] as const; }
+    })).then((items) => {
+      if (!live) return;
+      setTeamPositionOptions(Object.fromEntries(items));
+      setTeamPositionLoading(Object.fromEntries(ids.map((id) => [id, false])));
+    });
+    return () => { live = false; };
+  }, [entity, name, selectedRelationKey]);
   useEffect(() => { if (type === "linkParent" && value?.type) setParentEntity(value.type); }, [type, value?.type]);
   useEffect(() => { if (type === "linkParent" && !parentEntity && parentEntityList.length) setParentEntity(parentEntityList[0]); }, [type, parentEntity, parentEntityList.join(",")]);
   useEffect(() => {
@@ -4647,6 +4668,13 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
             const columnLabel = fieldLabel(column.field, column.def, column.scope, metadata);
             const current = columns[row.id]?.[column.key];
             const onValue = (next: any) => setColumnValue(row.id, column.key, next);
+            if (entity === "User" && name === "teams" && column.key === "role") {
+              const positions = teamPositionOptions[row.id] || [];
+              const values = [...new Set(["", ...positions, ...(current && !positions.includes(String(current)) ? [String(current)] : [])])];
+              if (teamPositionLoading[row.id] && !positions.length && !current) return <span className="field-hint" key={column.key}>Načítám pozice týmu…</span>;
+              if (!positions.length && !current && !teamPositionLoading[row.id]) return null;
+              return <label className="relationship-column-control" key={column.key}><span>{columnLabel}</span><select aria-label={`Pozice v týmu ${rowName(row)}`} value={String(current || "")} disabled={Boolean(column.def.readOnly || column.def.disabled || teamPositionLoading[row.id])} onChange={(event) => onValue(event.target.value || null)}><option value="">Bez pozice</option>{values.filter(Boolean).map((position) => <option key={position} value={position}>{position}</option>)}</select></label>;
+            }
             if (column.def.type === "bool") return <label className="relationship-column-bool" key={column.key}><input type="checkbox" checked={Boolean(current)} disabled={Boolean(column.def.readOnly || column.def.disabled)} onChange={(event) => onValue(event.target.checked)}/><span>{columnLabel}</span></label>;
             if (["enum", "enumInt", "enumFloat"].includes(column.def.type || "")) return <label className="relationship-column-control" key={column.key}><span>{columnLabel}</span><select value={current == null ? "" : String(current)} disabled={Boolean(column.def.readOnly || column.def.disabled)} onChange={(event) => onValue(column.def.type === "enumFloat" && event.target.value !== "" ? Number(event.target.value) : event.target.value)}><option value="">—</option>{columnOptions(column, row.id).map((option) => <option key={String(option)} value={String(option)}>{(metadata.labels as any)?.[column.scope]?.options?.[column.field]?.[String(option)] || String(option)}</option>)}</select></label>;
             return <label className="relationship-column-control" key={column.key}><span>{columnLabel}</span><input type={["int", "float", "currency"].includes(column.def.type || "") ? "number" : column.def.type === "date" ? "date" : "text"} value={current == null ? "" : String(current)} disabled={Boolean(column.def.readOnly || column.def.disabled)} onChange={(event) => onValue(["int", "float", "currency"].includes(column.def.type || "") && event.target.value !== "" ? Number(event.target.value) : event.target.value)}/></label>;
