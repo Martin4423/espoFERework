@@ -83,6 +83,7 @@ function valuesFromRecordFields(fields: [string, FieldDef][], record: Row): Row 
 }
 
 function fieldAttributeList(name: string, def: FieldDef): string[] {
+  if (["email", "phone"].includes(def.type || "")) return [name, `${name}Data`, `${name}IsOptedOut`, `${name}IsInvalid`];
   if (def.type === "currency") return [name, `${name}Currency`];
   if (def.type === "duration") return [String(def.start || ""), String(def.end || "")].filter(Boolean);
   if (def.type === "personName") return ["firstName", "middleName", "lastName"];
@@ -97,6 +98,7 @@ function fieldAttributeList(name: string, def: FieldDef): string[] {
 
 function attributesFromFormField(name: string, def: FieldDef, values: Row): Row {
   const value = values[name];
+  if (["email", "phone"].includes(def.type || "")) return { [name]: value || null, [`${name}Data`]: values[`${name}Data`] || [], [`${name}IsOptedOut`]: values[`${name}IsOptedOut`] ?? false, [`${name}IsInvalid`]: values[`${name}IsInvalid`] ?? false };
   if (def.type === "currency") return { [name]: value == null || value === "" ? null : Number(value), [`${name}Currency`]: values[`${name}Currency`] || null };
   if (def.type === "duration") return { ...(def.start ? { [def.start]: values[def.start] ?? null } : {}), ...(def.end ? { [def.end]: values[def.end] ?? null } : {}) };
   if (def.type === "personName") return { firstName: value?.firstName || "", middleName: value?.middleName || "", lastName: value?.lastName || "" };
@@ -2534,6 +2536,12 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
     for (const [name, def] of fields) if (def.type === "personName" && record) initial[name] = { firstName: record.firstName || "", middleName: record.middleName || "", lastName: record.lastName || "" };
     for (const [name, def] of fields) if (def.type === "address" && record) initial[name] = Object.fromEntries(["street", "city", "state", "postalCode", "country"].map((part) => [part, record[`${name}${part[0].toUpperCase()}${part.slice(1)}`] || ""]));
     for (const [name, def] of fields) {
+      if (["email", "phone"].includes(def.type || "") && (!Array.isArray(initial[`${name}Data`]) || (!initial[`${name}Data`].length && initial[name]))) {
+        const email = def.type === "email";
+        const key = email ? "emailAddress" : "phoneNumber";
+        const address = String(initial[name] || "");
+        initial[`${name}Data`] = address ? [{ [key]: address, primary: true, optOut: Boolean(initial[`${name}IsOptedOut`]), invalid: Boolean(initial[`${name}IsInvalid`]), ...(email ? { lower: address.toLowerCase() } : { type: def.defaultType || "Other" }) }] : [];
+      }
       if (def.type === "currency") initial[`${name}Currency`] = record?.[`${name}Currency`] || initial[`${name}Currency`] || metadata.appSettings?.defaultCurrency || (metadata.app as any)?.currency?.list?.[0] || "USD";
       if (def.type === "link" || def.type === "linkOne") initial[name] = record?.[`${name}Id`] || initial[`${name}Id`] || initial[name] || "";
       if (def.type === "linkMultiple") initial[name] = record?.[`${name}Ids`] || initial[`${name}Ids`] || initial[name] || [];
@@ -2668,12 +2676,46 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
         setError(invalid.message || `Hodnota pole „${fieldLabel(name, fieldMap.get(name), entity, metadata)}“ není platná.`); setBusy(false); return;
       }
     }
+    for (const [name, def] of fields) {
+      if (!["email", "phone"].includes(def.type || "")) continue;
+      const email = def.type === "email";
+      const valueKey = email ? "emailAddress" : "phoneNumber";
+      const source = Array.isArray(values[`${name}Data`]) ? values[`${name}Data`] as Row[] : [];
+      const rows = source.filter((item) => String(item[valueKey] || "").trim());
+      const seen = new Set<string>();
+      for (const item of rows) {
+        const value = String(item[valueKey]).trim();
+        const normalized = email ? value.toLowerCase() : value.replace(/[\s+]/g, "");
+        if (seen.has(normalized)) { setError(`${fieldLabel(name, def, entity, metadata)}: stejná hodnota je uvedena vícekrát.`); setBusy(false); return; }
+        seen.add(normalized);
+        if (item.invalid) continue;
+        const valid = email ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) : /^[+\d][\d\s().,/;*#-]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i.test(value);
+        if (!valid) { setError(`${fieldLabel(name, def, entity, metadata)}: ${email ? "zadejte platnou e-mailovou adresu nebo ji označte jako neplatnou" : "zkontrolujte formát telefonního čísla"}.`); setBusy(false); return; }
+      }
+    }
     const payload: Row = {};
     for (const [name, def] of fields) {
       if (name === "passwordConfirm") continue;
       if (entity === "AppSecret" && name === "value" && record && !changingAppSecret) continue;
       if (def.type === "duration") continue;
       const value = values[name];
+      if (["email", "phone"].includes(def.type || "")) {
+        const email = def.type === "email";
+        const valueKey = email ? "emailAddress" : "phoneNumber";
+        const sourceRows = Array.isArray(values[`${name}Data`]) ? values[`${name}Data`] as Row[] : [];
+        const rows: Row[] = sourceRows.filter((item) => String(item[valueKey] || "").trim()).map((item) => ({ ...item, [valueKey]: String(item[valueKey]).trim(), ...(email ? { lower: String(item[valueKey]).trim().toLowerCase() } : {}) }));
+        let primaryIndex = rows.findIndex((item) => item.primary);
+        if (primaryIndex < 0 && rows.length) primaryIndex = 0;
+        const primary = rows[primaryIndex];
+        if (primaryIndex > 0) { const [item] = rows.splice(primaryIndex, 1); rows.unshift(item); }
+        payload[name] = primary?.[valueKey] || (value ? String(value) : null);
+        payload[`${name}Data`] = def.onlyPrimary ? (primary ? [{ [valueKey]: primary[valueKey], primary: true, ...(email ? { lower: primary.lower } : {}) }] : null) : rows.length ? rows.map((item, index) => ({ ...item, primary: index === 0 })) : [];
+        if (!def.onlyPrimary) {
+          payload[`${name}IsOptedOut`] = primary ? Boolean(primary.optOut) : null;
+          payload[`${name}IsInvalid`] = primary ? Boolean(primary.invalid) : null;
+        }
+        continue;
+      }
       if (def.type === "bool") payload[name] = Boolean(value);
       else if (def.type === "linkMultiple") {
         const ids = Array.isArray(value) ? value : [];
@@ -2950,6 +2992,25 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
     if (entity === "InboundEmail" && name === "sentFolder") return <InboundMailFolderField key={name} label={fieldLabel(name, def, entity, metadata)} value={values[name] || ""} values={values} recordId={record?.id} onChange={(value) => updateFieldValue(name, value)}/>;
     if (entity === "User" && name === "teams") return <TeamMembershipField key={name} metadata={metadata} ids={values.teams || []} columns={values.teamsColumns || {}} onChange={(ids, columns) => setValues((old) => ({ ...old, teams: ids, teamsColumns: columns }))}/>;
     if (entity === "User" && name === "sendAccessInfo" && (!values.password || !values.emailAddress || (values.type === "portal" && !values.portals?.length))) return null;
+    if (["email", "phone"].includes(def.type || "")) {
+      const email = def.type === "email";
+      const rows: Row[] = Array.isArray(values[`${name}Data`]) && values[`${name}Data`].length
+        ? values[`${name}Data`]
+        : values[name] ? [{ [email ? "emailAddress" : "phoneNumber"]: values[name], primary: true, optOut: Boolean(values[`${name}IsOptedOut`]), invalid: Boolean(values[`${name}IsInvalid`]), ...(email ? { lower: String(values[name]).toLowerCase() } : { type: def.defaultType || "Other" }) }] : [];
+      const optionDef = metadata.entityDefs?.[email ? "EmailAddress" : "PhoneNumber"]?.fields?.type;
+      const maxCount = Number(def.maxCount || metadata.appParams?.[email ? "emailAddressMaxCount" : "phoneNumberMaxCount"] || 0);
+      const itemMaxLength = Number(metadata.entityDefs?.[email ? "EmailAddress" : "PhoneNumber"]?.fields?.name?.maxLength || 255);
+      return <MultipleContactField key={name} label={fieldLabel(name, def, entity, metadata)} email={email} rows={rows} options={(optionDef?.options || []).map(String).filter((option) => option !== "")} disabled={Boolean(def.readOnly || def.disabled)} required={Boolean(def.required)} onlyPrimary={Boolean(def.onlyPrimary)} maxCount={maxCount} maxLength={itemMaxLength} defaultOptOut={Boolean(metadata.appParams?.[email ? "emailAddressIsOptedOutByDefault" : "phoneNumberIsOptedOutByDefault"])} onChange={(nextRows) => setValues((old) => {
+        const key = email ? "emailAddress" : "phoneNumber";
+        const normalized = nextRows.map((item: Row) => ({ ...item, [key]: String(item[key] || "").trim(), ...(email ? { lower: String(item[key] || "").trim().toLowerCase() } : {}) })).filter((item: Row) => item[key]);
+        let primaryIndex = normalized.findIndex((item: Row) => item.primary);
+        if (primaryIndex < 0 && normalized.length) primaryIndex = 0;
+        const ordered: Row[] = normalized.map((item: Row, index: number) => ({ ...item, primary: index === primaryIndex }));
+        if (primaryIndex > 0) { const [primary] = ordered.splice(primaryIndex, 1); ordered.unshift(primary); }
+        const primary = ordered[0];
+        return { ...old, [name]: primary?.[key] || "", [`${name}Data`]: ordered, [`${name}IsOptedOut`]: primary ? Boolean(primary.optOut) : null, [`${name}IsInvalid`]: primary ? Boolean(primary.invalid) : null };
+      })}/>;
+    }
     if (entity === "User" && name === "password") {
       const password = String(values.password || "");
       const strength = passwordStrengthParams || {};
@@ -3771,6 +3832,31 @@ function FieldInput({ entity, metadata, name, def, value, columns = {}, onColumn
       : ["text", "wysiwyg", "jsonObject", "jsonArray", "array", "urlMultiple"].includes(type) ? <textarea {...controlProps} rows={type === "text" || type === "wysiwyg" ? 3 : 5} value={typeof value === "string" ? value : value == null ? "" : Array.isArray(value) ? value.join("\n") : JSON.stringify(value, null, 2)} placeholder={["array", "urlMultiple"].includes(type) ? "Jedna hodnota na řádek" : ["jsonObject", "jsonArray"].includes(type) ? "{}" : undefined}/>
       : <input {...controlProps} type={type === "date" ? "date" : ["datetime", "datetimeOptional"].includes(type) ? "datetime-local" : type === "password" ? "password" : type === "colorpicker" ? "color" : type === "email" ? "email" : type === "url" ? "url" : type === "phone" ? "tel" : ["int", "float", "currency"].includes(type) ? "number" : "text"} value={type === "datetime" || type === "datetimeOptional" ? String(value || "").replace(" ", "T").slice(0, 16) : value ?? ""} step={type === "float" || type === "currency" ? "any" : undefined} autoComplete={type === "password" ? "new-password" : undefined} />}
   </label>;
+}
+
+function MultipleContactField({ label, email, rows, options, disabled, required, onlyPrimary, maxCount, maxLength, defaultOptOut, onChange }: { label: string; email: boolean; rows: Row[]; options: string[]; disabled: boolean; required: boolean; onlyPrimary: boolean; maxCount: number; maxLength: number; defaultOptOut: boolean; onChange: (rows: Row[]) => void }) {
+  const empty = () => ({ [email ? "emailAddress" : "phoneNumber"]: "", primary: true, optOut: defaultOptOut, invalid: false, ...(email ? { lower: "" } : { type: options[0] || "Other" }) });
+  const [items, setItems] = useState<Row[]>(() => rows.length ? rows.map((item) => ({ ...item })) : [empty()]);
+  const key = email ? "emailAddress" : "phoneNumber";
+  const normalizedItems = items.filter((item) => String(item[key] || "").trim());
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phonePattern = /^[+\d][\d\s().,/;*#-]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i;
+  const duplicate = (index: number) => items.some((item, itemIndex) => itemIndex !== index && String(item[key] || "").trim().toLowerCase() === String(items[index]?.[key] || "").trim().toLowerCase() && String(item[key] || "").trim());
+  const update = (next: Row[]) => {
+    if (!next.length) next = [empty()];
+    setItems(next);
+    const clean: Row[] = next.filter((item) => String(item[key] || "").trim()).map((item) => ({ ...item, [key]: String(item[key]).trim(), ...(email ? { lower: String(item[key]).trim().toLowerCase() } : {}) }));
+    let primary = clean.findIndex((item) => item.primary);
+    if (primary < 0 && clean.length) primary = 0;
+    clean.forEach((item, index) => { item.primary = index === primary; });
+    if (primary > 0) { const [first] = clean.splice(primary, 1); clean.unshift(first); }
+    onChange(clean);
+  };
+  const add = () => { if (disabled || !normalizedItems.length || (maxCount > 0 && normalizedItems.length >= maxCount)) return; update([...items, empty()]); };
+  return <fieldset className={`field-input multiple-contact-field ${email ? "email-multiple-field" : "phone-multiple-field"}`} disabled={disabled}><legend>{label}{required && <i> *</i>}</legend><div className="multiple-contact-list">{items.map((item, index) => {
+    const raw = String(item[key] || ""); const invalid = Boolean(raw) && (email ? !emailPattern.test(raw) : !phonePattern.test(raw)) && !item.invalid; const repeated = Boolean(raw) && duplicate(index);
+    return <div className="multiple-contact-row" key={index}><div className="multiple-contact-main"><label className="multiple-contact-input"><span>{index === 0 && items.length === 1 ? (email ? "E-mailová adresa" : "Telefonní číslo") : `${email ? "E-mail" : "Telefon"} ${index + 1}`}</span><input type="text" inputMode={email ? "email" : "tel"} autoComplete={email ? "email" : "tel"} autoCapitalize="none" autoCorrect="off" maxLength={maxLength || undefined} value={raw} required={required && index === 0} aria-invalid={invalid || repeated} onChange={(event) => { event.currentTarget.setCustomValidity(""); update(items.map((current, i) => i === index ? { ...current, [key]: event.target.value } : current)); }} onBlur={(event) => event.currentTarget.setCustomValidity(invalid || repeated ? (repeated ? "Tato hodnota už je v seznamu." : email ? "Zadejte platnou e-mailovou adresu, nebo označte adresu jako neplatnou." : "Zkontrolujte formát telefonního čísla.") : "")} placeholder={email ? "jmeno@firma.cz" : "+420 123 456 789"}/></label>{!email && <label className="multiple-contact-type"><span>Typ</span><select value={item.type || options[0] || "Other"} onChange={(event) => update(items.map((current, i) => i === index ? { ...current, type: event.target.value } : current))}>{options.length ? options.map((option) => <option key={option} value={option}>{option}</option>) : <option value="Other">Ostatní</option>}</select></label>}</div><div className="multiple-contact-actions"><button type="button" className={`contact-property ${item.primary ? "active" : ""}`} onClick={() => update(items.map((current, i) => ({ ...current, primary: i === index })))} aria-pressed={Boolean(item.primary)}>Primární</button>{!onlyPrimary && <><button type="button" className={`contact-property ${item.optOut ? "active" : ""}`} onClick={() => update(items.map((current, i) => i === index ? { ...current, optOut: !current.optOut } : current))} aria-pressed={Boolean(item.optOut)}>Odhlášeno</button><button type="button" className={`contact-property ${item.invalid ? "active" : ""}`} onClick={(event) => { event.currentTarget.closest(".multiple-contact-row")?.querySelector("input")?.setCustomValidity(""); update(items.map((current, i) => i === index ? { ...current, invalid: !current.invalid } : current)); }} aria-pressed={Boolean(item.invalid)}>Neplatné</button></>}{!onlyPrimary && items.length > 1 && <button type="button" className="icon-button danger-ghost" aria-label={`Odebrat ${email ? "adresu" : "telefon"} ${index + 1}`} onClick={() => update(items.filter((_, i) => i !== index))}><Trash2 size={13}/></button>}</div>{invalid && <small className="field-error">{email ? "Zadejte platnou e-mailovou adresu." : "Zkontrolujte formát telefonního čísla."}</small>}{repeated && <small className="field-error">Tato hodnota už je v seznamu.</small>}</div>;
+  })}</div>{!onlyPrimary && (!maxCount || normalizedItems.length < maxCount) && <button type="button" className="button subtle multiple-contact-add" onClick={add} disabled={disabled || !normalizedItems.length || Boolean(items.some((item) => !String(item[key] || "").trim()))}><Plus size={13}/> Přidat {email ? "adresu" : "telefon"}</button>}</fieldset>;
 }
 
 function ArrayFieldInput({ label, value, disabled, maxCount, maxLength, options, urlMode = false, stripProtocol = false, onChange }: { label: React.ReactNode; value: string[]; disabled: boolean; maxCount?: number; maxLength?: number; options: string[]; urlMode?: boolean; stripProtocol?: boolean; onChange: (value: string[]) => void }) {

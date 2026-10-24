@@ -481,6 +481,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .url-copy-button:hover { color: var(--accent, #625bd7); background: var(--surface-muted, #f2f3f8); }
 .contact-field-display a { color: var(--accent, #625bd7); text-decoration: none; }
 .contact-field-display a:hover { text-decoration: underline; }
+.multiple-contact-field { min-width: 0; padding: 0; border: 0; }
+.multiple-contact-field legend { margin-bottom: 6px; color: #68748a; font-size: 10px; }
+.multiple-contact-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 10px; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.multiple-contact-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(105px, .35fr); gap: 8px; min-width: 0; }
+.email-multiple-field .multiple-contact-main { grid-template-columns: minmax(0, 1fr); }
+.multiple-contact-input, .multiple-contact-type { display: grid; gap: 4px; min-width: 0; color: #8992a2; font-size: 9px; }
+.multiple-contact-input input, .multiple-contact-type select { width: 100%; min-width: 0; min-height: 32px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 11px; }
+.multiple-contact-input input[aria-invalid="true"] { border-color: #d26b74; }
+.multiple-contact-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.contact-property { padding: 5px 7px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: #8a93a1; font: inherit; font-size: 9px; cursor: pointer; }
+.contact-property.active { border-color: #d9d5fb; background: #f3f1ff; color: #5e58c8; }
+.multiple-contact-add { margin: 0 0 12px; }
+.multiple-contact-row > .field-error { grid-column: 1 / -1; }
 .calendar-participant-filter { min-height: 30px; white-space: nowrap; }
 .calendar-view-switch { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: #fafbfc; }
 .calendar-view-switch button { padding: 5px 9px; border: 0; border-radius: 5px; background: transparent; color: #8892a2; font-size: 9px; cursor: pointer; }
