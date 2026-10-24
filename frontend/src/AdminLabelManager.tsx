@@ -5,6 +5,15 @@ import type { Metadata } from "./api";
 
 type LabelData = Record<string, Record<string, string>>;
 
+function languageLabel(code: string) {
+  try {
+    const name = new Intl.DisplayNames(["cs"], { type: "language" }).of(code.replaceAll("_", "-"));
+    return name ? `${name} (${code})` : code;
+  } catch {
+    return code;
+  }
+}
+
 export default function AdminLabelManager({ metadata, onBack, onRefreshMetadata }: { metadata: Metadata; onBack: () => void; onRefreshMetadata: () => Promise<void> }) {
   const [scopeList, setScopeList] = useState<string[]>([]);
   const [scope, setScope] = useState("Global");
@@ -23,7 +32,7 @@ export default function AdminLabelManager({ metadata, onBack, onRefreshMetadata 
     request<string[]>("LabelManager/action/getScopeList", { method: "POST", body: JSON.stringify({}) }).then((list) => {
       if (!live) return;
       const filtered = (list || []).filter((name) => name === "Global" || !metadata.scopes[name]?.disabled);
-      setScopeList(["Global", ...filtered.filter((name) => name !== "Global").sort((a, b) => a.localeCompare(b, "cs"))]);
+      setScopeList(["Global", ...filtered.filter((name) => name !== "Global").sort((a, b) => (metadata.labels?.Global?.scopeNamesPlural?.[a] || humanize(a)).localeCompare(metadata.labels?.Global?.scopeNamesPlural?.[b] || humanize(b), "cs"))]);
     }).catch((e) => live && setError(e instanceof Error ? e.message : "Seznam oblastí popisků se nepodařilo načíst."));
     return () => { live = false; };
   }, [metadata]);
@@ -67,7 +76,7 @@ export default function AdminLabelManager({ metadata, onBack, onRefreshMetadata 
 
   return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={back}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">LOKALIZACE</div><h1>Správce popisků</h1><p>Upravujte překlady polí, relací, voleb a systémových textů.</p></div><button className="button primary" onClick={() => void save()} disabled={busy || saving || !Object.keys(dirty).length}><Save size={14}/>{saving ? "Ukládám…" : `Uložit změny${Object.keys(dirty).length ? ` · ${Object.keys(dirty).length}` : ""}`}</button></div>
     {error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
-      <section className="surface label-manager"><div className="label-toolbar"><label className="setting-field"><span>Oblast popisků</span><select value={scope} onChange={(event) => { if (Object.keys(dirty).length && !window.confirm("Zahodit neuložené změny překladů?")) return; setScope(event.target.value); }}>{scopeList.map((name) => <option value={name} key={name}>{name === "Global" ? "Globální popisky" : metadata.labels?.Global?.scopeNamesPlural?.[name] || humanize(name)}</option>)}</select></label><label className="setting-field"><span>Jazyk</span><select value={language} onChange={(event) => { if (Object.keys(dirty).length && !window.confirm("Zahodit neuložené změny překladů?")) return; setLanguage(event.target.value); }}>{languages.map((code: string) => <option value={code} key={code}>{code.replace("_", " – ")}</option>)}</select></label><form className="label-search" onSubmit={(event) => event.preventDefault()}><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filtrovat popisky…"/></form><span className="label-count"><Languages size={14}/>{allRows} položek</span></div>
+      <section className="surface label-manager"><div className="label-toolbar"><label className="setting-field"><span>Oblast popisků</span><select value={scope} onChange={(event) => { if (Object.keys(dirty).length && !window.confirm("Zahodit neuložené změny překladů?")) return; setScope(event.target.value); }}>{scopeList.map((name) => <option value={name} key={name}>{name === "Global" ? "Globální popisky" : metadata.labels?.Global?.scopeNamesPlural?.[name] || humanize(name)}</option>)}</select></label><label className="setting-field"><span>Jazyk</span><select value={language} onChange={(event) => { if (Object.keys(dirty).length && !window.confirm("Zahodit neuložené změny překladů?")) return; setLanguage(event.target.value); }}>{languages.map((code: string) => <option value={code} key={code}>{languageLabel(code)}</option>)}</select></label><form className="label-search" onSubmit={(event) => event.preventDefault()}><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filtrovat popisky…"/></form><span className="label-count"><Languages size={14}/>{allRows} položek</span></div>
       {busy ? <div className="table-loading"><span className="spinner"/> Načítám překlady…</div> : filtered.length ? <div className="label-category-list">{filtered.map(([category, rows]) => <details className="label-category" key={category} open={Boolean(query)}><summary><span>{humanize(category)}</span><small>{rows.length} popisků</small></summary><div className="label-rows">{rows.map(([key, value]) => <label className="label-row" key={`${category}-${key}`}><span><strong>{key.split("[.]").slice(1).join(" · ") || key}</strong><small>{category}</small></span>{String(value).length > 72 || String(value).includes("\n") ? <textarea rows={3} value={value || ""} onChange={(event) => setValue(category, key, event.target.value)}/> : <input value={value || ""} onChange={(event) => setValue(category, key, event.target.value)}/>}</label>)}</div></details>)}</div> : <div className="label-empty"><Languages size={20}/><strong>Žádné popisky k zobrazení</strong><span>Změňte oblast nebo filtr.</span></div>}
     </section>
   </div>;
