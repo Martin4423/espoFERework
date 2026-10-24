@@ -5,7 +5,7 @@ import type { Metadata } from "./api";
 import EspoIcon from "./EspoIcon";
 import ImagePreviewDialog from "./ImagePreviewDialog";
 import SelectRecordsDialog from "./SelectRecordsDialog";
-import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
+import { formatEspoDateTime, parseEspoDateTime, useEspoTimeZone } from "./timeZone";
 import { useDialogFocus } from "./useDialogFocus";
 
 export type Note = Record<string, any>;
@@ -28,8 +28,8 @@ function StreamAvatar({ id, name, disabled }: { id?: string; name: string; disab
 }
 function relativeTime(value: string) {
   if (!value) return "";
-  const date = new Date(value.replace(" ", "T"));
-  if (Number.isNaN(date.getTime())) return value;
+  const date = parseEspoDateTime(value);
+  if (!date) return value;
   const minutes = Math.round((date.getTime() - Date.now()) / 60_000);
   const relative = new Intl.RelativeTimeFormat("cs", { numeric: "auto" });
   if (Math.abs(minutes) < 60) return relative.format(minutes, "minute");
