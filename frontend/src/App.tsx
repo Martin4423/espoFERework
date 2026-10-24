@@ -5134,6 +5134,10 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     if (entity === "Settings" && name === "fiscalYearShift") return ((metadata.labels as any)?.Global?.lists?.monthNames || []).map((_: string, index: number) => index) as number[];
     if (name === "language" || name === "formLanguage") return ((metadata.app as any)?.language?.list || []) as string[];
     if (entity === "Settings" && name === "pdfEngine") return Object.keys((metadata.app as any)?.pdfEngines || {});
+    if (entity === "Template" && name === "fontFace") {
+      const engine = String(metadata.appSettings?.pdfEngine || "Dompdf");
+      return (((metadata.app as any)?.pdfEngines?.[engine]?.fontFaceList || []) as string[]);
+    }
     if (entity === "Settings" && name === "smsProvider") return Object.keys((metadata.app as any)?.smsProviders || {});
     if (entity === "Settings" && name === "authenticationMethod") return Object.entries((metadata as any).authenticationMethods || {}).filter(([, method]: [string, any]) => method?.settings?.isAvailable).map(([method]) => method);
     if (entity === "Settings" && ["defaultCurrency", "baseCurrency"].includes(name)) return currencyList;
@@ -5401,6 +5405,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   }
 
   if (entity === "OAuthProvider" && name === "authorizationParams") return <OAuthAuthorizationParams value={value} label={label} onChange={onChange}/>;
+  if (entity === "Template" && name === "style") return <label className={`field-input template-style-input ${def.required ? "required" : ""}`} htmlFor={`field-${name}`}>{inputLabel}<textarea {...controlProps} rows={9} spellCheck={false} aria-label={`${label} CSS`} className="template-style-editor" value={typeof value === "string" ? value : value == null ? "" : String(value)} placeholder="body { font-size: 12px; }"/><small>Vlastní CSS pro vykreslení PDF. Písmo a jeho velikost lze nastavit také samostatnými poli šablony.</small></label>;
   if (type === "text") return <><label className={`field-input text-field-input ${def.required ? "required" : ""}`} htmlFor={`field-${name}`}>{inputLabel}<textarea {...controlProps} rows={3} value={typeof value === "string" ? value : value == null ? "" : String(value)} onKeyDown={(event) => {
     if (event.key !== "Enter") return;
     const target = event.currentTarget; const before = target.value.slice(0, target.selectionStart); const after = target.value.slice(target.selectionEnd);

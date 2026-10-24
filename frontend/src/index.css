@@ -876,6 +876,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-input.required > span:first-child i { color: #d06b74; font-style: normal; }
 .field-input input, .field-input select { min-height: 36px; padding: 8px 10px; font-size: 11px; }
 .field-input textarea { resize: vertical; font-size: 11px; }
+.template-style-input .template-style-editor { min-height: 210px; padding: 14px; border-color: #d9deea; background: #f8f9fc; color: #28334a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.65; tab-size: 2; }
+.template-style-input .template-style-editor:focus { background: #fff; }
+.template-style-input small { color: var(--muted); line-height: 1.5; }
 .field-input:has(textarea) { grid-column: 1 / -1; }
 .field-input select[multiple] { min-height: 96px; }
 .person-name-field { min-width: 0; grid-column: 1 / -1; margin: 0 0 14px; padding: 0; border: 0; }
