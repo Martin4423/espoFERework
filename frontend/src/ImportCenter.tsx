@@ -20,9 +20,25 @@ function ImportErrorList({ items, total, offset, busy, metadata, onPage, onExpor
   function failureLabel(failure: any, entity: string) {
     if (typeof failure === "string") return failure;
     const failureEntity = String(failure.entityType || entity);
-    const field = failure.field ? fieldLabel(String(failure.field), metadata.entityDefs?.[failureEntity]?.fields?.[failure.field], failureEntity, metadata) : "Pole";
-    const type = (metadata.labels as any)?.Global?.fieldValidations?.[failure.type] || failure.label || failure.type || "Neplatná hodnota";
-    return `${field}: ${failure.message || type}`;
+    const fieldName = String(failure.field || "");
+    const rawFieldDef = fieldName ? metadata.entityDefs?.[failureEntity]?.fields?.[fieldName] : undefined;
+    const field = rawFieldDef ? fieldLabel(fieldName, rawFieldDef, failureEntity, metadata) : fieldName || "Pole";
+    const foreignEntity = rawFieldDef?.type === "foreign" ? metadata.entityDefs?.[failureEntity]?.links?.[String(rawFieldDef.link || "")]?.entity : undefined;
+    const fieldDef = rawFieldDef?.type === "foreign" && foreignEntity
+      ? metadata.entityDefs?.[foreignEntity]?.fields?.[String(rawFieldDef.field || "")] || rawFieldDef
+      : rawFieldDef;
+    const validationType = String(failure.type || "");
+    const global = (metadata.labels as any)?.Global || {};
+    const fallbackLabels: Record<string, string> = {
+      required: "Povinné pole", maxCount: "Příliš mnoho položek", maxLength: "Hodnota je příliš dlouhá",
+      pattern: "Neplatný formát", emailAddress: "Neplatná e-mailová adresa", phoneNumber: "Neplatné telefonní číslo",
+      array: "Neplatný seznam", arrayOfString: "Neplatný seznam textových hodnot", valid: "Neplatná hodnota",
+      noEmptyString: "Hodnota nesmí být prázdná", max: "Hodnota je příliš vysoká", min: "Hodnota je příliš nízká",
+    };
+    const typeLabel = global.fieldValidations?.[validationType] || failure.label || fallbackLabels[validationType] || validationType || "Neplatná hodnota";
+    const explanationKey = fieldDef?.type ? `${fieldDef.type}_${validationType}` : validationType;
+    const explanation = global.fieldValidationExplanations?.[explanationKey] || global.fieldValidationExplanations?.[validationType];
+    return `${field}: ${failure.message || explanation || typeLabel}`;
   }
   function typeLabel(type: unknown) {
     const key = String(type || "");
