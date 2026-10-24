@@ -1878,7 +1878,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .relationship-selected-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #45536a; font-size: 10px; }
 .relationship-selected-head > div { display: flex; align-items: center; gap: 5px; }
 .relationship-selected-head button { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #738096; font-size: 15px; cursor: pointer; }
-.relationship-selected-head .relationship-primary-toggle.active { color: #bf9137; background: #fff3d4; }
+.relationship-selected-head .relationship-primary-toggle { display: inline-flex; width: auto; min-width: 26px; align-items: center; justify-content: center; gap: 5px; padding: 0 7px; border: 1px solid #e2e7ef; border-radius: 999px; font-size: 10px; font-weight: 650; transition: color .15s ease, background .15s ease, border-color .15s ease; }
+.relationship-selected-head .relationship-primary-toggle:hover { color: #9a741d; border-color: #eddaa4; background: #fffaf0; }
+.relationship-selected-head .relationship-primary-toggle.active { color: #89650e; border-color: #f0d98f; background: #fff4d1; }
+.relationship-selected-head .relationship-primary-toggle.active svg { fill: currentColor; }
+.relationship-selected-head .relationship-primary-toggle:focus-visible, .relationship-selected-head .relationship-remove:focus-visible { outline: 2px solid #6484d8; outline-offset: 2px; }
 .relationship-selected-head .relationship-remove:hover { color: #c45360; background: #fbeaec; }
 .relationship-column-values { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding-top: 7px; border-top: 1px solid #e8edf4; }
 .link-multiple-display { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; }
