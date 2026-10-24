@@ -3075,6 +3075,12 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .user-password-input > .button { flex: 0 0 auto; min-height: 42px; white-space: nowrap; }
 .user-password-preview { margin: 0; }
 .user-password-preview input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.colorpicker-control { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 11px; }
+.colorpicker-control > input[type="color"] { width: 52px; height: 48px; min-height: 48px; padding: 4px; border: 1px solid var(--line, #dfe4ec); border-radius: 10px; background: var(--surface, #fff); cursor: pointer; }
+.colorpicker-control > input[type="color"]:disabled { cursor: not-allowed; opacity: .55; }
+.colorpicker-value-wrap { display: grid; gap: 4px; min-width: 0; }
+.colorpicker-value-wrap > input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em; text-transform: uppercase; }
+.colorpicker-value-wrap > small { color: var(--muted, #778196); font-size: 11px; line-height: 1.4; }
 @media (max-width: 680px) { .user-password-input { align-items: stretch; flex-direction: column; } }
 @media (max-width: 680px) { .user-password-unchanged { align-items: stretch; flex-direction: column; } .user-password-unchanged > .button { align-self: flex-start; } }
 

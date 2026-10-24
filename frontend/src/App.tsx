@@ -5361,6 +5361,18 @@ function CurrencyFieldInput({ label, value, currency, currencies, symbols, defau
   return <label className="field-input currency-field-input"><span>{label}{def.required && <i> *</i>}</span><div className="currency-input-row"><span className="currency-symbol">{symbols[currency] || currency}</span><input type="number" min={def.min} max={def.max} step={step} required={def.required} disabled={Boolean(def.readOnly || def.disabled)} value={value == null ? "" : String(value)} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}/>{!fixed && <select aria-label={`${label} měna`} value={currency} disabled={Boolean(def.readOnly || def.disabled) || !onCurrencyChange} onChange={(event) => onCurrencyChange?.(event.target.value)}>{options.map((code) => <option key={code} value={code}>{code} · {symbols[code] || code}</option>)}</select>}</div></label>;
 }
 
+function ColorPickerFieldInput({ id, label, value, required, disabled, onChange }: { id: string; label: string; value: unknown; required: boolean; disabled: boolean; onChange: (value: string) => void }) {
+  const color = String(value || "");
+  const pickerColor = /^#[\da-f]{6}$/i.test(color) ? color : /^#[\da-f]{3}$/i.test(color) ? `#${[...color.slice(1)].map((digit) => digit + digit).join("")}` : "#667085";
+  return <label className="field-input colorpicker-field-input" htmlFor={id}>
+    <span>{label}{required && <i> *</i>}</span>
+    <div className="colorpicker-control">
+      <input id={`${id}-swatch`} type="color" aria-label={`${label} · vybrat barvu`} value={pickerColor} disabled={disabled} onChange={(event) => onChange(event.target.value.toUpperCase())}/>
+      <div className="colorpicker-value-wrap"><input id={id} type="text" value={color} placeholder="#RRGGBB" maxLength={7} pattern="^#[0-9a-fA-F]{6}$" required={required} disabled={disabled} autoCapitalize="characters" spellCheck={false} aria-describedby={`${id}-help`} onChange={(event) => onChange(event.target.value.toUpperCase())}/><small id={`${id}-help`}>Zadejte hexadecimální kód, například #6750A4.</small></div>
+    </div>
+  </label>;
+}
+
 function PortalScopeListEditor({ name, label, value, metadata, disabled, onChange }: { name: string; label: string; value: unknown; metadata: Metadata; disabled: boolean; onChange: (value: string[]) => void }) {
   const tabList = name === "tabList";
   const rawOptions = Object.entries(metadata.scopes || {}).filter(([, def]) => !def.disabled && def.aclPortal && (tabList ? def.tab : def.entity && def.object)).map(([scope]) => scope);
@@ -5634,6 +5646,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     onChange(entity === "Portal" && name === "customId" && next ? encodeURIComponent(next.replace(/ /i, "-").toLowerCase()) : normalized);
   };
   const inputLabel = <span>{label}{def.required && <i> *</i>}</span>;
+  if (type === "colorpicker") return <ColorPickerFieldInput id={`field-${entity}-${name}`.replace(/[^a-zA-Z0-9_-]/g, "-")} label={label} value={value} required={Boolean(def.required)} disabled={fieldDisabled} onChange={onChange}/>;
   if (entity === "Settings" && name === "availableReactions") {
     const reactions = (((metadata.app as any)?.reactions?.list || []) as Array<{ type: string; iconClass?: string }>);
     const options = reactions.map((item) => item.type).filter(Boolean);
