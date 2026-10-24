@@ -2124,6 +2124,8 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   const readCalendarPreference = () => { try { return JSON.parse(localStorage.getItem(calendarPreferenceKey) || "null") as Row | null; } catch { return null; } };
   const [anchor, setAnchor] = useState(() => new Date());
   const [calendarTimeZone, setCalendarTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  const [calendarSlotDuration, setCalendarSlotDuration] = useState(30);
+  const [calendarScrollHour, setCalendarScrollHour] = useState(6);
   const [firstDayOfWeek, setFirstDayOfWeek] = useState(() => {
     const value = Number((metadata.appSettings as any)?.weekStart ?? 1);
     return Number.isInteger(value) && value >= 0 && value <= 6 ? value : 1;
@@ -2145,6 +2147,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   const [createContext, setCreateContext] = useState<{ date: string; time?: string; allDay?: boolean } | null>(null);
   const [activeCalendarSlot, setActiveCalendarSlot] = useState({ dayIndex: 0, slot: 0 });
   const [draggedEvent, setDraggedEvent] = useState<ActivityEvent | null>(null);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
   const [movingEvent, setMovingEvent] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
   useEffect(() => {
@@ -2156,6 +2159,11 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
       const systemWeekStart = Number((metadata.appSettings as any)?.weekStart ?? 1);
       const preferenceWeekStart = Number(preferences.weekStart);
       setFirstDayOfWeek(Number.isInteger(preferenceWeekStart) && preferenceWeekStart >= 0 && preferenceWeekStart <= 6 ? preferenceWeekStart : Number.isInteger(systemWeekStart) && systemWeekStart >= 0 && systemWeekStart <= 6 ? systemWeekStart : 1);
+      const configuredSlotDuration = Number(preferences.calendarSlotDuration ?? metadata.clientDefs?.Calendar?.slotDuration ?? 30);
+      if (Number.isFinite(configuredSlotDuration) && configuredSlotDuration > 0 && configuredSlotDuration <= 60 && 60 % configuredSlotDuration === 0) setCalendarSlotDuration(configuredSlotDuration);
+      const configuredScrollHour = Number(preferences.calendarScrollHour);
+      if (Number.isInteger(configuredScrollHour) && configuredScrollHour >= 0 && configuredScrollHour < 24) setCalendarScrollHour(configuredScrollHour);
+      else if (configuredSlotDuration < 30) setCalendarScrollHour(8);
       if (typeof preferences.timeZone !== "string" || !preferences.timeZone) return;
       try {
         new Intl.DateTimeFormat("en", { timeZone: preferences.timeZone });
@@ -2169,7 +2177,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
       } catch { /* Keep the browser time zone when the saved zone is invalid. */ }
     }).catch(() => {});
     return () => { live = false; };
-  }, []);
+  }, [metadata.clientDefs?.Calendar?.slotDuration]);
   const weekStart = useMemo(() => {
     const day = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
     day.setDate(day.getDate() - ((day.getDay() - firstDayOfWeek + 7) % 7));
@@ -2290,6 +2298,11 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   useEffect(() => {
     if (activeCalendarSlot.dayIndex >= days.length) setActiveCalendarSlot({ dayIndex: 0, slot: 0 });
   }, [activeCalendarSlot.dayIndex, days.length]);
+  useEffect(() => {
+    if (["day", "week", "timeline"].includes(viewMode) && timelineScrollRef.current) {
+      timelineScrollRef.current.scrollTop = Math.max(0, calendarScrollHour * 60 / calendarSlotDuration * 28);
+    }
+  }, [viewMode, calendarScrollHour, calendarSlotDuration]);
   const rangeLabel = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).formatRange(calendarWallDateAsUtc(range.start), calendarWallDateAsUtc(new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate() - 1)));
   const eventDate = (event: ActivityEvent) => event.dateStartDate ? new Date(`${event.dateStartDate}T00:00:00`) : parseEspoCalendarDateTime(String(event.dateStart || ""));
   const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -2372,7 +2385,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
     const finalStatuses = [...((metadata.scopes[event.scope] as any)?.completedStatusList || []), ...((metadata.scopes[event.scope] as any)?.canceledStatusList || [])].map(String);
     return { "--calendar-event-color": finalStatuses.includes(String(event.status)) ? `color-mix(in srgb, ${color} 60%, var(--surface))` : color } as CSSProperties;
   };
-  async function moveCalendarEvent(event: ActivityEvent, targetDay: Date) {
+  async function moveCalendarEvent(event: ActivityEvent, targetDay: Date, targetTime?: string) {
     if (!canChangeEntity(metadata, event.scope, "edit")) return;
     const id = event.recordId || event.id;
     const oldStart = event.dateStartDate || event.dateStart;
@@ -2381,7 +2394,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
     const targetDate = dayKey(targetDay);
     const utcDay = (value: string) => Math.floor(Date.UTC(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10))) / 86400000);
     const shift = utcDay(targetDate) - utcDay(oldDate);
-    if (!shift) return;
+    if (!shift && !targetTime) return;
     const shiftedDate = (value?: string) => {
       if (!value) return undefined;
       const date = new Date(`${value.slice(0, 10)}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + shift);
@@ -2396,55 +2409,65 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
     };
     const payload: Row = {};
     if (event.dateStartDate) payload.dateStartDate = targetDate;
-    if (event.dateStart) payload.dateStart = shiftedDateTime(event.dateStart);
+    if (event.dateStart) payload.dateStart = targetTime ? espocrmDateTimeFromInput(`${targetDate}T${targetTime}`, calendarTimeZone) : shiftedDateTime(event.dateStart);
     if (event.dateEndDate) payload.dateEndDate = shiftedDate(event.dateEndDate);
-    if (event.dateEnd) payload.dateEnd = shiftedDateTime(event.dateEnd);
+    if (event.dateEnd) {
+      if (targetTime && payload.dateStart) {
+        const previousStart = parseEspoCalendarDateTime(String(event.dateStart)).getTime();
+        const previousEnd = parseEspoCalendarDateTime(String(event.dateEnd)).getTime();
+        payload.dateEnd = Number.isFinite(previousStart) && Number.isFinite(previousEnd) && previousEnd > previousStart
+          ? espocrmDateTime(new Date(parseEspoCalendarDateTime(String(payload.dateStart)).getTime() + previousEnd - previousStart))
+          : shiftedDateTime(event.dateEnd);
+      } else payload.dateEnd = shiftedDateTime(event.dateEnd);
+    }
     setMovingEvent(true); setError("");
     try { await request(`${encodeURIComponent(event.scope)}/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) }); setRefreshIndex((n) => n + 1); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Aktivitu se nepodařilo přesunout."); }
     finally { setMovingEvent(false); }
   }
-  const timelineStartHour = 6;
-  const timelineSlots = 60;
+  const timelineSlots = Math.ceil(24 * 60 / calendarSlotDuration);
+  const timelineMinutesPerSlot = calendarSlotDuration;
   const availabilityRanges = events.filter((event) => event.isWorkingRange || event.isNonWorkingRange || event.isBusyRange);
   const calendarActivityCount = events.length - availabilityRanges.length;
-  const timelineGrid = <div className="calendar-timeline-scroll">{availabilityRanges.length > 0 && <div className="calendar-timeline-legend" aria-label="Legenda dostupnosti">{availabilityRanges.some((range) => range.isWorkingRange) && <span><i className="working"/> Pracovní doba</span>}{availabilityRanges.some((range) => range.isNonWorkingRange) && <span><i className="nonworking"/> Mimo pracovní dobu</span>}{availabilityRanges.some((range) => range.isBusyRange) && <span><i className="busy"/> Obsazeno</span>}</div>}<div className="calendar-timeline-grid" style={{ gridTemplateRows: `42px repeat(${timelineSlots}, 18px)` }}>
+  const timelineGrid = <div className="calendar-timeline-scroll" ref={timelineScrollRef}>{availabilityRanges.length > 0 && <div className="calendar-timeline-legend" aria-label="Legenda dostupnosti">{availabilityRanges.some((range) => range.isWorkingRange) && <span><i className="working"/> Pracovní doba</span>}{availabilityRanges.some((range) => range.isNonWorkingRange) && <span><i className="nonworking"/> Mimo pracovní dobu</span>}{availabilityRanges.some((range) => range.isBusyRange) && <span><i className="busy"/> Obsazeno</span>}</div>}<div className="calendar-timeline-grid" style={{ gridTemplateColumns: `56px repeat(${days.length}, minmax(132px, 1fr))`, gridTemplateRows: `42px minmax(36px, auto) repeat(${timelineSlots}, 28px)`, minWidth: `${56 + days.length * 132}px` }}>
     <div className="calendar-timeline-corner" style={{ gridColumn: 1, gridRow: 1 }}>ČAS</div>
     {days.map((day, index) => <div className={`calendar-timeline-dayhead ${dayKey(day) === calendarTodayKey ? "today" : ""}`} key={dayKey(day)} style={{ gridColumn: index + 2, gridRow: 1 }}><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: "short", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><strong>{new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "numeric", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</strong></div>)}
-    {Array.from({ length: timelineSlots }, (_, slot) => <Fragment key={`slot-${slot}`}><div className="calendar-timeline-time" style={{ gridColumn: 1, gridRow: slot + 2 }}>{slot % 4 === 0 ? `${String(timelineStartHour + Math.floor(slot / 4)).padStart(2, "0")}:00` : ""}</div>{days.map((day, index) => <button type="button" className={`calendar-timeline-cell ${slot % 4 === 0 ? "hour" : ""}`} key={`${dayKey(day)}-${slot}`} data-calendar-slot={`${index}:${slot}`} tabIndex={activeCalendarSlot.dayIndex === index && activeCalendarSlot.slot === slot || activeCalendarSlot.dayIndex >= days.length && index === 0 && slot === 0 ? 0 : -1} style={{ gridColumn: index + 2, gridRow: slot + 2 }} disabled={busy || !creatableActivityScopes.length} onFocus={() => setActiveCalendarSlot({ dayIndex: index, slot })} onKeyDown={(event) => { const next = { dayIndex: index, slot }; if (event.key === "ArrowLeft") next.dayIndex--; else if (event.key === "ArrowRight") next.dayIndex++; else if (event.key === "ArrowUp") next.slot--; else if (event.key === "ArrowDown") next.slot++; else return; event.preventDefault(); next.dayIndex = Math.max(0, Math.min(days.length - 1, next.dayIndex)); next.slot = Math.max(0, Math.min(timelineSlots - 1, next.slot)); setActiveCalendarSlot(next); window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-calendar-slot="${next.dayIndex}:${next.slot}"]`)?.focus()); }} aria-label={`Vytvořit aktivitu ${new Intl.DateTimeFormat("cs-CZ", { dateStyle: "full", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))} v ${String(timelineStartHour + Math.floor(slot / 4)).padStart(2, "0")}:${String((slot % 4) * 15).padStart(2, "0")}`} onClick={() => beginCreateAt(dayKey(day), `${String(timelineStartHour + Math.floor(slot / 4)).padStart(2, "0")}:${String((slot % 4) * 15).padStart(2, "0")}`)} title={creatableActivityScopes.length ? "Vytvořit aktivitu v tomto čase" : "Nemáte oprávnění vytvořit aktivitu"}/>)}</Fragment>)}
-    {busy && <div className="calendar-timeline-loading" style={{ gridColumn: "2 / -1", gridRow: "2 / -1" }}><span className="spinner"/> Načítám události…</div>}
+    <div className="calendar-timeline-corner calendar-all-day-label" style={{ gridColumn: 1, gridRow: 2 }}>CELÝ DEN</div>
+    {days.map((day, index) => <div key={`all-day-${dayKey(day)}`} className={`calendar-timeline-all-day ${dayKey(day) === calendarTodayKey ? "today" : ""}`} style={{ gridColumn: index + 2, gridRow: 2 }}><button type="button" className="calendar-all-day-create" disabled={busy || !creatableActivityScopes.length} aria-label={`Vytvořit celodenní aktivitu ${new Intl.DateTimeFormat("cs-CZ", { dateStyle: "full", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}`} onClick={() => beginCreateAt(dayKey(day))}/>{dayEvents(day).filter((event) => event.dateStartDate || event.dateEndDate).map((event) => <button type="button" draggable={canChangeEntity(metadata, event.scope, "edit")} className={`calendar-timeline-all-day-event ${eventTone[event.scope] || "other"}`} style={calendarEventStyle(event)} key={`${event.scope}-${event.recordId || event.id}-${dayKey(day)}`} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} onClick={(nativeEvent) => { nativeEvent.stopPropagation(); onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name }); }}>{event.title || event.name || "Bez názvu"}</button>)}</div>)}
+    {Array.from({ length: timelineSlots }, (_, slot) => <Fragment key={`slot-${slot}`}><div className="calendar-timeline-time" style={{ gridColumn: 1, gridRow: slot + 3 }}>{slot * timelineMinutesPerSlot % 60 === 0 ? `${String(Math.floor(slot * timelineMinutesPerSlot / 60)).padStart(2, "0")}:00` : ""}</div>{days.map((day, index) => { const hour = Math.floor(slot * timelineMinutesPerSlot / 60); const minute = slot * timelineMinutesPerSlot % 60; const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`; return <button type="button" className={`calendar-timeline-cell ${minute === 0 ? "hour" : ""}`} key={`${dayKey(day)}-${slot}`} data-calendar-slot={`${index}:${slot}`} tabIndex={activeCalendarSlot.dayIndex === index && activeCalendarSlot.slot === slot || activeCalendarSlot.dayIndex >= days.length && index === 0 && slot === 0 ? 0 : -1} style={{ gridColumn: index + 2, gridRow: slot + 3 }} disabled={busy} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { if (!draggedEvent) return; event.preventDefault(); event.stopPropagation(); const moving = draggedEvent; setDraggedEvent(null); void moveCalendarEvent(moving, day, time); }} onFocus={() => setActiveCalendarSlot({ dayIndex: index, slot })} onKeyDown={(event) => { const next = { dayIndex: index, slot }; if (event.key === "ArrowLeft") next.dayIndex--; else if (event.key === "ArrowRight") next.dayIndex++; else if (event.key === "ArrowUp") next.slot--; else if (event.key === "ArrowDown") next.slot++; else return; event.preventDefault(); next.dayIndex = Math.max(0, Math.min(days.length - 1, next.dayIndex)); next.slot = Math.max(0, Math.min(timelineSlots - 1, next.slot)); setActiveCalendarSlot(next); window.requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-calendar-slot="${next.dayIndex}:${next.slot}"]`)?.focus()); }} aria-label={`Vytvořit aktivitu ${new Intl.DateTimeFormat("cs-CZ", { dateStyle: "full", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))} v ${time}`} onClick={() => beginCreateAt(dayKey(day), time)} title={creatableActivityScopes.length ? "Kliknutím vytvoříte aktivitu v tomto čase. Přetažením sem změníte čas události." : "Nemáte oprávnění vytvořit aktivitu"}/>; })}</Fragment>)}
+    {busy && <div className="calendar-timeline-loading" style={{ gridColumn: "2 / -1", gridRow: `2 / -1` }}><span className="spinner"/> Načítám události…</div>}
     {!busy && days.flatMap((day, dayIndex) => availabilityRanges.flatMap((range, rangeIndex) => {
       if (!range.dateStart || !range.dateEnd) return [];
       const rangeStart = parseEspoCalendarDateTime(String(range.dateStart));
       const rangeEnd = parseEspoCalendarDateTime(String(range.dateEnd));
-      const timelineStart = new Date(day); timelineStart.setHours(timelineStartHour, 0, 0, 0);
-      const timelineEnd = new Date(day); timelineEnd.setHours(timelineStartHour + timelineSlots / 4, 0, 0, 0);
+      const timelineStart = new Date(day); timelineStart.setHours(0, 0, 0, 0);
+      const timelineEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1); timelineEnd.setHours(0, 0, 0, 0);
       const visibleStart = Math.max(rangeStart.getTime(), calendarZonedDateTime(timelineStart, calendarTimeZone).getTime());
       const visibleEnd = Math.min(rangeEnd.getTime(), calendarZonedDateTime(timelineEnd, calendarTimeZone).getTime());
       if (!Number.isFinite(visibleStart) || !Number.isFinite(visibleEnd) || visibleEnd <= visibleStart) return [];
       const dayStart = calendarZonedDateTime(day, calendarTimeZone).getTime();
       const dayEnd = calendarZonedDateTime(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1), calendarTimeZone).getTime();
       if (rangeStart.getTime() >= dayEnd || rangeEnd.getTime() <= dayStart) return [];
-      const startSlot = Math.max(0, Math.min(timelineSlots - 1, Math.floor((visibleStart - calendarZonedDateTime(timelineStart, calendarTimeZone).getTime()) / 900000)));
-      const endSlot = Math.max(startSlot + 1, Math.min(timelineSlots, Math.ceil((visibleEnd - calendarZonedDateTime(timelineStart, calendarTimeZone).getTime()) / 900000)));
+      const startSlot = Math.max(0, Math.min(timelineSlots - 1, Math.floor((visibleStart - calendarZonedDateTime(timelineStart, calendarTimeZone).getTime()) / (timelineMinutesPerSlot * 60000))));
+      const endSlot = Math.max(startSlot + 1, Math.min(timelineSlots, Math.ceil((visibleEnd - calendarZonedDateTime(timelineStart, calendarTimeZone).getTime()) / (timelineMinutesPerSlot * 60000))));
       const type = range.isBusyRange ? "busy" : range.isNonWorkingRange ? "nonworking" : "working";
-      return [<div aria-hidden="true" className={`calendar-timeline-range ${type}`} key={`${dayKey(day)}-${type}-${rangeIndex}`} style={{ gridColumn: dayIndex + 2, gridRow: `${startSlot + 2} / ${endSlot + 2}` }}/>];
+      return [<div aria-hidden="true" className={`calendar-timeline-range ${type}`} key={`${dayKey(day)}-${type}-${rangeIndex}`} style={{ gridColumn: dayIndex + 2, gridRow: `${startSlot + 3} / ${endSlot + 3}` }}/>];
     }))}
-    {!busy && days.flatMap((day, dayIndex) => dayEvents(day).map((event) => {
+    {!busy && days.flatMap((day, dayIndex) => dayEvents(day).filter((event) => !event.dateStartDate && !event.dateEndDate).map((event) => {
       const segment = eventSegmentForDay(event, day);
       if (!segment) return null;
-      const timelineStart = new Date(day); timelineStart.setHours(timelineStartHour, 0, 0, 0);
-      const timelineEnd = new Date(day); timelineEnd.setHours(timelineStartHour + timelineSlots / 4, 0, 0, 0);
+      const timelineStart = new Date(day); timelineStart.setHours(0, 0, 0, 0);
+      const timelineEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1); timelineEnd.setHours(0, 0, 0, 0);
       const windowStart = calendarZonedDateTime(timelineStart, calendarTimeZone).getTime();
       const windowEnd = calendarZonedDateTime(timelineEnd, calendarTimeZone).getTime();
       const visibleStart = Math.max(segment.start, windowStart);
       const visibleEnd = Math.min(segment.end, windowEnd);
       if (visibleEnd <= visibleStart) return null;
-      const startSlot = Math.max(0, Math.min(timelineSlots - 1, Math.floor((visibleStart - windowStart) / 900000)));
-      const endSlot = Math.max(startSlot + 1, Math.min(timelineSlots, Math.ceil((visibleEnd - windowStart) / 900000)));
+      const startSlot = Math.max(0, Math.min(timelineSlots - 1, Math.floor((visibleStart - windowStart) / (timelineMinutesPerSlot * 60000))));
+      const endSlot = Math.max(startSlot + 1, Math.min(timelineSlots, Math.ceil((visibleEnd - windowStart) / (timelineMinutesPerSlot * 60000))));
       const startMs = event.dateStart ? parseEspoCalendarDateTime(String(event.dateStart)).getTime() : NaN;
       const timeLabel = event.dateStartDate ? "Celý den" : Number.isFinite(startMs) && visibleStart > startMs ? "Pokračuje" : new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit", timeZone: calendarTimeZone }).format(new Date(visibleStart));
-      return <button draggable={false} className={`calendar-timeline-event ${eventTone[event.scope] || "other"}`} key={`${event.scope}-${event.recordId || event.id}-${dayKey(day)}`} style={{ gridColumn: dayIndex + 2, gridRow: `${startSlot + 2} / ${endSlot + 2}`, ...calendarEventStyle(event) }} title={`${timeLabel} ${event.title || event.name || ""}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><time>{timeLabel}</time><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}</small></button>;
+      return <button draggable={canChangeEntity(metadata, event.scope, "edit")} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-timeline-event ${eventTone[event.scope] || "other"}`} key={`${event.scope}-${event.recordId || event.id}-${dayKey(day)}`} style={{ gridColumn: dayIndex + 2, gridRow: `${startSlot + 3} / ${endSlot + 3}`, ...calendarEventStyle(event) }} title={`${timeLabel} ${event.title || event.name || ""}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><time>{timeLabel}</time><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}</small></button>;
     }))}
   </div></div>;
 
@@ -2455,7 +2478,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
       <details className="calendar-shortcuts"><summary>Klávesové zkratky</summary><div className="calendar-shortcut-list"><span><kbd>←</kbd><kbd>→</kbd><span>Předchozí / další období</span></span><span><kbd>Home</kbd><span>Přejít na dnešek</span></span><span><kbd>1</kbd>–<kbd>5</kbd><span>Přepnout zobrazení</span></span>{scopes.some((scope) => ["Meeting", "Call", "Task"].includes(scope)) && <span><kbd>Ctrl</kbd> + <kbd>Space</kbd><span>Vytvořit aktivitu</span></span>}</div></details>
       <div className="calendar-filters">{scopes.map((scope) => <button key={scope} className={`calendar-filter ${activeScopes.includes(scope) ? "selected" : ""} ${eventTone[scope] || "other"}`} style={calendarColors[scope] ? ({ "--calendar-event-color": calendarColors[scope] } as CSSProperties) : undefined} onClick={() => setActiveScopes((current) => current.includes(scope) ? current.filter((item) => item !== scope) : [...current, scope])}><i/>{entityLabel(metadata, scope, true)}</button>)}</div>
       {error && <div className="table-error">{error}<button onClick={() => setAnchor(new Date(anchor))}>Zkusit znovu</button></div>}
-      {viewMode === "timeline" ? timelineGrid : <div className={`calendar-week-grid calendar-${viewMode}-grid`}>{viewMode === "month" && weekdayLabels.map((day) => <div className="calendar-month-weekday" key={day}>{day}</div>)}{days.map((day) => <section className={`calendar-day ${dayKey(day) === calendarTodayKey ? "today" : ""} ${viewMode === "month" && day.getMonth() !== anchor.getMonth() ? "outside-month" : ""} ${draggedEvent ? "calendar-drop-target" : ""}`} key={dayKey(day)} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); const moving = draggedEvent; setDraggedEvent(null); if (moving) void moveCalendarEvent(moving, day); }}><header><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: viewMode === "month" ? "short" : "long", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><b>{day.getDate()}</b></header><div className={`calendar-day-events ${creatableActivityScopes.length ? "calendar-day-events-creatable" : ""}`} onClick={() => !busy && beginCreateAt(dayKey(day))} title={creatableActivityScopes.length ? "Kliknutím vytvoříte aktivitu pro tento den" : undefined}>{busy ? <div className="calendar-day-loading"/> : dayEvents(day).length ? dayEvents(day).map((event) => <button draggable={!movingEvent && canChangeEntity(metadata, event.scope, "edit")} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-event ${eventTone[event.scope] || "other"}`} style={calendarEventStyle(event)} key={`${event.scope}-${event.recordId || event.id}`} onClick={(nativeEvent) => { nativeEvent.stopPropagation(); onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name }); }}><span>{prettyTimeForDay(event, day)}</span><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}{event.status ? ` · ${event.status}` : ""}</small></button>) : <span className="calendar-empty">—</span>}</div></section>)}</div>}
+      {["day", "week", "timeline"].includes(viewMode) ? timelineGrid : <div className={`calendar-week-grid calendar-${viewMode}-grid`}>{viewMode === "month" && weekdayLabels.map((day) => <div className="calendar-month-weekday" key={day}>{day}</div>)}{days.map((day) => <section className={`calendar-day ${dayKey(day) === calendarTodayKey ? "today" : ""} ${viewMode === "month" && day.getMonth() !== anchor.getMonth() ? "outside-month" : ""} ${draggedEvent ? "calendar-drop-target" : ""}`} key={dayKey(day)} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); const moving = draggedEvent; setDraggedEvent(null); if (moving) void moveCalendarEvent(moving, day); }}><header><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: viewMode === "month" ? "short" : "long", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><b>{day.getDate()}</b></header><div className={`calendar-day-events ${creatableActivityScopes.length ? "calendar-day-events-creatable" : ""}`} onClick={() => !busy && beginCreateAt(dayKey(day))} title={creatableActivityScopes.length ? "Kliknutím vytvoříte aktivitu pro tento den" : undefined}>{busy ? <div className="calendar-day-loading"/> : dayEvents(day).length ? dayEvents(day).map((event) => <button draggable={!movingEvent && canChangeEntity(metadata, event.scope, "edit")} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-event ${eventTone[event.scope] || "other"}`} style={calendarEventStyle(event)} key={`${event.scope}-${event.recordId || event.id}`} onClick={(nativeEvent) => { nativeEvent.stopPropagation(); onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name }); }}><span>{prettyTimeForDay(event, day)}</span><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}{event.status ? ` · ${event.status}` : ""}</small></button>) : <span className="calendar-empty">—</span>}</div></section>)}</div>}
       <div className="calendar-footer"><span>{busy ? "Načítám aktivity…" : `${calendarActivityCount} aktivit v období`}</span><span title={`Časová zóna účtu EspoCRM: ${calendarTimeZone}`}>{movingEvent ? "Přesouvám událost…" : `Událost přetáhněte na jiný den. Časy podle nastavení účtu EspoCRM · ${calendarTimeZone}.`}</span></div>
     </section>
     {createEntity && <RecordEditor entity={createEntity} fields={getEditorFields(metadata, createEntity)} metadata={metadata} initialValues={createInitialValues} onClose={() => setCreateEntity(null)} onSaved={() => { setCreateEntity(null); setCreateInitialValues({}); setRefreshIndex((n) => n + 1); }} />}
