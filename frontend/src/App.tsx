@@ -263,13 +263,26 @@ function EntityIcon({ name, size = 16 }: { name: string; size?: number }) {
   return <EspoIcon className={fallback} size={size} />;
 }
 
+function appPathname() {
+  const base = import.meta.env.BASE_URL;
+  const pathname = window.location.pathname;
+  if (base !== "/" && pathname.startsWith(base)) return `/${pathname.slice(base.length)}` || "/";
+  return pathname;
+}
+
+function appPublicPath(path: string) {
+  const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
+  return `${base}${path.replace(/^\//, "")}`;
+}
+
 function App() {
-  const publicCaptureId = window.location.pathname.match(/^\/lead-capture\/([^/]+)\/?$/)?.[1];
+  const currentPath = appPathname();
+  const publicCaptureId = currentPath.match(/^\/lead-capture\/([^/]+)\/?$/)?.[1];
   const entryParams = new URLSearchParams(window.location.search);
-  const optInConfirmationId = window.location.pathname === "/" && entryParams.get("entryPoint") === "confirmOptIn" ? entryParams.get("id") || undefined : undefined;
-  const passwordChangeRequest = window.location.pathname === "/" && entryParams.get("entryPoint") === "changePassword" ? { id: entryParams.get("id") || undefined } : undefined;
-  const unsubscribeRequest = window.location.pathname === "/" && entryParams.get("entryPoint") === "unsubscribe" ? { id: entryParams.get("id") || undefined, emailAddress: entryParams.get("emailAddress") || undefined, hash: entryParams.get("hash") || undefined } : undefined;
-  const eventConfirmationRequest = window.location.pathname === "/" && entryParams.get("entryPoint") === "eventConfirmation" ? { uid: entryParams.get("uid") || undefined, action: entryParams.get("action") || undefined } : undefined;
+  const optInConfirmationId = currentPath === "/" && entryParams.get("entryPoint") === "confirmOptIn" ? entryParams.get("id") || undefined : undefined;
+  const passwordChangeRequest = currentPath === "/" && entryParams.get("entryPoint") === "changePassword" ? { id: entryParams.get("id") || undefined } : undefined;
+  const unsubscribeRequest = currentPath === "/" && entryParams.get("entryPoint") === "unsubscribe" ? { id: entryParams.get("id") || undefined, emailAddress: entryParams.get("emailAddress") || undefined, hash: entryParams.get("hash") || undefined } : undefined;
+  const eventConfirmationRequest = currentPath === "/" && entryParams.get("entryPoint") === "eventConfirmation" ? { uid: entryParams.get("uid") || undefined, action: entryParams.get("action") || undefined } : undefined;
   const [session, setSession] = useState(getSession());
   const [metadata, setMetadata] = useState<Metadata | null>(null);
   const [portalBranding, setPortalBranding] = useState<PortalBranding | null>(null);
@@ -2690,7 +2703,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     finally { setBusy(false); }
   }
   async function copyLeadCaptureUrl() {
-    const url = `${window.location.origin}/lead-capture/${encodeURIComponent(record.formId)}`;
+    const url = `${window.location.origin}${appPublicPath(`lead-capture/${encodeURIComponent(record.formId)}`)}`;
     try { await navigator.clipboard.writeText(url); setCopiedFormUrl(true); window.setTimeout(() => setCopiedFormUrl(false), 2200); }
     catch { setError("Odkaz se nepodařilo zkopírovat. Zkopírujte jej z pole formuláře."); }
   }
@@ -2700,7 +2713,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     <div className={`drawer-title ${record.deleted ? "deleted-record-title" : ""}`}><span className="drawer-avatar">{String(recordFieldDisplayValue(entity, "name", record) || record.subject || "?").slice(0, 1).toUpperCase()}</span><div><h2>{recordFieldDisplayValue(entity, "name", record) || record.subject || [record.firstName, record.lastName].filter(Boolean).join(" ") || "Záznam"}</h2><p>{record.deleted ? "Smazaný záznam · " : ""}{entityLabel(metadata, entity)}{record.accountName ? ` · ${record.accountName}` : ""}</p></div></div>
     {error && <div className="inline-error">{error}</div>}{userNotice && <div className="save-confirm"><Check size={14}/>{userNotice}</div>}
     {record.deleted ? <div className="drawer-actions"><button className="button primary" onClick={() => void restoreDeletedRecord()} disabled={busy}><RefreshCw size={14}/> Obnovit záznam</button></div> : <div className="drawer-actions">{canEditRecord && <button className="button primary" onClick={() => setEditor(true)}>Upravit záznam <FileText size={14}/></button>}{entity === "MassEmail" && canEditRecord && ["Draft", "Pending"].includes(record.status) && <button className="button subtle" onClick={openMassEmailTest}><Send size={14}/> Poslat test</button>}{canManagePreferences && <button className="button subtle" onClick={() => onOpenPreferences(record)}><Settings size={14}/> Preference uživatele</button>}{canOpenUserEmailAccounts && <button className="button subtle" onClick={() => onOpenEmailAccounts(record)}><Mail size={14}/> E-mailové účty</button>}{canOpenUserExternalAccounts && <button className="button subtle" onClick={() => onOpenEntity("ExternalAccount")}><Link2 size={14}/> Externí účty</button>}{canViewUserCalendar && <button className="button subtle" onClick={() => onOpenCalendar(record)}><CalendarDays size={14}/> Kalendář uživatele</button>}{isAdminViewer && entity === "User" && record.type === "regular" && <button className="button subtle" onClick={loginAsUser}><LogIn size={14}/> Přihlásit se jako uživatel</button>}{canEditRecord && entity === "LayoutSet" && <button className="button subtle" onClick={() => setLayoutSetEditorOpen(true)}><LayoutDashboard size={14}/> Upravit rozložení</button>}{isAdminViewer && entity === "DashboardTemplate" && <button className="button subtle" onClick={() => setDashboardDeployOpen(true)} disabled={busy}><Users size={14}/> Nasadit uživatelům / týmu</button>}{canConvertCurrency && <button className="button subtle" onClick={() => setCurrencyConvertOpen(true)} disabled={busy}><ArrowRightLeft size={14}/> Převést měnu</button>}{entity === "Campaign" && <CampaignMailMergeAction campaign={record} metadata={metadata}/>}{canEditRecord && ["Meeting", "Call"].includes(entity) && !["Held", "Not Held"].includes(record.status) && <><button className="button subtle" onClick={() => void setEventAttendance("Held")} disabled={busy}><Check size={14}/> Označit jako proběhlé</button><button className="button subtle" onClick={() => void setEventAttendance("Not Held")} disabled={busy}><X size={14}/> Označit jako neproběhlé</button></>}{canEditRecord && entity === "Task" && !["Completed", "Canceled"].includes(record.status) && <button className="button subtle" onClick={() => void completeTask()} disabled={busy}><Check size={14}/> Dokončit úkol</button>}{canEditRecord && entity === "LeadCapture" && <><button className="button subtle" onClick={() => void leadCaptureTokenAction("generateNewApiKey")} disabled={busy}><KeyRound size={14}/> Nový API klíč</button><button className="button subtle" onClick={() => void leadCaptureTokenAction("generateNewFormId")} disabled={busy}><RefreshCw size={14}/> Nové ID formuláře</button></>}{isManageableUser && record.type !== "portal" && <button className="button subtle" onClick={() => void openUserAccess()} disabled={busy}>Přístupová práva <Shield size={14}/></button>}{isManageableUser && ["regular", "admin", "portal"].includes(record.type) && <button className="button subtle" onClick={() => setUserSecurityOpen(true)}>Zabezpečení a 2FA <Shield size={14}/></button>}{isManageableUser && record.type === "api" && <button className="button subtle" onClick={() => void userSecurityAction("apiKey")} disabled={busy}>Nový API klíč <KeyRound size={14}/></button>}{isManageableUser && ["regular", "admin", "portal"].includes(record.type) && record.emailAddress && <><button className="button subtle" onClick={() => void userSecurityAction("recovery")} disabled={busy}>Odkaz na změnu hesla <Mail size={14}/></button><button className="button subtle" onClick={() => void userSecurityAction("password")} disabled={busy}>Vygenerovat heslo <RefreshCw size={14}/></button></>}{convertible && <button className="button subtle" onClick={() => setConvertOpen(true)}>Převést zájemce <ArrowRight size={14}/></button>}{canViewPersonalData && <button className="button subtle" onClick={() => setPersonalDataOpen(true)}>Osobní údaje <Shield size={14}/></button>}</div>}
-    {!record.deleted && entity === "LeadCapture" && record.formEnabled && <section className="lead-capture-share"><div><span className="eyebrow">VEŘEJNÝ FORMULÁŘ</span><strong>Odkaz ke sdílení</strong><small>Otevře nový formulář ViaCRM bez přihlášení.</small></div><div className="lead-capture-share-row"><input aria-label="Odkaz veřejného formuláře" readOnly value={`${window.location.origin}/lead-capture/${encodeURIComponent(record.formId || "")}`}/><button className="button subtle" onClick={() => void copyLeadCaptureUrl()}><Link2 size={14}/>{copiedFormUrl ? "Zkopírováno" : "Kopírovat"}</button></div></section>}
+    {!record.deleted && entity === "LeadCapture" && record.formEnabled && <section className="lead-capture-share"><div><span className="eyebrow">VEŘEJNÝ FORMULÁŘ</span><strong>Odkaz ke sdílení</strong><small>Otevře nový formulář ViaCRM bez přihlášení.</small></div><div className="lead-capture-share-row"><input aria-label="Odkaz veřejného formuláře" readOnly value={`${window.location.origin}${appPublicPath(`lead-capture/${encodeURIComponent(record.formId || "")}`)}`}/><button className="button subtle" onClick={() => void copyLeadCaptureUrl()}><Link2 size={14}/>{copiedFormUrl ? "Zkopírováno" : "Kopírovat"}</button></div></section>}
     {!record.deleted && entity === "Campaign" && <CampaignStatsPanel record={record} metadata={metadata}/>}
     {!record.deleted && entity === "EmailTemplate" && <EmailTemplatePlaceholdersPanel metadata={metadata}/>}
     {!record.deleted && entity === "LeadCapture" && <LeadCaptureInfoPanel record={record}/>}
@@ -3526,7 +3539,7 @@ function EmailTemplatePlaceholdersPanel({ metadata }: { metadata: Metadata }) {
 function LeadCaptureInfoPanel({ record }: { record: Row }) {
   const fields = ["exampleRequestUrl", "exampleRequestMethod", "exampleRequestHeaders", "exampleRequestPayload"];
   const values = fields.map((name) => [name, record[name]] as const).filter(([, value]) => value !== undefined && value !== null && value !== "");
-  const formUrl = record.formId ? `${window.location.origin}/lead-capture/${encodeURIComponent(record.formId)}` : "";
+  const formUrl = record.formId ? `${window.location.origin}${appPublicPath(`lead-capture/${encodeURIComponent(record.formId)}`)}` : "";
   if (!values.length && !formUrl) return null;
   return <section className="detail-panel native-info-panel lead-capture-info"><div className="drawer-section-title">INTEGRACE FORMULÁŘE</div>{formUrl && <a className="lead-capture-form-url" href={formUrl} target="_blank" rel="noreferrer">{formUrl}<ExternalLink size={13}/></a>}{values.length > 0 && <div className="lead-capture-request-example">{values.map(([name, value]) => <div key={name}><small>{name}</small><pre>{typeof value === "string" ? value : JSON.stringify(value, null, 2)}</pre></div>)}</div>}</section>;
 }
