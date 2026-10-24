@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, ComponentType, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, SyntheticEvent } from "react";
-import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, History, Inbox as InboxIcon, Info, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, EyeSlash, type LucideIcon } from "./Icons";
+import type { ChangeEvent, ComponentType, CSSProperties, DragEvent as ReactDragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, SyntheticEvent } from "react";
+import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, GripVertical, History, Inbox as InboxIcon, Info, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, EyeSlash, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
 import { phoneCountryLabels, phoneCountryOptions } from "./phoneCountries";
 import DOMPurify from "dompurify";
@@ -1533,6 +1533,8 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
+  const [draggingIds, setDraggingIds] = useState<string[]>([]);
+  const [dropTarget, setDropTarget] = useState("");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(true);
@@ -1602,6 +1604,46 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
       request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {});
     } catch (e) { setError(e instanceof Error ? e.message : "Zprávy se nepodařilo přesunout."); }
   }
+  function canDropTo(destination: string) {
+    if (!destination || folderId === "drafts" || ["sent", "drafts"].includes(destination)) return false;
+    if (folderId === "sent" && destination === "inbox") return false;
+    if (folderId === "all") return destination.startsWith("group:");
+    if (destination === "all") return folderId.startsWith("group:");
+    if (folderId.startsWith("group:")) return ["archive", "trash"].includes(destination) || destination.startsWith("group:");
+    return true;
+  }
+  function folderDropProps(destination: string) {
+    return {
+      onDragOver: (event: ReactDragEvent<HTMLElement>) => { if (!canDropTo(destination)) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(destination); },
+      onDragLeave: (event: ReactDragEvent<HTMLElement>) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget((current) => current === destination ? "" : current); },
+      onDrop: (event: ReactDragEvent<HTMLElement>) => {
+        event.preventDefault();
+        const ids = (() => { try { const value = JSON.parse(event.dataTransfer.getData("application/x-viacrm-email-ids")); return Array.isArray(value) ? value.map(String) : []; } catch { return []; } })();
+        setDropTarget(""); setDraggingIds([]);
+        if (ids.length && canDropTo(destination)) void dropMessagesOnFolder(ids, destination);
+      },
+    };
+  }
+  async function dropMessagesOnFolder(ids: string[], destination: string) {
+    if (destination === "important") {
+      try { await request("Email/inbox/important", { method: "POST", body: JSON.stringify({ ids }) }); await load(); }
+      catch (cause) { setError(cause instanceof Error ? cause.message : "Zprávy se nepodařilo označit jako důležité."); }
+      return;
+    }
+    if (destination === "trash") {
+      if (folderId === "trash") return;
+      try { await request("Email/inbox/inTrash", { method: "POST", body: JSON.stringify({ ids }) }); await load(); }
+      catch (cause) { setError(cause instanceof Error ? cause.message : "Zprávy se nepodařilo přesunout do koše."); }
+      return;
+    }
+    await moveMessages(ids, destination === "all" ? "inbox" : destination);
+  }
+  function startEmailDrag(event: ReactDragEvent<HTMLButtonElement>, row: Row) {
+    const ids = selected.includes(row.id) && selected.length > 1 ? selected : [row.id];
+    setDraggingIds(ids); event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-viacrm-email-ids", JSON.stringify(ids));
+    event.dataTransfer.setData("text/plain", ids.length === 1 ? row.subject || "E-mail" : `${ids.length} e-maily`);
+  }
   async function reorderFolder(entity: "EmailFolder" | "GroupEmailFolder", id: string, direction: "Up" | "Down") {
     try { await request(`${entity}/action/move${direction}`, { method: "POST", body: JSON.stringify({ id }) }); setFolderReload((value) => value + 1); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Pořadí složek se nepodařilo změnit."); }
@@ -1625,11 +1667,11 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     const canEdit = canChangeEntity(metadata, entityName, "edit");
     const canDelete = canChangeEntity(metadata, entityName, "delete");
     const entityId = folder.entityId || folder.id;
-    return <div className="mail-folder-row" key={`${entityName}-${folder.id}`}><button className={`mail-folder ${folder.id === folderId ? "active" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{entityName === "GroupEmailFolder" ? <Users size={14}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>{(canEdit || canDelete) && <div className="mail-folder-actions">{canEdit && <><button className="icon-button" title="Posunout nahoru" aria-label={`Posunout složku ${folder.name} nahoru`} disabled={index === 0} onClick={() => void reorderFolder(entityName, entityId, "Up")}><ArrowUp size={12}/></button><button className="icon-button" title="Posunout dolů" aria-label={`Posunout složku ${folder.name} dolů`} disabled={index === list.length - 1} onClick={() => void reorderFolder(entityName, entityId, "Down")}><ArrowDown size={12}/></button><button className="icon-button" title="Upravit složku" aria-label={`Upravit složku ${folder.name}`} onClick={() => setFolderEditor({ entity: entityName, record: { ...folder, id: entityId } })}><Pencil size={12}/></button></>}{canDelete && <button className="icon-button danger-ghost" title="Odstranit složku" aria-label={`Odstranit složku ${folder.name}`} onClick={() => void deleteFolder(entityName, folder)}><Trash2 size={12}/></button>}</div>}</div>;
+    return <div className="mail-folder-row" key={`${entityName}-${folder.id}`}><button {...folderDropProps(folder.id)} className={`mail-folder ${folder.id === folderId ? "active" : ""} ${dropTarget === folder.id ? "drop-target" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{entityName === "GroupEmailFolder" ? <Users size={14}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>{(canEdit || canDelete) && <div className="mail-folder-actions">{canEdit && <><button className="icon-button" title="Posunout nahoru" aria-label={`Posunout složku ${folder.name} nahoru`} disabled={index === 0} onClick={() => void reorderFolder(entityName, entityId, "Up")}><ArrowUp size={12}/></button><button className="icon-button" title="Posunout dolů" aria-label={`Posunout složku ${folder.name} dolů`} disabled={index === list.length - 1} onClick={() => void reorderFolder(entityName, entityId, "Down")}><ArrowDown size={12}/></button><button className="icon-button" title="Upravit složku" aria-label={`Upravit složku ${folder.name}`} onClick={() => setFolderEditor({ entity: entityName, record: { ...folder, id: entityId } })}><Pencil size={12}/></button></>}{canDelete && <button className="icon-button danger-ghost" title="Odstranit složku" aria-label={`Odstranit složku ${folder.name}`} onClick={() => void deleteFolder(entityName, folder)}><Trash2 size={12}/></button>}</div>}</div>;
   };
   return <div className="mail-page">
     <header className="mail-page-heading"><div><div className="eyebrow">KOMUNIKACE</div><h1>E-mail</h1><p>Schránka, složky a zprávy propojené se záznamy CRM.</p></div><div className="mail-heading-actions">{canCreateEntity(metadata, "Email") && <button type="button" className="button subtle" onClick={() => setImportEmlOpen(true)}><FileInput size={14}/>Importovat EML</button>}<button className="button primary" onClick={onCompose}><Plus size={15}/>Napsat e-mail</button></div></header>
-    <section className="mail-surface surface"><aside className="mail-sidebar"><div className="mail-sidebar-title">SCHRÁNKY</div>{systemMailFolders.map((folder) => <button key={folder.id} className={`mail-folder ${folder.id === folderId ? "active" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{folder.id === "inbox" ? <InboxIcon size={16}/> : folder.id === "important" ? <Star size={15}/> : folder.id === "sent" ? <Send size={15}/> : folder.id === "drafts" ? <FileText size={15}/> : folder.id === "archive" ? <Archive size={15}/> : folder.id === "trash" ? <Trash2 size={15}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>)}
+    <section className="mail-surface surface"><aside className="mail-sidebar"><div className="mail-sidebar-title">SCHRÁNKY</div>{systemMailFolders.map((folder) => <button {...folderDropProps(folder.id)} key={folder.id} className={`mail-folder ${folder.id === folderId ? "active" : ""} ${dropTarget === folder.id ? "drop-target" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{folder.id === "inbox" ? <InboxIcon size={16}/> : folder.id === "important" ? <Star size={15}/> : folder.id === "sent" ? <Send size={15}/> : folder.id === "drafts" ? <FileText size={15}/> : folder.id === "archive" ? <Archive size={15}/> : folder.id === "trash" ? <Trash2 size={15}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>)}
       {(folders.length > 0 || canAccessEntity(metadata, "EmailFolder")) && <><div className="mail-sidebar-title custom-folders-title">VLASTNÍ SLOŽKY</div>{folders.map((folder, index) => renderCustomFolder(folder, "EmailFolder", index, folders))}</>}
       {(groupFolders.length > 0 || canAccessEntity(metadata, "GroupEmailFolder")) && <><div className="mail-sidebar-title custom-folders-title">SKUPINOVÉ SLOŽKY</div>{groupFolders.map((folder, index) => renderCustomFolder(folder, "GroupEmailFolder", index, groupFolders))}</>}
       <div className="mail-sidebar-foot">{folders.length} osobních · {groupFolders.length} skupinových složek</div>
@@ -1638,9 +1680,10 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
       {filtersOpen && <form className="mail-filter-panel" onSubmit={(event) => { event.preventDefault(); if (filterDraft.dateFrom && filterDraft.dateTo && filterDraft.dateFrom > filterDraft.dateTo) { setError("Datum od musí být před datem do."); return; } setError(""); setOffset(0); setEmailFilters({ ...filterDraft }); }}><label>Odesílatel<input value={filterDraft.from} onChange={(event) => setFilterDraft((current) => ({ ...current, from: event.target.value }))} placeholder="e-mailová adresa"/></label><label>Předmět<input value={filterDraft.subject} onChange={(event) => setFilterDraft((current) => ({ ...current, subject: event.target.value }))} placeholder="část předmětu"/></label><label>Od data<input type="date" value={filterDraft.dateFrom} onChange={(event) => setFilterDraft((current) => ({ ...current, dateFrom: event.target.value }))}/></label><label>Do data<input type="date" value={filterDraft.dateTo} onChange={(event) => setFilterDraft((current) => ({ ...current, dateTo: event.target.value }))}/></label><div><button type="button" className="button subtle" onClick={() => { const empty = { from: "", subject: "", dateFrom: "", dateTo: "" }; setFilterDraft(empty); setEmailFilters(empty); setOffset(0); }}>Vymazat</button><button type="submit" className="button primary">Použít filtry</button></div></form>}
       {selected.length > 0 && <div className="mail-bulkbar"><span>{selected.length} vybráno</span><button onClick={() => void bulkAction(markAsReadKind)}>{markAsReadKind === "read" ? "Označit jako přečtené" : "Označit jako nepřečtené"}</button><button onClick={() => void bulkAction(markImportantKind)}><Star size={14}/>{markImportantKind === "important" ? "Označit důležité" : "Odebrat důležitost"}</button><button type="button" onClick={() => { setFolderPicker({ ids: selected, groupOnly: folderId.startsWith("group:") || folderId === "all", allowArchive: folderId !== "all" }); setFolderPickerSearch(""); }}><Folder size={14}/>Přesunout do…</button><button className="mail-trash-action" onClick={() => void bulkAction("trash")}><Trash2 size={14}/>{folderId === "trash" ? "Obnovit" : "Koš"}</button></div>}
       {error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
-      <div className="mail-list-head"><label><input type="checkbox" aria-label="Vybrat všechny zprávy na stránce" checked={rows.length > 0 && selected.length === rows.length} onChange={(e) => setSelected(e.target.checked ? rows.map((row) => row.id) : [])}/></label><span>ZPRÁVA</span><span>OD / VZTAH</span><span>DATUM</span></div>
-      <div className="mail-list">{busy ? <div className="mail-loading"><span className="spinner"/>Načítám zprávy…</div> : rows.length ? rows.map((row) => <div className={`mail-row ${row.isRead ? "" : "unread"} ${selected.includes(row.id) ? "selected" : ""}`} key={row.id}>
+      <div className="mail-list-head"><label><input type="checkbox" aria-label="Vybrat všechny zprávy na stránce" checked={rows.length > 0 && selected.length === rows.length} onChange={(e) => setSelected(e.target.checked ? rows.map((row) => row.id) : [])}/></label><span aria-hidden="true"/><span aria-hidden="true"/><span>ZPRÁVA</span><span>OD / VZTAH</span><span>DATUM</span></div>
+      <div className="mail-list">{busy ? <div className="mail-loading"><span className="spinner"/>Načítám zprávy…</div> : rows.length ? rows.map((row) => <div className={`mail-row ${row.isRead ? "" : "unread"} ${selected.includes(row.id) ? "selected" : ""} ${draggingIds.includes(row.id) ? "dragging" : ""}`} key={row.id} onDragEnd={() => { setDraggingIds([]); setDropTarget(""); }}>
         <label className="mail-check" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={selected.includes(row.id)} onChange={(e) => setSelected((old) => e.target.checked ? [...old, row.id] : old.filter((id) => id !== row.id))}/></label>
+        <button type="button" className="mail-drag-handle" draggable={canChangeEntity(metadata, "Email", "edit") && folderId !== "drafts"} aria-label={`Přesunout zprávu ${row.subject || "bez předmětu"}; pro přesun klávesnicí použijte akci složky`} title="Přetáhnout do složky" onDragStart={(event) => startEmailDrag(event, row)} onClick={() => { const groupOnly = Boolean(row.groupFolderId) || !row.isUsers; setFolderPicker({ ids: [row.id], groupOnly, allowArchive: Boolean(row.groupFolderId) || Boolean(row.isUsers) }); setFolderPickerSearch(""); }}><GripVertical size={15}/></button>
         <button className="mail-star" aria-label={row.isImportant ? "Odebrat důležitost" : "Označit jako důležité"} title={row.isImportant ? "Odebrat důležitost" : "Označit jako důležité"} onClick={async () => { try { await request("Email/inbox/important", { method: row.isImportant ? "DELETE" : "POST", body: JSON.stringify({ id: row.id }) }); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Změna se nepodařila."); } }}><Star size={15} fill={row.isImportant ? "currentColor" : "none"}/></button>
         <button className="mail-row-main" onClick={() => onOpenRecord(row)}><span className="mail-subject">{row.subject || "(bez předmětu)"}{row.hasAttachment && <Paperclip size={13}/>}</span><span className="mail-preview">{row.personStringData || row.fromString || row.fromName || "Neznámý odesílatel"}</span></button>
         <button className="mail-related" onClick={() => onOpenRecord(row)}>{row.parentName || row.parent?.name || row.fromAddress || row.fromString || "—"}</button>
