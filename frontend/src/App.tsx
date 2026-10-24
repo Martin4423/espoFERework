@@ -823,7 +823,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         ? <CalendarView metadata={metadata} userId={calendarUser?.id} userName={calendarUser?.name || calendarUser?.userName} onOpenRecord={(name, row) => { setCalendarUser(null); setEntity(name); setRecord(row); }} />
         : entity === "Email" && !isPortalUser ? <EmailInbox metadata={metadata} refresh={emailRefresh} onCompose={() => setEmailDraft({})} onOpenRecord={(row) => { if (row.status === "Draft") setEmailDraft({ id: row.id, status: "Draft" }); else setRecord(row); }} />
         : entity ? <EntityView key={entity} entity={entity} metadata={metadata} onOpenRecord={setRecord} onNavigateEntity={openEntity} fixedWhere={entityFixedWhere} />
-        : isPortalUser && Array.isArray(portalSettings.dashboardLayout) && portalSettings.dashboardLayout.length ? <Dashboard entities={navEntities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} layoutOverride={portalSettings.dashboardLayout} optionsOverride={portalSettings.dashletsOptions || {}} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openQuickCreate} onComposeEmail={() => {}} />
+        : isPortalUser && Array.isArray(portalSettings.dashboardLayout) && portalSettings.dashboardLayout.length ? <Dashboard entities={navEntities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} layoutOverride={portalSettings.dashboardLayout} optionsOverride={portalSettings.dashletsOptions} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openQuickCreate} onComposeEmail={() => {}} />
         : isPortalUser ? <PortalHome metadata={metadata} user={user} portalName={portalName} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onAvailableChange={updatePortalScopes} />
         : <Dashboard entities={entities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openDashboardCreate} onComposeEmail={() => setEmailDraft({})} />}
       </main>
@@ -2966,7 +2966,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, on
       else if (value !== undefined && value !== "") payload[name] = value;
       if (def.type === "linkMultiple" && def.columns) payload[`${name}Columns`] = values[`${name}Columns`] || {};
     }
-    if (entity === "DashboardTemplate" || entity === "Portal" && fieldMap.has("dashletsOptions")) payload.dashletsOptions = values.dashletsOptions || {};
+    if (entity === "DashboardTemplate" || entity === "Portal") payload.dashletsOptions = values.dashletsOptions || {};
     if (entity === "EmailTemplate" && initialValues.oneOff) payload.oneOff = true;
     if (entity === "User" && fields.some(([name]) => name === "teams")) payload.teamsColumns = values.teamsColumns || {};
     if (entity === "Meeting") {
