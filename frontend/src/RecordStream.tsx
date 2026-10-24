@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ArrowDown, ArrowDownToLine, Check, ExternalLink, FileImage, FileText, MessageSquare, Paperclip, Pin, RefreshCw, Send, Star, Trash2, X } from "./Icons";
-import { canAccessEntity, downloadAttachment, getAttachmentPreviewUrl, getSession, request, uploadAttachment } from "./api";
+import { aclLevel, canAccessEntity, downloadAttachment, getAttachmentPreviewUrl, getSession, request, uploadAttachment } from "./api";
 import type { Metadata } from "./api";
 import EspoIcon from "./EspoIcon";
 import ImagePreviewDialog from "./ImagePreviewDialog";
@@ -315,6 +315,8 @@ export function StreamItem({ note, metadata, reactions, currentUserId, busy, onR
   const type = note.type || "Update";
   const author = note.createdByName || "EspoCRM";
   const isOwnPost = note.createdById && currentUserId === note.createdById;
+  const noteEditAcl = aclLevel(metadata, "Note", "edit");
+  const canEditPost = type === "Post" && (noteEditAcl === "all" || Boolean(isOwnPost && noteEditAcl !== "no"));
   const systemText: Record<string, string> = { Create: "vytvořil/a záznam", CreateRelated: "vytvořil/a související záznam", Update: "upravil/a záznam", Status: "změnil/a stav", Assign: "změnil/a přiřazení", Relate: "propojil/a záznam", Unrelate: "odpojil/a záznam", EmailReceived: "přijal/a e-mail", EmailSent: "odeslal/a e-mail" };
   const attachmentIds: string[] = note.attachmentsIds || [];
   const attachmentNames: Record<string, string> = note.attachmentsNames || {};
@@ -332,8 +334,8 @@ export function StreamItem({ note, metadata, reactions, currentUserId, busy, onR
         {onOpen && <button className="stream-item-action" onClick={() => onOpen(note)} title="Otevřít samostatný záznam poznámky"><ExternalLink size={13}/> Otevřít</button>}
         {onOpenParent && (note.parentId || note.entityId) && <button className="stream-item-action" onClick={() => onOpenParent(note)} title="Otevřít související záznam"><ExternalLink size={13}/> {note.parentName || "Související záznam"}</button>}
         {allowQuote && type === "Post" && note.post && <button className="stream-item-action" onClick={() => onQuote(note)} title="Citovat v odpovědi"><MessageSquare size={13}/> Odpovědět citací</button>}
-        {isOwnPost && type === "Post" && <button className="stream-item-action" onClick={() => { setDraft(note.post || ""); setEditError(""); setEditing(true); }} disabled={busy}>Upravit</button>}
-        {isOwnPost && type === "Post" && <button className="stream-item-action danger" onClick={() => onRemove(note)} disabled={busy} title="Odstranit příspěvek"><Trash2 size={13}/></button>}
+        {canEditPost && <button className="stream-item-action" onClick={() => { setDraft(note.post || ""); setEditError(""); setEditing(true); }} disabled={busy}>Upravit</button>}
+        {canEditPost && <button className="stream-item-action danger" onClick={() => onRemove(note)} disabled={busy} title="Odstranit příspěvek"><Trash2 size={13}/></button>}
         {allowPin && type === "Post" && <button className={`stream-item-action ${pinned ? "is-on" : ""}`} onClick={() => onPin(note)} disabled={busy} title={pinned ? "Odepnout" : "Připnout"}><Pin size={13}/>{pinned ? "Připnuto" : "Připnout"}</button>}
       </div>
     </div>
