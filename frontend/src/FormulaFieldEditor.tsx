@@ -30,14 +30,25 @@ export default function FormulaFieldEditor({ entity, metadata, name, label, valu
     const result = new Set<string>(["id"]);
     const addFields = (scope: string, prefix = "") => {
       for (const [field, fieldDef] of Object.entries(metadata.entityDefs?.[scope]?.fields || {})) {
-        if (fieldDef.disabled || fieldDef.utility || fieldDef.available === false || fieldDef.notStorable || ["map", "linkMultiple", "attachmentMultiple"].includes(fieldDef.type || "")) continue;
-        result.add(`${prefix}${field}`);
+        const fieldMetadata = metadata.fields?.[fieldDef.type || ""];
+        const actualFields = fieldMetadata?.actualFields;
+        if (!actualFields?.length) {
+          result.add(`${prefix}${field}`);
+          continue;
+        }
+        const naming = fieldMetadata?.naming || "suffix";
+        for (const part of actualFields) {
+          const attribute = !part ? field : naming === "prefix"
+            ? `${part}${field[0].toUpperCase()}${field.slice(1)}`
+            : `${field}${part[0].toUpperCase()}${part.slice(1)}`;
+          result.add(`${prefix}${attribute}`);
+        }
       }
     };
     addFields(targetEntity);
     const links = metadata.entityDefs?.[targetEntity]?.links || {};
     for (const [link, linkDef] of Object.entries(links)) {
-      if (!linkDef.entity || !["belongsToParent", "hasOne", "belongsTo"].includes(linkDef.type || "")) continue;
+      if (!linkDef.entity || (linkDef as any).disabled || (linkDef as any).utility || !["belongsToParent", "hasOne", "belongsTo"].includes(linkDef.type || "")) continue;
       addFields(linkDef.entity, `${link}.`);
     }
     return [...result].sort((a, b) => a.localeCompare(b, "cs"));
