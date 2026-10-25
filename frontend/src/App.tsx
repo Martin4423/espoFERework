@@ -19,6 +19,7 @@ import { Lock } from "lucide-react";
 import { fieldErrorsText } from "./problem.ts";
 import { startRealtime } from "./realtime.ts";
 import RecordFiles from "./RecordFiles.tsx";
+import LeadConversion from "./LeadConversion.tsx";
 import { Login } from "./Login.tsx";
 import { NotAvailable } from "./NotAvailable.tsx";
 import { isUnsupportedScope } from "./unsupported.ts";
@@ -3800,6 +3801,18 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   const [record, setRecord] = useState(() => entity === "AppSecret" ? { ...initial, value: "" } : initial);
   const [fullRecordLoaded, setFullRecordLoaded] = useState(false);
   const [fullRecordError, setFullRecordError] = useState("");
+  // the server changes records too (quote totals after a line changed): an open record follows its live update
+  const recordId = String(record.id || "");
+  useEffect(() => {
+    if (!recordId) return;
+    const onRealtime = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.event !== "record" || detail.data?.id !== recordId || detail.data?.action !== "update") return;
+      void request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(recordId)}`).then((fresh) => setRecord((old: Row) => ({ ...old, ...fresh }))).catch(() => {});
+    };
+    window.addEventListener("via-realtime", onRealtime);
+    return () => window.removeEventListener("via-realtime", onRealtime);
+  }, [entity, recordId]);
   useEffect(() => {
     let live = true;
     setRecord(entity === "AppSecret" ? { ...initial, value: "" } : initial);
@@ -4195,128 +4208,6 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   {dashboardDeployOpen && <DashboardTemplateDeploy id={record.id} name={record.name || "Dashboard"} onClose={() => setDashboardDeployOpen(false)} onComplete={setUserNotice}/>}{editor && <RecordEditor entity={entity} fields={getEditorFields(metadata, entity)} metadata={metadata} record={record} onClose={() => changeEditor(false)} onSaved={(next) => { const safeNext = entity === "AppSecret" ? { ...next, value: "" } : next; changeEditor(false); setRecord(safeNext); onChanged(safeNext); }} />}{duplicateValues && <RecordEditor entity={entity} fields={getEditorFields(metadata, entity)} metadata={metadata} initialValues={duplicateValues} duplicate onClose={() => setDuplicateValues(null)} onSaved={(created) => { setDuplicateValues(null); onClose(); onOpenRelated(entity, created); }}/ >}{convertOpen && <LeadConversion metadata={metadata} lead={record} onClose={() => setConvertOpen(false)} onOpenRecord={onOpenRelated} onConverted={(next) => { setRecord(next); onChanged(next); setConvertOpen(false); }}/>}{personalDataOpen && <PersonalDataDialog entity={entity} record={record} fields={personalFields.map(({ name, def, value, attributes, canErase }) => ({ name, def, value, attributes, canErase, label: fieldLabel(name, def, entity, metadata) }))} canErase={canErasePersonalData} onClose={() => setPersonalDataOpen(false)} onErased={(next) => { setRecord(next); onChanged(next); }}/>}</>;
 }
 
-function LeadConversion({ metadata, lead, onClose, onOpenRecord, onConverted }: { metadata: Metadata; lead: Row; onClose: () => void; onOpenRecord: (entity: string, row: Row) => void; onConverted: (record: Row) => void }) {
-  const [scopes, setScopes] = useState<string[]>([]);
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [values, setValues] = useState<Record<string, Row>>({});
-  const [layouts, setLayouts] = useState<Record<string, DetailLayoutPanel[]>>({});
-  const [busy, setBusy] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [duplicate, setDuplicate] = useState(false);
-  const [duplicateRows, setDuplicateRows] = useState<Row[] | null>(null);
-  const configuredScopes: string[] = (metadata.entityDefs?.Lead as any)?.convertEntityList || [];
-  const b2cMode = Boolean(metadata.appSettings?.b2cMode);
-  const conversionFields = (scope: string) => getFormFields(metadata, scope).filter(([name]) => {
-    const acl = (metadata.userAcl?.fieldTable as any)?.[scope]?.[name];
-    return !["no", "hidden"].includes(acl?.read) && !["no", "hidden"].includes(acl?.edit);
-  });
-  const logicFor = (scope: string, name: string) => (metadata.logicDefs as any)?.[scope]?.fields?.[name] || {};
-  const fieldIsVisible = (scope: string, name: string) => {
-    const condition = logicFor(scope, name).visible?.conditionGroup;
-    return !condition || conditionGroupMatches({ conditionGroup: condition }, values[scope] || {}, getSession()?.user as any);
-  };
-  const conversionFieldDef = (scope: string, name: string, original: FieldDef) => {
-    const logic = logicFor(scope, name);
-    let def = { ...original };
-    if (logic.required?.conditionGroup && conditionGroupMatches(logic.required, values[scope] || {}, getSession()?.user as any)) def.required = true;
-    if (logic.readOnly?.conditionGroup && conditionGroupMatches(logic.readOnly, values[scope] || {}, getSession()?.user as any)) def.readOnly = true;
-    const optionRules = (metadata.logicDefs as any)?.[scope]?.options?.[name];
-    if (Array.isArray(optionRules)) {
-      const match = optionRules.find((rule: Row) => conditionGroupMatches(rule, values[scope] || {}, getSession()?.user as any));
-      if (match) def.options = match.optionList || [];
-    }
-    return def;
-  };
-  useEffect(() => {
-    let live = true;
-    if (!configuredScopes.length) { setBusy(false); return () => { live = false; }; }
-    Promise.all([request<Row>("Lead/action/getConvertAttributes", { method: "POST", body: JSON.stringify({ id: lead.id }) }), ...configuredScopes.map((scope) => fetchLayout<DetailLayoutPanel[]>(scope, "detailConvert").catch(() => [] as DetailLayoutPanel[]))]).then(([attributes, ...layoutList]) => {
-      if (!live) return;
-      const available = configuredScopes.filter((scope) => scope !== "Account" || !b2cMode).filter((scope) => !metadata.scopes?.[scope]?.disabled && canCreateEntity(metadata, scope) && Boolean(attributes?.[scope]) && metadata.entityDefs?.[scope]?.fields);
-      setScopes(available);
-      setValues(Object.fromEntries(available.map((scope) => {
-        const initial = { ...(attributes[scope] || {}) };
-        for (const [name, def] of conversionFields(scope)) {
-          if (["link", "linkOne"].includes(def.type || "")) initial[name] = initial[`${name}Id`] || "";
-          if (def.type === "linkMultiple") initial[name] = initial[`${name}Ids`] || [];
-          if (def.type === "personName") initial[name] = { firstName: initial[personNameAttribute(name, "first")] || "", middleName: initial[personNameAttribute(name, "middle")] || "", lastName: initial[personNameAttribute(name, "last")] || "", salutationName: initial[`salutation${name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1)}`] || "" };
-          if (["file", "image"].includes(def.type || "")) initial[name] = initial[`${name}Id`] ? { id: initial[`${name}Id`], name: initial[`${name}Name`] || "Soubor" } : null;
-          if (def.type === "attachmentMultiple") initial[name] = (initial[`${name}Ids`] || []).map((id: string) => ({ id, name: initial[`${name}Names`]?.[id] || id, type: initial[`${name}Types`]?.[id] || "" }));
-        }
-        return [scope, initial];
-      })));
-      setSelected(Object.fromEntries(available.map((scope) => [scope, false])));
-      setLayouts(Object.fromEntries(available.map((scope) => [scope, layoutList[configuredScopes.indexOf(scope)] || []])));
-    }).catch((cause) => live && setError(cause instanceof Error ? cause.message : "Údaje pro převod nelze načíst.")).finally(() => live && setBusy(false));
-    return () => { live = false; };
-  }, [lead.id, metadata, configuredScopes.join(",")]);
-  function convertPayload(scope: string) {
-    const raw = values[scope] || {};
-    const payload: Row = {};
-    for (const [name, def] of conversionFields(scope)) {
-      const value = raw[name];
-      if (def.type === "bool") payload[name] = Boolean(value);
-      else if (def.type === "linkMultiple") payload[`${name}Ids`] = Array.isArray(value) ? value : [];
-      else if (["link", "linkOne"].includes(def.type || "")) payload[`${name}Id`] = value || null;
-      else if (def.type === "linkParent") { payload[`${name}Type`] = value?.type || null; payload[`${name}Id`] = value?.id || null; }
-      else if (def.type === "personName") { const suffix = name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1); payload[`salutation${suffix}`] = value?.salutationName || ""; payload[personNameAttribute(name, "first")] = value?.firstName || ""; payload[personNameAttribute(name, "middle")] = value?.middleName || ""; payload[personNameAttribute(name, "last")] = value?.lastName || ""; }
-      else if (def.type === "address") { for (const [part, suffix] of [["street", "Street"], ["city", "City"], ["state", "State"], ["postalCode", "PostalCode"], ["country", "Country"]]) payload[`${name}${suffix}`] = value?.[part] || ""; }
-      else if (["file", "image"].includes(def.type || "")) { payload[`${name}Id`] = value?.id || null; payload[`${name}Name`] = value?.name || null; }
-      else if (def.type === "attachmentMultiple") { const list = Array.isArray(value) ? value : []; payload[`${name}Ids`] = list.map((item: Row) => item.id); payload[`${name}Names`] = Object.fromEntries(list.map((item: Row) => [item.id, item.name])); payload[`${name}Types`] = Object.fromEntries(list.map((item: Row) => [item.id, item.type || ""])); }
-      else if (def.type === "currency") { payload[name] = value === "" || value == null ? null : Number(value); payload[`${name}Currency`] = raw[`${name}Currency`] || metadata.appSettings?.defaultCurrency || (metadata.app as any)?.currency?.list?.[0] || "USD"; }
-      else if (["int", "float", "enumInt"].includes(def.type || "") && value !== "" && value != null) payload[name] = Number(value);
-      else if (["array", "urlMultiple", "checklist"].includes(def.type || "") && typeof value === "string") payload[name] = value.split("\n").map((item: string) => item.trim()).filter(Boolean);
-      else if (value !== undefined && value !== "") payload[name] = value;
-    }
-    return payload;
-  }
-  function updateConversionValue(scope: string, name: string, value: any) {
-    setDuplicate(false); setDuplicateRows(null); setError("");
-    setValues((old) => ({ ...old, [scope]: { ...old[scope], [name]: value } }));
-  }
-  async function convert(skipDuplicateCheck = false) {
-    const chosen = scopes.filter((scope) => selected[scope]);
-    if (!chosen.length) { setError("Vyberte alespoň jeden záznam k vytvoření."); return; }
-    const invalid = chosen.flatMap((scope) => conversionFields(scope).filter(([name, def]) => {
-      const logic = logicFor(scope, name);
-      const dynamicallyRequired = Boolean(logic.required?.conditionGroup && conditionGroupMatches(logic.required, values[scope] || {}, getSession()?.user as any));
-      const visible = fieldIsVisible(scope, name);
-      const value = values[scope]?.[name];
-      const empty = value == null || value === "" || Array.isArray(value) && !value.length || typeof value === "object" && !Array.isArray(value) && !value.id && !value.type && !Object.values(value).some(Boolean);
-      return visible && (def.required || dynamicallyRequired) && empty;
-    }).map(([name]) => `${entityLabel(metadata, scope)}: ${fieldLabel(name, metadata.entityDefs?.[scope]?.fields?.[name], scope, metadata)}`));
-    if (invalid.length) { setError(`Doplňte povinná pole: ${invalid.join(", ")}.`); return; }
-    setSaving(true); setError(""); setDuplicate(false); if (skipDuplicateCheck) setDuplicateRows(null);
-    try {
-      const updated = await request<Row>("Lead/action/convert", { method: "POST", body: JSON.stringify({ id: lead.id, records: Object.fromEntries(chosen.map((scope) => [scope, convertPayload(scope)])), ...(skipDuplicateCheck ? { skipDuplicateCheck: true } : {}) }) });
-      onConverted(updated);
-    } catch (cause) {
-      if (cause instanceof ApiError && cause.status === 409 && cause.statusReason?.reason === "duplicate") {
-        const response = cause.statusReason.data ?? cause.data;
-        const rows = Array.isArray(response) ? response : Array.isArray((response as Row)?.duplicates) ? (response as Row).duplicates : Array.isArray((response as Row)?.list) ? (response as Row).list : [];
-        setDuplicateRows(rows); setDuplicate(true); setError("EspoCRM našlo podobné záznamy. Před pokračováním zkontrolujte, zda už neexistují.");
-      }
-      else setError(cause instanceof Error ? cause.message : "Zájemce se nepodařilo převést.");
-    } finally { setSaving(false); }
-  }
-  return <><div className="modal-backdrop lead-convert-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !duplicateRows && onClose()}><section className="record-modal lead-convert-modal"><div className="modal-heading"><div><span className="eyebrow">ZÁJEMCE · PŘEVOD</span><h2>Převést {lead.name || [lead.firstName, lead.lastName].filter(Boolean).join(" ") || "zájemce"}</h2><p>Vyberte záznamy, které se mají vytvořit. Pole jsou předvyplněná údaji zájemce.</p></div><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
-    {error && <div className={duplicate ? "duplicate-notice" : "inline-error"}>{error}</div>}
-    <div className="lead-convert-content">{busy ? <div className="table-loading"><span className="spinner"/> Připravuji převod…</div> : scopes.length ? scopes.map((scope) => {
-      const fields = conversionFields(scope);
-      const map = new Map(fields);
-      const used = new Set<string>();
-      const groups = (layouts[scope] || []).flatMap((panel, index) => {
-        const names = (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name && map.has(item.name) && !used.has(item.name) ? [item.name] : []);
-        names.forEach((name) => used.add(name));
-        return names.length ? [{ label: panel.label || (index ? `Další údaje ${index + 1}` : "Základní údaje"), names }] : [];
-      });
-      if (!groups.length && fields.length) groups.push({ label: "Základní údaje", names: fields.map(([name]) => name) });
-      return <section className={`lead-convert-entity ${selected[scope] ? "selected" : ""}`} key={scope}><label className="lead-convert-select"><input type="checkbox" checked={Boolean(selected[scope])} onChange={(event) => { setSelected((old) => ({ ...old, [scope]: event.target.checked })); setDuplicate(false); setDuplicateRows(null); }}/><span><strong>{entityLabel(metadata, scope, true)}</strong><small>Vytvořit nový záznam</small></span></label>{selected[scope] && <div className="lead-convert-fields">{groups.map((group) => { const visibleNames = group.names.filter((name) => fieldIsVisible(scope, name)); return visibleNames.length ? <div className="lead-convert-group" key={group.label}><h3>{group.label}</h3><div className="modal-fields">{visibleNames.map((name) => <FieldInput key={`${scope}-${name}`} entity={scope} metadata={metadata} name={name} def={conversionFieldDef(scope, name, map.get(name)!)} value={values[scope]?.[name]} currencyValue={values[scope]?.[`${name}Currency`]} onCurrencyChange={(currency) => updateConversionValue(scope, `${name}Currency`, currency)} onChange={(value) => updateConversionValue(scope, name, value)}/>)}</div></div> : null; })}</div>}</section>;
-    }) : <div className="empty-state">Nemáte oprávnění k vytvoření převodních záznamů nebo tato instalace převod nepodporuje.</div>}</div>
-    <div className="modal-footer"><button className="button subtle" onClick={onClose} disabled={saving}>Zrušit</button><button className="button primary" onClick={() => void convert(false)} disabled={busy || saving || !scopes.length}>{saving ? "Převádím…" : "Převést"}</button></div></section></div>
-    {duplicateRows && <div className="modal-backdrop duplicate-check-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !saving && setDuplicateRows(null)}><section className="record-modal duplicate-check-dialog" role="dialog" aria-modal="true" aria-labelledby="lead-duplicate-title"><div className="modal-heading"><div><span className="eyebrow">KONTROLA DUPLICIT · PŘEVOD LEADU</span><h2 id="lead-duplicate-title">Podobné záznamy už existují</h2><p>Otevřete nalezené záznamy a ověřte, zda nejde o stejné osoby nebo firmy. Pokračovat můžete i přesto.</p></div><button type="button" className="icon-button" disabled={saving} onClick={() => setDuplicateRows(null)} aria-label="Zavřít"><X size={16}/></button></div><div className="duplicate-check-table-wrap"><table className="duplicate-check-table"><thead><tr><th>Záznam</th><th>Typ</th><th>Otevřít</th></tr></thead><tbody>{duplicateRows.map((row, index) => { const scope = String(row._entityType || row.entityType || ""); const name = String(row.name || row.emailAddress || row.id || "Záznam"); return <tr key={row.id || index}><td>{name}</td><td>{scope ? entityLabel(metadata, scope) : "—"}</td><td>{scope && row.id ? <button type="button" className="button subtle" onClick={() => onOpenRecord(scope, { id: row.id, name })}><ExternalLink size={13}/>Otevřít</button> : "—"}</td></tr>; })}</tbody></table>{!duplicateRows.length && <div className="duplicate-check-empty">CRM našlo podobnost, ale seznam záznamů nevrátilo.</div>}</div><div className="modal-footer"><button type="button" className="button subtle" disabled={saving} onClick={() => setDuplicateRows(null)}>Zpět k úpravě</button><button type="button" className="button danger" disabled={saving} onClick={() => void convert(true)}>{saving ? "Převádím…" : "Přesto převést"}</button></div></section></div>}</>;
-}
 
 function inboundEmailFieldVisible(name: string, values: Row): boolean {
   const smtpFields = ["smtpHost", "smtpPort", "smtpAuth", "smtpSecurity", "smtpTestSend", "fromName", "smtpIsShared", "smtpIsForMassEmail"];

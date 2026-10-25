@@ -27,7 +27,8 @@ Větev `dot-net`. Navazuje na `docs/BACKEND-MIGRATION-ANALYSIS.md` (co se mění
 | B2 | hotovo (`/v1/me/preferences`, per-user JSON; slouží uloženým filtrům, kalendáři, záložkám) |
 | S5 | hotovo (filtry vč. datumových předvoleb, uložené filtry v preferencích, hromadné mazání a úprava, související záznamy) |
 | S6 | hotovo (příspěvky se zmínkami, historie změn, sledování, notifikace, živý SSE stream, soubory záznamu) |
-| S7 a dál | čeká |
+| S7 | hotovo (převod leadu přes `/convert`, kanban podle fáze/stavu, součty nabídek živě, úkoly a stavy, kalendář z `/v1/calendar`) |
+| S8 a dál | čeká |
 
 ## Kroky
 

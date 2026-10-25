@@ -1,6 +1,7 @@
 import { UnsupportedError } from "../problem.ts";
 import { fieldOf, schemaOf } from "./schema.ts";
 import { toViaDateTime } from "./records.ts";
+import { toViaEnum } from "./enums.ts";
 
 // The screens describe filters as a tree of `where` items (type, attribute, value). ViaCRM takes the filter DSL of
 // docs/contract m3b: {and|or|not} groups and {field, op, value} comparisons.
@@ -21,6 +22,7 @@ function unsupported(what: string): never {
 function typed(entityKey: string, key: string, value: any): any {
   const field = fieldOf(entityKey, key);
   if (field?.type === "dateTime") return toViaDateTime(value);
+  if (field?.type === "enum") return toViaEnum(entityKey, key, value);
   if (field?.type === "decimal" && typeof value === "number") return String(value);
   return value;
 }

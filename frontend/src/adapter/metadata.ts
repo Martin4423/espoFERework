@@ -2,6 +2,7 @@ import { apiJson } from "../http.ts";
 import { getLocale } from "../i18n/index.ts";
 import { UNSUPPORTED_SCOPES } from "../unsupported.ts";
 import { keyOf, scopeOf, screenField } from "./names.ts";
+import { optionLabel, screenOptions } from "./enums.ts";
 import { reverseLinks, setSchema } from "./schema.ts";
 import { clearLookupCache } from "./lookup.ts";
 import type { FieldDef, Metadata, UserAcl } from "../api";
@@ -27,8 +28,23 @@ const ICONS: Record<string, string> = {
 };
 const CALENDAR = new Set(["task", "call", "meeting"]);
 
+// The enum that says where a record is in its life (the kanban columns): `stage`, else `status`.
+function statusFieldOf(entity: ViaEntityMeta): string | undefined {
+  return ["stage", "status"].find((key) => entity.fields.some((field) => field.key === key && field.type === "enum"));
+}
+
+const STYLES: Record<string, string> = { won: "success", lost: "danger", converted: "success", dead: "danger", accepted: "success", declined: "danger", expired: "warning", completed: "success", canceled: "danger", held: "success", notHeld: "danger", urgent: "danger", high: "warning" };
+
+function enumDef(base: FieldDef, entityKey: string, fieldKey: string, options: string[] | undefined): FieldDef {
+  const shown = screenOptions(entityKey, fieldKey, options) ?? [];
+  const via = options ?? [];
+  const translatedOptions = Object.fromEntries(shown.map((value, index) => [value, optionLabel(via[index] ?? value)]));
+  const style = Object.fromEntries(via.flatMap((value, index) => (STYLES[value] ? [[shown[index], STYLES[value]]] : [])));
+  return { ...base, options: shown, translatedOptions, ...(Object.keys(style).length ? { style } : {}) };
+}
+
 // One ViaCRM field -> the definition the screens expect. Returns the screen field name too (ownerId -> assignedUser ...).
-export function toFieldDef(field: ViaFieldMeta): [string, FieldDef] {
+export function toFieldDef(field: ViaFieldMeta, entityKey = ""): [string, FieldDef] {
   const name = screenField(field.key);
   const p = field.properties ?? {};
   const base: FieldDef = { label: field.label, required: field.required, readOnly: field.readOnly };
@@ -42,8 +58,8 @@ export function toFieldDef(field: ViaFieldMeta): [string, FieldDef] {
     case "boolean": return [name, { ...base, type: "bool" }];
     case "date": return [name, { ...base, type: "date" }];
     case "dateTime": return [name, { ...base, type: "datetime" }];
-    case "enum": return [name, { ...base, type: "enum", options: p.options }];
-    case "multiEnum": return [name, { ...base, type: "multiEnum", options: p.options }];
+    case "enum": return [name, enumDef({ ...base, type: "enum" }, entityKey, field.key, p.options)];
+    case "multiEnum": return [name, enumDef({ ...base, type: "multiEnum" }, entityKey, field.key, p.options)];
     case "email": return [name, { ...base, type: "varchar", maxLength: 254, viaType: "email" }];
     case "phone": return [name, { ...base, type: "varchar", maxLength: 40, viaType: "phone" }];
     case "url": return [name, { ...base, type: "url", maxLength: 2048 }];
@@ -96,13 +112,14 @@ export function buildMetadata(source: ViaEntities, perms: ViaPermissions): Metad
     const scope = scopeOf(entity.key);
     scopes[scope] = {
       entity: true, object: true, tab: !NO_TAB.has(entity.key), layouts: true, acl: true, stream: !NO_TAB.has(entity.key), calendar: CALENDAR.has(entity.key),
+      statusField: statusFieldOf(entity), kanbanOrderDisabled: true,
       importable: false, customizable: perms.isAdmin, isCustom: !entity.builtIn, isNotRemovable: true, type: "Base", order: index,
       entityManager: { fields: true, addField: true, edit: true, relationships: false },
     } as Metadata["scopes"][string];
     const fields: Record<string, FieldDef> = {};
     const links: Record<string, { entity?: string; type?: string }> = {};
     for (const field of entity.fields) {
-      const [name, def] = toFieldDef(field);
+      const [name, def] = toFieldDef(field, entity.key);
       fields[name] = def;
       if (def.type === "link") links[name] = { entity: def.entity as string, type: "belongsTo" };
       if (field.key === "ownerId") { fields[name] = { ...def, type: "link", entity: "User" }; links[name] = { entity: "User", type: "belongsTo" }; }
@@ -122,7 +139,7 @@ export function buildMetadata(source: ViaEntities, perms: ViaPermissions): Metad
       links[reverse.name] = { entity: scopeOf(reverse.entityKey), type: "hasMany", foreign: reverse.field } as { entity?: string; type?: string };
       panels.push({ name: reverse.name, label: from.labelPlural });
     }
-    clientDefs[scope] = { iconClass: ICONS[scope] ?? "fas fa-cube", ...(panels.length ? { bottomPanels: { detail: panels } } : {}) };
+    clientDefs[scope] = { iconClass: ICONS[scope] ?? "fas fa-cube", ...(statusFieldOf(entity) ? { kanbanViewMode: true } : {}), ...(panels.length ? { bottomPanels: { detail: panels } } : {}) };
     labels[scope] = { fields: Object.fromEntries(Object.entries(fields).map(([name, def]) => [name, String(def.label ?? name)])) };
   });
 

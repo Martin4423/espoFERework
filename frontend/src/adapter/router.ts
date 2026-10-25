@@ -7,6 +7,8 @@ import { keyOf, screenField } from "./names.ts";
 import { toFilter } from "./where.ts";
 import { createNote, deleteNote, filesOf, followersOf, getNote, setFollowing, streamList, updateNote } from "./stream.ts";
 import { markRead, notificationList, setRead, unreadCount } from "./notifications.ts";
+import { toScreenEnum } from "./enums.ts";
+import { toScreenDateTime, toViaDateTime } from "./records.ts";
 import { rememberUsers } from "./lookup.ts";
 import type { FilterNode } from "./where.ts";
 import { auth } from "../http.ts";
@@ -149,6 +151,50 @@ async function write(entityKey: string, run: () => Promise<any>): Promise<any> {
   }
 }
 
+// ---- kanban: one list per option of the status field ----
+async function kanban(scope: string, params: URLSearchParams): Promise<any> {
+  const entityKey = keyOf(scope);
+  const entity = schemaOf(entityKey);
+  const statusField = ["stage", "status"].find((key) => entity?.fields.some((field) => field.key === key && field.type === "enum"));
+  if (!entity || !statusField) throw new UnsupportedError(`Kanban/${scope}`);
+  const options = entity.fields.find((field) => field.key === statusField)?.properties.options as string[];
+  const groups = await Promise.all(options.map(async (option) => {
+    const query = new URLSearchParams(params);
+    const where = [...whereItems(params), { type: "equals", attribute: statusField, value: toScreenEnum(entityKey, statusField, option) }];
+    query.delete("where"); query.delete("whereGroup");
+    query.set("whereGroup", JSON.stringify(where));
+    const page = await listRecords(scope, query);
+    return { name: toScreenEnum(entityKey, statusField, option) as string, label: null, style: null, total: page.total, list: page.list };
+  }));
+  return { total: groups.reduce((sum, group) => sum + group.total, 0), list: [], groups };
+}
+
+// ---- calendar: Activities?from&to&scopeList -> /v1/calendar ----
+const DAY = 24 * 3600 * 1000;
+const CALENDAR_WINDOW = 90 * DAY;      // the backend answers at most 93 days at a time
+
+async function activities(params: URLSearchParams): Promise<Row[]> {
+  const from = Date.parse(String(toViaDateTime(params.get("from") ?? "")));
+  const to = Date.parse(String(toViaDateTime(params.get("to") ?? "")));
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return [];
+  const keys = String(params.get("scopeList") ?? "").split(",").map(keyOf).filter((key) => ["meeting", "call", "task"].includes(key) && schemaOf(key));
+  if (!keys.length) return [];
+  const events: Row[] = [];
+  for (let start = from; start < to; start += CALENDAR_WINDOW) {
+    const end = Math.min(to, start + CALENDAR_WINDOW);
+    const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const page = await apiJson<{ items: Array<{ entity: string; id: string; subject: string; start: string; end: string; status: string; ownerId: string | null }> }>(
+      `/v1/calendar?from=${encodeURIComponent(iso(start))}&to=${encodeURIComponent(iso(end))}&entities=${keys.join(",")}`);
+    for (const item of page.items) {
+      events.push({
+        id: item.id, recordId: item.id, scope: scopeOfKey(item.entity), name: item.subject, title: item.subject,
+        dateStart: toScreenDateTime(item.start), dateEnd: toScreenDateTime(item.end), status: toScreenEnum(item.entity, "status", item.status), assignedUserId: item.ownerId,
+      });
+    }
+  }
+  return events;
+}
+
 // ---- related records: GET/POST/DELETE Account/{id}/contacts ----
 async function relatedRequest(scope: string, id: string, linkName: string, method: string, query: string, body: () => Row): Promise<any> {
   const reverse = reverseLinks(keyOf(scope)).find((link) => link.name === linkName);
@@ -265,6 +311,8 @@ export async function legacyRequest(path: string, init: RequestInit = {}): Promi
   const entityKey = keyOf(scope);
   const body = (): Row => { try { return JSON.parse(String(init.body ?? "{}")); } catch { return {}; } };
   if (scope === "MassAction" && method === "POST" && segments.length === 1) return massAction(init);
+  if (scope === "Kanban" && method === "GET" && segments.length === 2) return kanban(segments[1], new URLSearchParams(query));
+  if (scope === "Activities" && method === "GET" && segments.length === 1) return activities(new URLSearchParams(query));
   if (scope === "Notification") {
     if (method === "GET" && segments.length === 1) return notificationList(new URLSearchParams(query));
     if (method === "GET" && segments[1] === "action" && segments[2] === "notReadCount") return unreadCount();

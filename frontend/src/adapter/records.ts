@@ -1,6 +1,7 @@
 import { displayName, fieldOf, schemaOf } from "./schema.ts";
 import { teamNames, userNames } from "./lookup.ts";
 import { keyOf, scopeOf, screenField } from "./names.ts";
+import { toScreenEnum, toViaEnum } from "./enums.ts";
 
 export type Row = Record<string, any>;
 
@@ -53,6 +54,7 @@ function convert(entityKey: string, via: Row, names: Names): Row {
     }
     if (type === "dateTime") row[key] = toScreenDateTime(value);
     else if (type === "decimal") row[key] = value === null || value === undefined ? null : Number(value);
+    else if (type === "enum") row[key] = toScreenEnum(entityKey, key, value);
     else if (type === "link") row[`${key}Id`] = via[`${key}Id`];       // the link itself arrives as `<key>Id`
     else if (value !== null && typeof value === "object" && !Array.isArray(value) && fields.some((f) => f.type === "link" && f.key === key)) continue;   // expanded record, handled below
     else row[key] = value;
@@ -93,6 +95,7 @@ export function toViaValue(entityKey: string, key: string, value: unknown): unkn
   const field = fieldOf(entityKey, key);
   if (value === "" && field && ["date", "dateTime", "enum", "integer", "decimal", "link"].includes(field.type)) return null;
   if (field?.type === "dateTime") return toViaDateTime(value);
+  if (field?.type === "enum") return toViaEnum(entityKey, key, value);
   if (field?.type === "decimal") {
     if (value === null || value === undefined || value === "") return null;
     const scale = Number(field.properties?.scale ?? 0);
