@@ -2,11 +2,11 @@ import { Fragment, useState } from "react";
 import { ChevronDown, ChevronsUp } from "./Icons";
 
 /** Native-style long-text detail with safe, useful links and an accessible expand control. */
-export default function DetailTextValue({ value, cutHeight = 200, seeMoreDisabled = false }: { value: unknown; cutHeight?: number; seeMoreDisabled?: boolean }) {
+export default function DetailTextValue({ value, cutHeight = 200, seeMoreDisabled = false, expandedByDefault = false }: { value: unknown; cutHeight?: number; seeMoreDisabled?: boolean; expandedByDefault?: boolean }) {
   const text = String(value ?? "");
   const collapsedHeight = Math.max(80, Number(cutHeight) || 200);
-  const canCollapse = !seeMoreDisabled && text.length > Math.floor(collapsedHeight * 3.5);
-  const [expanded, setExpanded] = useState(false);
+  const canCollapse = !seeMoreDisabled && !expandedByDefault && text.length > Math.floor(collapsedHeight * 3.5);
+  const [expanded, setExpanded] = useState(expandedByDefault);
   const parts = text.split(/(https?:\/\/[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Z]{2,})/gi);
   return <div className="detail-long-text">
     <div className={`detail-long-text-content${canCollapse && !expanded ? " is-collapsed" : ""}`} style={canCollapse && !expanded ? { maxHeight: collapsedHeight } : undefined}>
