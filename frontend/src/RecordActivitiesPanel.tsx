@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Eye, Mail, Pencil, Plus, RefreshCw, Trash2, X } from "./Icons";
 import { canAccessEntity, canChangeEntity, canCreateEntity, entityLabel, fieldLabel, request, type Metadata } from "./api";
 import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
+import { useConfirmDialog } from "./ConfirmDialogProvider";
 
 type Row = Record<string, any>;
 type Page = { list?: Row[]; total?: number };
@@ -18,6 +19,7 @@ export default function RecordActivitiesPanel({ entity, record, panelName, metad
   onComposeEmail?: (draft: Row) => void;
   renderEditor: RenderEditor;
 }) {
+  const confirmDialog = useConfirmDialog();
   const timeZone = useEspoTimeZone();
   const pageSize = Math.max(1, Number(metadata.appSettings?.recordsPerPageSmall) || 5);
   const configuredScopes = metadata.appSettings?.[`${panelName}EntityList`];
@@ -95,7 +97,7 @@ export default function RecordActivitiesPanel({ entity, record, panelName, metad
 
   async function removeRecord(row: Row) {
     const scope = String(row.entityType || row.scope || "");
-    if (!scope || !window.confirm(`Opravdu trvale odstranit „${row.name || row.subject || "záznam"}“?`)) return;
+    if (!scope || !await confirmDialog({ title: "Trvale odstranit záznam?", message: `${row.name || row.subject || "Tento záznam"} (${entityLabel(metadata, scope)}) bude trvale odstraněn.`, confirmLabel: "Trvale odstranit", tone: "danger", eyebrow: "AKTIVITY · ODSTRANĚNÍ" })) return;
     setActing(row.id); setError(""); setNotice("");
     try { await request(`${encodeURIComponent(scope)}/${encodeURIComponent(row.id)}`, { method: "DELETE" }); setNotice("Záznam byl odstraněn."); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Záznam se nepodařilo odstranit."); }

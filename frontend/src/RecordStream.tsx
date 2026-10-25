@@ -7,6 +7,7 @@ import ImagePreviewDialog from "./ImagePreviewDialog";
 import SelectRecordsDialog from "./SelectRecordsDialog";
 import { formatEspoDateTime, parseEspoDateTime, useEspoTimeZone } from "./timeZone";
 import { useDialogFocus } from "./useDialogFocus";
+import { useConfirmDialog } from "./ConfirmDialogProvider";
 
 export type Note = Record<string, any>;
 type Page = { list?: Note[]; total?: number; pinnedList?: Note[] };
@@ -50,6 +51,7 @@ function relativeTime(value: string) {
 }
 
 export default function RecordStream({ entity, record, metadata, onOpenNote }: { entity: string; record: Note; metadata: Metadata; onOpenNote?: (note: Note) => void }) {
+  const confirmDialog = useConfirmDialog();
   const session = getSession();
   const timeZone = useEspoTimeZone();
   const filterStorageKey = `via:stream-filter:${entity}`;
@@ -335,7 +337,7 @@ export default function RecordStream({ entity, record, metadata, onOpenNote }: {
   }
 
   async function removeNote(note: Note) {
-    if (!window.confirm("Opravdu odstranit tento příspěvek?")) return;
+    if (!await confirmDialog({ title: "Odstranit příspěvek?", message: `Příspěvek od ${note.createdByName || "uživatele"} bude trvale odstraněn z tohoto záznamu.`, confirmLabel: "Odstranit příspěvek", tone: "danger", eyebrow: "STREAM ZÁZNAMU · ODSTRANĚNÍ" })) return;
     setActionId(note.id); setError("");
     try { await request(`Note/${encodeURIComponent(note.id)}`, { method: "DELETE" }); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Příspěvek se nepodařilo odstranit."); }

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 
 /** Keeps keyboard focus inside a dialog and returns it to the opener when closed. */
-export function useDialogFocus<T extends HTMLElement>(onEscape?: () => void, canEscape = true, active = true) {
+export function useDialogFocus<T extends HTMLElement>(onEscape?: () => void, canEscape = true, active: boolean | string | number = true) {
   const dialogRef = useRef<T>(null);
   const onEscapeRef = useRef(onEscape);
   const canEscapeRef = useRef(canEscape);

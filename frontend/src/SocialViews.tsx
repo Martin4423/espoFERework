@@ -8,6 +8,7 @@ import type { Metadata, User } from "./api";
 import { StreamItem, type Note } from "./RecordStream";
 import SelectRecordsDialog from "./SelectRecordsDialog";
 import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
+import { useConfirmDialog } from "./ConfirmDialogProvider";
 
 type Page<T> = { list?: T[]; total?: number };
 type NotificationItem = Record<string, any>;
@@ -164,6 +165,7 @@ export function NotificationPanel({ metadata, onClose, onOpenList, onOpenRecord,
 }
 
 export function ActivityView({ user, metadata, onBack, portalMode = false }: { user: User; metadata: Metadata; onBack: () => void; portalMode?: boolean }) {
+  const confirmDialog = useConfirmDialog();
   const [mode, setMode] = useState<"stream" | "own">("stream");
   const filterKey = (target: "stream" | "own") => `via:user-stream-filter:${user.id}:${target}`;
   const storedFilter = (target: "stream" | "own"): "all" | "posts" | "updates" => {
@@ -267,7 +269,7 @@ export function ActivityView({ user, metadata, onBack, portalMode = false }: { u
     finally { setActionId(""); }
   }
   async function remove(note: Note) {
-    if (!window.confirm("Opravdu odstranit tento příspěvek?")) return;
+    if (!await confirmDialog({ title: "Odstranit příspěvek?", message: `Příspěvek „${String(note.post || "Příspěvek").slice(0, 110)}“ bude trvale odstraněn.`, confirmLabel: "Odstranit příspěvek", tone: "danger", eyebrow: "AKTIVITA · ODSTRANĚNÍ" })) return;
     setActionId(note.id); setError("");
     try { await request(`Note/${encodeURIComponent(note.id)}`, { method: "DELETE" }); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Příspěvek se nepodařilo odstranit."); }
@@ -296,6 +298,7 @@ export function ActivityView({ user, metadata, onBack, portalMode = false }: { u
 }
 
 export function GlobalStreamView({ user, metadata, onBack, onOpenRecord, portalMode = false }: { user: User; metadata: Metadata; onBack: () => void; onOpenRecord: (scope: string, id: string) => void; portalMode?: boolean }) {
+  const confirmDialog = useConfirmDialog();
   const [items, setItems] = useState<Note[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [filter, setFilter] = useState<"all" | "posts" | "updates">("all");
@@ -344,7 +347,7 @@ export function GlobalStreamView({ user, metadata, onBack, onOpenRecord, portalM
     finally { setBusyId(""); }
   }
   async function remove(note: Note) {
-    if (!window.confirm("Opravdu odstranit tento příspěvek?")) return;
+    if (!await confirmDialog({ title: "Odstranit příspěvek?", message: `Příspěvek „${String(note.post || "Příspěvek").slice(0, 110)}“ bude trvale odstraněn.`, confirmLabel: "Odstranit příspěvek", tone: "danger", eyebrow: portalMode ? "PORTÁL · AKTIVITA" : "GLOBÁLNÍ STREAM" })) return;
     setBusyId(note.id);
     try { await request(`Note/${encodeURIComponent(note.id)}`, { method: "DELETE" }); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Příspěvek se nepodařilo odstranit."); }

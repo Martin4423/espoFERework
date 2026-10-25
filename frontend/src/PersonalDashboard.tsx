@@ -6,6 +6,7 @@ import type { Metadata, User } from "./api";
 import SelectRecordsDialog from "./SelectRecordsDialog";
 import { findDashletPosition, packDashboardItems, placeDashboardItem } from "./dashboardGrid";
 import { dateFilterBoundaryInTimeZone, formatEspoDateTime } from "./timeZone";
+import { useConfirmDialog } from "./ConfirmDialogProvider";
 
 type Data = Record<string, any>;
 type Dashlet = { id: string; name: string; x?: number; y?: number; width?: number; height?: number };
@@ -183,6 +184,7 @@ function DashletChart({ name, rows, currency, currencyDecimalPlaces = 2 }: { nam
 }
 
 function DashletCard({ item, user, metadata, options, appSettings, timeZone, refreshKey, onOpenRecord, onComposeEmail, onCreateRecord, renderCalendarDashlet }: { item: Dashlet; user: User; metadata: Metadata; options: Data; appSettings: Data; timeZone: string; refreshKey: number; onOpenRecord: (scope: string, record: Data) => void; onComposeEmail: () => void; onCreateRecord: (scope: string) => void; renderCalendarDashlet?: (options: Data, refreshIndex: number) => ReactNode }) {
+  const confirmDialog = useConfirmDialog();
   const [rows, setRows] = useState<Data[]>([]);
   const initialRecordLimit = Math.max(1, Number(options.displayRecords || 8));
   const [recordLimit, setRecordLimit] = useState(initialRecordLimit);
@@ -317,7 +319,7 @@ function DashletCard({ item, user, metadata, options, appSettings, timeZone, ref
   }
   async function runEmailAction(row: Data, action: "important" | "trash" | "retrieve" | "remove") {
     if (!row.id || emailActionBusy) return;
-    if (action === "remove" && !window.confirm("Opravdu chcete tento e-mail odstranit?")) return;
+    if (action === "remove" && !await confirmDialog({ title: "Odstranit e-mail?", message: `E-mail „${row.subject || "(bez předmětu)"}“ bude trvale odstraněn z CRM.`, confirmLabel: "Odstranit e-mail", tone: "danger", eyebrow: "E-MAILY · ODSTRANĚNÍ" })) return;
     setEmailActionBusy(`${row.id}:${action}`); setError("");
     try {
       if (action === "important") await request("Email/inbox/important", { method: row.isImportant ? "DELETE" : "POST", body: JSON.stringify({ id: row.id }) });
@@ -333,7 +335,7 @@ function DashletCard({ item, user, metadata, options, appSettings, timeZone, ref
     const scope = String(row.scope || row.entityType || entity || "");
     const id = String(row.id || row.recordId || "");
     if (!scope || !id || activityActionBusy) return;
-    if (action === "remove" && !window.confirm("Opravdu chcete tento záznam odstranit?")) return;
+    if (action === "remove" && !await confirmDialog({ title: "Odstranit záznam?", message: `${row.name || row.subject || "Tento záznam"} (${entityLabel(metadata, String(scope))}) bude trvale odstraněn.`, confirmLabel: "Odstranit záznam", tone: "danger", eyebrow: "AKTIVITY · ODSTRANĚNÍ" })) return;
     setActivityActionBusy(`${id}:${action}`); setError("");
     try {
       if (action === "complete") await request(`${encodeURIComponent(scope)}/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify({ status: "Completed" }) });
