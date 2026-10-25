@@ -617,6 +617,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .record-page .range-value-bound { padding: 4px 8px; border-radius: 7px; }
 .record-page .range-value-bound small { font-size: 9px; }
 .record-page .range-value-bound strong { font-size: 12px; }
+.time-ranges-display { display: flex; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 6px; }
+.time-ranges-display-item { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 1px solid var(--line, #e7eaf0); border-radius: 7px; background: color-mix(in srgb, var(--primary, #625bc4) 4%, var(--surface, #fff)); color: var(--ink, #35415a); font-variant-numeric: tabular-nums; }
+.time-ranges-display-item strong { font-size: 10px; font-weight: 650; }
+.time-ranges-display-item i { color: var(--muted, #8993a5); font-size: 10px; font-style: normal; }
+.time-ranges-display-empty { color: var(--muted, #7e899d); font-size: 11px; font-style: italic; }
+.record-page .time-ranges-display-item { padding: 5px 9px; }
+.record-page .time-ranges-display-item strong { font-size: 12px; }
 .sort-mark { margin-left: 7px; color: #b3b9c5; font-size: 12px; }
 .status-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 20px; background: #eef2ff; color: #626cc3; font-size: 11px; }
 .enum-value-label { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 8px; font-size: 11px; line-height: 1.4; background: #eef0f3; color: #596273; }
