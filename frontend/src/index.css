@@ -752,6 +752,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .record-page .detail-color-value > i { width: 20px; height: 20px; border: 1px solid rgba(30,40,60,.18); border-radius: 6px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55); }
 .record-page .detail-color-value code { padding: 3px 6px; border: 1px solid var(--line, #e7eaf0); border-radius: 5px; background: var(--canvas, #f5f6fa); color: var(--muted, #68758b); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .record-page .detail-plain-text { max-width: 100%; max-height: 320px; overflow: auto; margin: 0; color: var(--ink, #35415a); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 12px; line-height: 1.65; }
+.record-page .detail-long-text-content { overflow: hidden; color: var(--ink, #35415a); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.65; }
+.record-page .detail-long-text-content.is-collapsed { position: relative; }
+.record-page .detail-long-text-content.is-collapsed::after { position: absolute; inset: auto 0 0; height: 38px; background: linear-gradient(transparent, var(--surface, #fff)); content: ""; pointer-events: none; }
+.record-page .detail-long-text-content a { color: var(--primary, #625bc4); overflow-wrap: anywhere; }
+.record-page .detail-long-text-toggle { display: inline-flex; align-items: center; gap: 5px; margin-top: 7px; padding: 3px 0; border: 0; background: transparent; color: var(--primary, #625bc4); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+.record-page .detail-long-text-toggle:hover { text-decoration: underline; }
+.record-page .detail-long-text-toggle:focus-visible { outline: 2px solid var(--primary, #625bc4); outline-offset: 2px; border-radius: 2px; }
 .record-page .detail-rich-text { max-width: 100%; overflow: auto; color: var(--ink, #35415a); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
 .record-page .detail-rich-text > :first-child { margin-top: 0; }
 .record-page .detail-rich-text > :last-child { margin-bottom: 0; }

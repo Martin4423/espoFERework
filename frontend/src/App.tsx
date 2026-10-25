@@ -3,6 +3,7 @@ import type { ChangeEvent, ComponentType, CSSProperties, DragEvent as ReactDragE
 import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, ClipboardList, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, GripVertical, History, Inbox as InboxIcon, Info, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, EyeSlash, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
 import FileAttachmentDisplay from "./FileAttachmentDisplay";
+import DetailTextValue from "./DetailTextValue";
 import { phoneCountryLabels, phoneCountryOptions } from "./phoneCountries";
 import DOMPurify from "dompurify";
 import cronstrue from "cronstrue";
@@ -6859,7 +6860,8 @@ function RecordFieldDisplay({ entity, name, record, value, def, metadata, onOpen
     return <span className="detail-duration-value">{parts.join(" ")}</span>;
   }
   if (type === "wysiwyg") return <div className="detail-rich-text" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(String(value || ""), { USE_PROFILES: { html: true } }) }}/>;
-  if (["text", "formula"].includes(type)) return <pre className="detail-plain-text">{String(value || "")}</pre>;
+  if (type === "text") return <DetailTextValue value={value} cutHeight={Number(fieldDef?.cutHeight) || 200} seeMoreDisabled={Boolean(fieldDef?.seeMoreDisabled)}/>;
+  if (type === "formula") return <pre className="detail-plain-text">{String(value || "")}</pre>;
   return <strong className={className}>{formatValue()}</strong>;
 }
 
