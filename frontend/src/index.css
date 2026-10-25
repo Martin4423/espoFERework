@@ -1302,6 +1302,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .import-error-report > small { display: block; padding: 8px 10px; border-top: 1px solid #f3e9e2; }
 .import-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 14px; }
 .import-detail-actions .button { min-height: 31px; padding: 0 9px; font-size: 8px; }
+.import-action-confirm { width: min(500px, calc(100vw - 28px)); }
+.import-action-confirm-body { display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 24px; color: #586579; font-size: 13px; line-height: 1.6; }
+.import-action-confirm-body > svg { flex: 0 0 auto; margin-top: 2px; color: #c48a35; }
+.import-action-confirm-body p { margin: 0; }
+.import-action-confirm .modal-footer { padding: 12px 20px; }
+.import-inline-confirm { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 5px; }
+.import-inline-confirm > span { width: 100%; color: #78859a; font-size: 9px; text-align: right; }
+.import-inline-confirm .button { min-height: 27px; padding: 0 7px; font-size: 9px; }
 .button.danger { color: #bd6268; border-color: #f1dddd; }
 .import-detail-help { margin: 0; padding: 11px 18px; border-top: 1px solid #f0f1f5; color: #9ba5b4; font-size: 8px; line-height: 1.5; }
 .import-manual-command { display: grid; gap: 8px; margin: 13px 18px 0; padding: 12px; border: 1px solid #e7e5fa; border-radius: 8px; background: #faf9ff; }
