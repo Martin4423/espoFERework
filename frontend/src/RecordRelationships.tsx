@@ -5,6 +5,7 @@ import { aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, entityLabe
 import RecordActivitiesPanel from "./RecordActivitiesPanel";
 import SelectRecordsDialog from "./SelectRecordsDialog";
 import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
+import { useConfirmDialog } from "./ConfirmDialogProvider";
 
 type Row = Record<string, any>;
 type RelationshipLink = { entity?: string; type?: string; foreign?: string; readOnly?: boolean; columnAttributeMap?: Record<string, string> };
@@ -74,6 +75,7 @@ export function RelatedRecordsPage({ entity, record, link, metadata, onBack, onO
 }
 
 function TargetListOptedOutPanel({ record, metadata, onOpenRecord }: { record: Row; metadata: Metadata; onOpenRecord: (entity: string, row: Row) => void }) {
+  const confirmDialog = useConfirmDialog();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
@@ -95,7 +97,7 @@ function TargetListOptedOutPanel({ record, metadata, onOpenRecord }: { record: R
     const targetType = String(row._scope || "");
     if (!targetTypes.includes(targetType)) return;
     const name = row.name || row.userName || [row.firstName, row.lastName].filter(Boolean).join(" ") || row.id;
-    if (!window.confirm(`Zrušit odhlášení „${name}“ z tohoto cílového seznamu?`)) return;
+    if (!await confirmDialog({ title: "Zrušit odhlášení ze seznamu?", message: `Záznam „${name}“ se znovu zařadí mezi povolené příjemce tohoto cílového seznamu.`, confirmLabel: "Zrušit odhlášení", eyebrow: "CÍLOVÝ SEZNAM" })) return;
     setBusyId(row.id); setError(""); setNotice("");
     try {
       await request("TargetList/action/cancelOptOut", { method: "POST", body: JSON.stringify({ id: record.id, targetId: row.id, targetType }) });
@@ -110,6 +112,7 @@ function TargetListOptedOutPanel({ record, metadata, onOpenRecord }: { record: R
 }
 
 function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpenRecord, onOpenTaskList, onComposeEmail, renderEditor }: { entity: string; record: Row; name: string; panel: PanelDef; link: RelationshipLink; metadata: Metadata; onOpenRecord: (entity: string, row: Row) => void; onOpenTaskList?: (entity: string, where: Row[]) => void; onComposeEmail?: (draft: Row) => void; renderEditor: (scope: string, initial: Row, onSaved: (row: Row) => void, onClose: () => void) => ReactNode }) {
+  const confirmDialog = useConfirmDialog();
   const timeZone = useEspoTimeZone();
   const relatedEntity = link.entity!;
   const [rows, setRows] = useState<Row[]>([]);
@@ -299,7 +302,7 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
     const isOptedOut = Boolean(row[stateField]);
     const action = isOptedOut ? "cancelOptOut" : "optOut";
     const targetName = targetListOnParent ? record.name || record.userName || record.id : row.name || row.userName || [row.firstName, row.lastName].filter(Boolean).join(" ") || row.id;
-    if (!window.confirm(`${isOptedOut ? "Zrušit odhlášení" : "Odhlásit"} záznamu „${targetName}“ z cílového seznamu?`)) return;
+    if (!await confirmDialog({ title: `${isOptedOut ? "Zrušit odhlášení" : "Odhlásit záznam"}?`, message: `Záznam „${targetName}“ ${isOptedOut ? "bude znovu zařazen mezi příjemce" : "bude vyřazen z příjemců"} cílového seznamu.`, confirmLabel: isOptedOut ? "Zrušit odhlášení" : "Odhlásit", eyebrow: "CÍLOVÝ SEZNAM" })) return;
     setSavingId(row.id); setError(""); setNotice("");
     try {
       await request(`TargetList/action/${action}`, { method: "POST", body: JSON.stringify(targetListOnParent ? { id: row.id, targetId: record.id, targetType: entity } : { id: record.id, targetId: row.id, targetType: relatedEntity }) });
@@ -310,7 +313,7 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
     finally { setSavingId(""); }
   }
   async function unlinkAllRelated() {
-    if (!canUnlinkAll || savingId || !window.confirm(`Odebrat všechny záznamy z vazby „${panelName}“?`)) return;
+    if (!canUnlinkAll || savingId || !await confirmDialog({ title: "Odebrat všechny vazby?", message: `Všechny záznamy propojené v panelu „${panelName}“ budou odpojeny od tohoto záznamu. Samotné související záznamy zůstanou v CRM.`, confirmLabel: "Odebrat všechny vazby", tone: "danger", eyebrow: "VZTAHY · HROMADNÉ ODEBRÁNÍ" })) return;
     setSavingId("__all__"); setError(""); setNotice("");
     try {
       await request(`${encodeURIComponent(entity)}/action/unlinkAll`, { method: "POST", body: JSON.stringify({ id: record.id, link: name }) });
@@ -365,7 +368,7 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
   }
   async function removeRelatedTask(row: Row) {
     if (!canRemoveTask || savingId) return;
-    if (!window.confirm(`Opravdu odstranit úkol „${row.name || row.id}“?`)) return;
+    if (!await confirmDialog({ title: "Odstranit úkol?", message: `Úkol „${row.name || row.id}“ bude trvale odstraněn.`, confirmLabel: "Odstranit úkol", tone: "danger", eyebrow: "ÚKOL · ODSTRANĚNÍ" })) return;
     setSavingId(row.id); setError(""); setNotice("");
     try {
       await request(`Task/${encodeURIComponent(row.id)}`, { method: "DELETE" });
@@ -453,7 +456,7 @@ function RelationshipPanel({ entity, record, name, panel, link, metadata, onOpen
     finally { setSavingId(""); }
   }
   async function unlinkRow(row: Row) {
-    if (!window.confirm(`Odebrat „${rowLabel(row)}“ z ${panelName}?`)) return;
+    if (!await confirmDialog({ title: "Odebrat související záznam?", message: `„${rowLabel(row)}“ bude odebrán z vazby „${panelName}“. Samotný záznam zůstane v CRM.`, confirmLabel: "Odebrat vazbu", eyebrow: "VZTAHY · ODEBRÁNÍ" })) return;
     setSavingId(row.id); setError("");
     try { await request(`${entity}/${encodeURIComponent(record.id)}/${encodeURIComponent(name)}`, { method: "DELETE", body: JSON.stringify({ id: row.id }) }); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Vztah se nepodařilo odebrat."); }
