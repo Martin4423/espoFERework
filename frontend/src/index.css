@@ -3499,3 +3499,6 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .personal-dashlet-expanded-field > span:first-child { color: var(--muted); }
 .personal-dashlet-expanded-field > :not(span:first-child) { overflow-wrap: anywhere; }
 @media (max-width: 520px) { .personal-dashlet-expanded-row { grid-template-columns: 1fr; gap: 4px; } }
+.personal-dashlet-show-more { display: flex; justify-content: center; padding: 6px 12px 12px; }
+.personal-dashlet-show-more .button { display: inline-flex; min-height: 32px; align-items: center; gap: 7px; padding: 0 13px; font-size: 10px; }
+.personal-dashlet-show-more .spinner { width: 12px; height: 12px; }
