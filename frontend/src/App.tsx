@@ -2217,7 +2217,7 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
 }
 
 function Dashboard({ entities, metadata, user, refreshKey, onOpenEntity, onOpenRecord, onCreateRecord, onComposeEmail, onOpenCalendar, layoutOverride, optionsOverride }: { entities: string[]; metadata: Metadata; user: User; refreshKey: number; onOpenEntity: (name: string) => void; onOpenRecord: (name: string, row: Row) => void; onCreateRecord: (scope: string) => void; onComposeEmail: () => void; onOpenCalendar: () => void; layoutOverride?: unknown; optionsOverride?: Row }) {
-  const renderCalendarDashlet = useCallback((options: Row, refreshIndex: number) => <CalendarView key={`${refreshIndex}-${refreshKey}`} metadata={metadata} onOpenRecord={onOpenRecord} embedded embeddedOptions={options} onOpenCalendar={onOpenCalendar}/>, [metadata, onOpenRecord, onOpenCalendar, refreshKey]);
+  const renderCalendarDashlet = useCallback((options: Row, refreshIndex: number) => <CalendarView metadata={metadata} onOpenRecord={onOpenRecord} embedded embeddedOptions={options} reloadKey={refreshIndex + refreshKey} onOpenCalendar={onOpenCalendar}/>, [metadata, onOpenRecord, onOpenCalendar, refreshKey]);
   return <PersonalDashboard user={user} metadata={metadata} refreshKey={refreshKey} onOpenRecord={onOpenRecord} onCreateRecord={onCreateRecord} onComposeEmail={onComposeEmail} renderCalendarDashlet={renderCalendarDashlet} layoutOverride={layoutOverride} optionsOverride={optionsOverride} fallback={<ClassicDashboard entities={entities} metadata={metadata} onOpenEntity={onOpenEntity} onOpenRecord={onOpenRecord}/>} />;
 }
 
@@ -2314,7 +2314,7 @@ function CalendarCreateChooser({ context, scopes, colors, onClose, onChoose }: {
   return <div className="modal-backdrop calendar-create-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={dialogRef} className="record-modal calendar-create-chooser" role="dialog" aria-modal="true" aria-labelledby="calendar-create-title" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">KALENDÁŘ · NOVÁ AKTIVITA</span><h2 id="calendar-create-title">Co chcete naplánovat?</h2><p>{context.allDay ? `Celý den · ${context.date}` : `${context.date} · ${context.time}`}</p></div><button type="button" className="icon-button" aria-label="Zavřít" onClick={onClose}><X size={16}/></button></div><div className="calendar-create-options">{scopes.map((scope, index) => <button type="button" autoFocus={index === 0} className={`calendar-create-option ${scope.toLowerCase()}`} style={colors[scope] ? ({ "--calendar-event-color": colors[scope] } as CSSProperties) : undefined} key={scope} onClick={() => onChoose(scope)}><span>{scope === "Meeting" ? <CalendarDays size={17}/> : scope === "Call" ? <Phone size={17}/> : <Check size={17}/>}</span><strong>{scope === "Meeting" ? "Schůzka" : scope === "Call" ? "Hovor" : "Úkol"}</strong><small>{scope === "Meeting" ? "Naplánovat společný čas" : scope === "Call" ? "Přidat telefonát" : "Vytvořit úkol"}</small><ArrowRight size={15}/></button>)}</div></section></div>;
 }
 
-function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = false, embeddedOptions = {}, onOpenCalendar }: { metadata: Metadata; onOpenRecord: (name: string, row: Row) => void; userId?: string; userName?: string; embedded?: boolean; embeddedOptions?: Row; onOpenCalendar?: () => void }) {
+function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = false, embeddedOptions = {}, reloadKey = 0, onOpenCalendar }: { metadata: Metadata; onOpenRecord: (name: string, row: Row) => void; userId?: string; userName?: string; embedded?: boolean; embeddedOptions?: Row; reloadKey?: number; onOpenCalendar?: () => void }) {
   const scopes = useMemo(() => Object.entries(metadata.scopes || {}).filter(([name, scope]) => scope.calendar && metadata.entityDefs?.[name]?.fields).map(([name]) => name), [metadata]);
   const calendarPreferenceKey = `via:calendar:${getSession()?.user.id || "guest"}`;
   const readCalendarPreference = () => { try { return JSON.parse(localStorage.getItem(calendarPreferenceKey) || "null") as Row | null; } catch { return null; } };
@@ -2491,7 +2491,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : "Kalendář se nepodařilo načíst."); })
       .finally(() => { if (live) setBusy(false); });
     return () => { live = false; };
-  }, [from, to, scopeParam, refreshIndex, userId, canSelectCalendarUsers, effectiveTeamIdList, userIdList, embedded, viewMode]);
+  }, [from, to, scopeParam, refreshIndex, reloadKey, userId, canSelectCalendarUsers, effectiveTeamIdList, userIdList, embedded, viewMode]);
 
   const days = range.days;
   const weekdayLabels = Array.from({ length: 7 }, (_, index) => {
