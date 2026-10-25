@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, RotateCcw, Save, Trash2 } from "./Icons";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, RotateCcw, Save, Trash2, X } from "./Icons";
 import { entityLabel, fieldLabel, request } from "./api";
 import type { Metadata } from "./api";
 import { DynamicLogicEditor } from "./DynamicLogicEditor";
+import { useDialogFocus } from "./useDialogFocus";
 
 type LayoutEntry = string | { name?: string; label?: string; [key: string]: any } | false;
+type PendingLayoutAction = { kind: "leave" | "reset" | "scope" | "layout"; value?: string };
 const commonTypes = ["list", "detail", "listSmall", "detailSmall", "defaultSidePanel", "bottomPanelsDetail", "filters", "massUpdate", "sidePanelsDetail", "sidePanelsEdit", "sidePanelsDetailSmall", "sidePanelsEditSmall"];
 const defaultLayoutLabels: Record<string, string> = { list: "Seznam", detail: "Detail", listSmall: "Malý seznam", detailSmall: "Malý detail", defaultSidePanel: "Výchozí boční panel", bottomPanelsDetail: "Spodní panely detailu", filters: "Filtry", massUpdate: "Hromadná úprava", sidePanelsDetail: "Boční panely detailu", sidePanelsEdit: "Boční panely úprav", sidePanelsDetailSmall: "Boční panely malého detailu", sidePanelsEditSmall: "Boční panely malých úprav", bottomPanelsEdit: "Spodní panely úprav", kanban: "Kanban" };
 
@@ -28,6 +30,8 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pendingAction, setPendingAction] = useState<PendingLayoutAction | null>(null);
+  const confirmDialogRef = useDialogFocus<HTMLElement>(() => { if (!busy && !saving) setPendingAction(null); }, !busy && !saving, Boolean(pendingAction));
   const hasUnsavedChanges = source !== initialSource;
   const entity = metadata.entityDefs[scope];
   const layoutTypeLabel = (name: string) => (metadata.labels as any)?.[scope]?.layouts?.[name] || (metadata.labels as any)?.Admin?.layouts?.[name] || defaultLayoutLabels[name] || name.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
@@ -176,8 +180,11 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
     finally { setSaving(false); }
   }
   async function reset() {
+    if (busy || saving || value === null) return;
+    setPendingAction({ kind: "reset" });
+  }
+  async function performReset() {
     if (layoutSetId) {
-      if (!window.confirm(`Odstranit vlastní rozložení „${layoutName}“ ze sady „${layoutSetName || ""}“ a převzít globální rozložení?`)) return;
       setBusy(true); setError(""); setNotice("");
       try {
         const inherited = await request<any>("Layout/action/resetToDefault", { method: "POST", body: JSON.stringify({ scope, name: layoutName, setId: layoutSetId }) });
@@ -186,7 +193,6 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
       finally { setBusy(false); }
       return;
     }
-    if (!window.confirm(`Obnovit výchozí rozložení „${layoutName}“ pro ${entityLabel(metadata, scope)}?`)) return;
     setBusy(true); setError(""); setNotice("");
     try {
       await request("Layout/action/resetToDefault", { method: "POST", body: JSON.stringify({ scope, name: layoutName }) });
@@ -196,9 +202,27 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
     finally { setBusy(false); }
   }
 
-  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={() => { if (!hasUnsavedChanges || window.confirm("Máte neuložené změny rozložení. Opravdu chcete odejít?")) onBack(); }}><ArrowLeft size={14}/> {layoutSetId ? `Sada rozložení · ${layoutSetName || ""}` : "Administrace"}</button><div className="eyebrow">{layoutSetId ? "VLASTNÍ SADA ROZLOŽENÍ" : "PŘIZPŮSOBENÍ CRM"}</div><h1>{layoutSetId ? `Rozložení: ${layoutSetName || "sada"}` : "Správce rozložení"}</h1><p>{layoutSetId ? "Nastavte rozložení obrazovek pro uživatele této sady." : "Upravte pole a panely v seznamech a záznamech."}</p></div><div className="layout-heading-actions">{hasUnsavedChanges && <span className="field-manager-unsaved" role="status"><span/>Neuložené změny</span>}<button className="button subtle" onClick={() => void reset()} disabled={busy || saving}><RotateCcw size={14}/>{layoutSetId ? "Převzít globální" : "Výchozí rozložení"}</button><button className="button primary" onClick={() => void save()} disabled={busy || saving || value === null} title="Uložit rozložení (Ctrl+S)"><Save size={14}/>{saving ? "Ukládám…" : "Uložit rozložení"}</button></div></div>
+  function requestLayoutChange(action: PendingLayoutAction) {
+    if (busy || saving) return;
+    if (hasUnsavedChanges) setPendingAction(action);
+    else if (action.kind === "scope" && action.value) setScope(action.value);
+    else if (action.kind === "layout" && action.value) setLayoutName(action.value);
+    else if (action.kind === "leave") onBack();
+  }
+
+  async function confirmPendingAction() {
+    const action = pendingAction;
+    if (!action || busy || saving) return;
+    setPendingAction(null);
+    if (action.kind === "leave") { onBack(); return; }
+    if (action.kind === "reset") { await performReset(); return; }
+    if (action.kind === "scope" && action.value) setScope(action.value);
+    if (action.kind === "layout" && action.value) setLayoutName(action.value);
+  }
+
+  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={() => requestLayoutChange({ kind: "leave" })}><ArrowLeft size={14}/> {layoutSetId ? `Sada rozložení · ${layoutSetName || ""}` : "Administrace"}</button><div className="eyebrow">{layoutSetId ? "VLASTNÍ SADA ROZLOŽENÍ" : "PŘIZPŮSOBENÍ CRM"}</div><h1>{layoutSetId ? `Rozložení: ${layoutSetName || "sada"}` : "Správce rozložení"}</h1><p>{layoutSetId ? "Nastavte rozložení obrazovek pro uživatele této sady." : "Upravte pole a panely v seznamech a záznamech."}</p></div><div className="layout-heading-actions">{hasUnsavedChanges && <span className="field-manager-unsaved" role="status"><span/>Neuložené změny</span>}<button className="button subtle" onClick={() => void reset()} disabled={busy || saving}><RotateCcw size={14}/>{layoutSetId ? "Převzít globální" : "Výchozí rozložení"}</button><button className="button primary" onClick={() => void save()} disabled={busy || saving || value === null} title="Uložit rozložení (Ctrl+S)"><Save size={14}/>{saving ? "Ukládám…" : "Uložit rozložení"}</button></div></div>
     {error && <div className="table-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
-    <section className="surface layout-editor" onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "s" || event.key === "Enter")) { event.preventDefault(); event.stopPropagation(); if (!busy && !saving && value !== null) void save(); } }}><div className="layout-selector-row"><label className="setting-field"><span>Entita</span><select value={scope} onChange={(event) => { if (source !== initialSource && !window.confirm("Zahodit neuložené změny rozložení?")) return; setScope(event.target.value); }}>{scopes.map((item) => <option key={item} value={item}>{entityLabel(metadata, item, true)}</option>)}</select></label><label className="setting-field"><span>Typ rozložení</span><select value={layoutName} onChange={(event) => { if (source !== initialSource && !window.confirm("Zahodit neuložené změny rozložení?")) return; setLayoutName(event.target.value); }}>{types.map((type) => <option key={type} value={type}>{layoutTypeLabel(type)}</option>)}</select></label></div>
+    <section className="surface layout-editor" onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === "s" || event.key === "Enter")) { event.preventDefault(); event.stopPropagation(); if (!busy && !saving && value !== null) void save(); } }}><div className="layout-selector-row"><label className="setting-field"><span>Entita</span><select value={scope} onChange={(event) => requestLayoutChange({ kind: "scope", value: event.target.value })}>{scopes.map((item) => <option key={item} value={item}>{entityLabel(metadata, item, true)}</option>)}</select></label><label className="setting-field"><span>Typ rozložení</span><select value={layoutName} onChange={(event) => requestLayoutChange({ kind: "layout", value: event.target.value })}>{types.map((type) => <option key={type} value={type}>{layoutTypeLabel(type)}</option>)}</select></label></div>
       {busy ? <div className="table-loading"><span className="spinner"/> Načítám rozložení…</div> : value !== null && <>
         {isFieldList && <div className="layout-field-list"><div className="layout-field-head"><strong>Pole v rozložení</strong><button className="button subtle" onClick={addItem} disabled={!fieldNames.length}>＋ Přidat pole</button></div>{value.length ? value.map((item: LayoutEntry, index: number) => {
           const field = typeof item === "string" ? item : item && typeof item === "object" ? item.name || "" : "";
@@ -225,5 +249,6 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
         <details className="layout-json"><summary>Pokročilá konfigurace JSON</summary><textarea spellCheck={false} value={source} onChange={(event) => setSource(event.target.value)} onBlur={parseSource} rows={16}/><small>JSON odpovídá přímo definici rozložení EspoCRM. Uložení probíhá přes nativní Layout API.</small></details>
       </>}
     </section>
+    {pendingAction && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && !saving && setPendingAction(null)}><section ref={confirmDialogRef} className="record-modal layout-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="layout-confirm-title" aria-describedby="layout-confirm-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">SPRÁVCE ROZLOŽENÍ · POTVRZENÍ</span><h2 id="layout-confirm-title">{pendingAction.kind === "reset" ? (layoutSetId ? "Převzít globální rozložení?" : "Obnovit výchozí rozložení?") : pendingAction.kind === "leave" ? "Odejít bez uložení?" : "Zahodit změny rozložení?"}</h2><p id="layout-confirm-description">{pendingAction.kind === "reset" ? <>{layoutSetId ? <>Vlastní rozložení <strong>{layoutTypeLabel(layoutName)}</strong> v sadě <strong>{layoutSetName}</strong> bude odstraněno a sada převezme aktuální globální rozložení.</> : <>Rozložení <strong>{layoutTypeLabel(layoutName)}</strong> entity <strong>{entityLabel(metadata, scope)}</strong> se vrátí na výchozí hodnoty EspoCRM. Aktuální vlastní úpravy budou nahrazeny.</>}</> : pendingAction.kind === "leave" ? <>Neuložené změny rozložení <strong>{layoutTypeLabel(layoutName)}</strong> pro <strong>{entityLabel(metadata, scope)}</strong> se zahodí.</> : <>Neuložené změny rozložení pro <strong>{entityLabel(metadata, scope)}</strong> se zahodí{pendingAction.kind === "scope" ? <> a otevře se entita <strong>{entityLabel(metadata, pendingAction.value || "", true)}</strong></> : <> a otevře se typ <strong>{layoutTypeLabel(pendingAction.value || "")}</strong></>}.</>}</p></div><button type="button" className="icon-button" aria-label="Zrušit akci" onClick={() => setPendingAction(null)}><X size={16}/></button></div><div className="modal-footer"><button type="button" autoFocus className="button subtle" onClick={() => setPendingAction(null)}>Pokračovat v úpravách</button><button type="button" className={`button ${pendingAction.kind === "reset" ? "danger" : "primary"}`} onClick={() => void confirmPendingAction()}>{pendingAction.kind === "reset" ? <><RotateCcw size={14}/> {layoutSetId ? "Převzít globální" : "Obnovit výchozí"}</> : pendingAction.kind === "leave" ? "Zahodit a odejít" : "Zahodit a přepnout"}</button></div></section></div>}
   </div>;
 }

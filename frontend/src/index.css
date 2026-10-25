@@ -327,6 +327,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-attributes-table td code { color: #4e5c70; font-size: 10px; overflow-wrap: anywhere; }
 .field-attributes-empty { padding: 18px 0; color: #858fa0; font-size: 12px; }
 .field-action-confirm-dialog { width: min(490px, calc(100vw - 32px)); }
+.layout-confirm-dialog { width: min(510px, calc(100vw - 32px)); }
+.layout-confirm-dialog .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.layout-confirm-dialog .modal-heading p strong { color: var(--ink); }
 .field-action-confirm-dialog .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
 .field-action-confirm-dialog .modal-heading p strong { color: var(--ink); }
 .field-action-confirm-dialog .modal-heading p code { color: #5c57a8; font: 11px ui-monospace, monospace; }
