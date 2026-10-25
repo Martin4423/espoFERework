@@ -16,6 +16,7 @@ import { dateFilterBoundaryInTimeZone, espocrmDateTimeFromInput, formatEspoDateT
 import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, completeSecondStepLogin, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, loginWithAuthorizationHeaders, logout, request, restoreSession, uploadAttachment } from "./api";
 import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, PendingSecondStep, Session, User } from "./api";
 import AboutDialog from "./AboutDialog";
+import { useConfirmDialog } from "./ConfirmDialogProvider";
 
 const ImportCenter = lazy(() => import("./ImportCenter"));
 const PortalHome = lazy(() => import("./PortalHome"));
@@ -1416,13 +1417,14 @@ function renderAdminNoticeMessage(message: string, internalTargets: Record<strin
 }
 
 function useUnsavedChangesGuard(hasChanges: boolean, onLeave: () => void, message: string) {
+  const confirmDialog = useConfirmDialog();
   useEffect(() => {
     if (!hasChanges) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [hasChanges]);
-  return () => { if (!hasChanges || window.confirm(message)) onLeave(); };
+  return async () => { if (!hasChanges || await confirmDialog({ title: "Opustit bez uložení?", message, confirmLabel: "Odejít bez uložení", tone: "danger" })) onLeave(); };
 }
 
 function buildSettingsPatch(changes: Row, metadata: Metadata): Row {
@@ -1816,6 +1818,7 @@ function shiftDateOnly(value: string, amount: number) {
 }
 
 function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: Metadata; refresh: number; onCompose: () => void; onOpenRecord: (record: Row) => void }) {
+  const confirmDialog = useConfirmDialog();
   const timeZone = useEspoTimeZone();
   const [emailFilters, setEmailFilters] = useState({ from: "", subject: "", dateFrom: "", dateTo: "" });
   const [filterDraft, setFilterDraft] = useState({ from: "", subject: "", dateFrom: "", dateTo: "" });
@@ -1895,13 +1898,13 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
   useEffect(() => { void load(); }, [load]);
   async function sendDraft(row: Row) {
     if (!row.id || row.status !== "Draft" || row.createdById !== getSession()?.user.id) return;
-    if (!window.confirm(`Odeslat koncept „${row.subject || "(bez předmětu)"}“?`)) return;
+    if (!await confirmDialog({ title: "Odeslat koncept?", message: `E-mail „${row.subject || "(bez předmětu)"}“ bude předán k odeslání.`, confirmLabel: "Odeslat e-mail", tone: "primary" })) return;
     try { await request(`Email/${encodeURIComponent(row.id)}`, { method: "PUT", body: JSON.stringify({ status: "Sending" }) }); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Koncept se nepodařilo odeslat."); }
   }
   async function removeEmail(row: Row) {
     if (!row.id || !canChangeEntity(metadata, "Email", "delete")) return;
-    if (!window.confirm(`Opravdu trvale odstranit e-mail „${row.subject || "(bez předmětu)"}“ z CRM?`)) return;
+    if (!await confirmDialog({ title: "Trvale odstranit e-mail?", message: `E-mail „${row.subject || "(bez předmětu)"}“ bude odstraněn z CRM.`, confirmLabel: "Trvale odstranit", tone: "danger" })) return;
     try { await request(`Email/${encodeURIComponent(row.id)}`, { method: "DELETE" }); await load(); request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {}); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "E-mail se nepodařilo odstranit."); }
   }
@@ -1924,13 +1927,13 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Akci se zprávou se nepodařilo provést."); }
   }
   async function markAllAsRead() {
-    if (!window.confirm("Označit všechny e-mailové zprávy jako přečtené?")) return;
+    if (!await confirmDialog({ title: "Označit všechny zprávy jako přečtené?", message: "Změna se týká všech e-mailových zpráv v CRM.", confirmLabel: "Označit jako přečtené", tone: "primary" })) return;
     try { await request("Email/inbox/read", { method: "POST", body: JSON.stringify({ all: true }) }); setSelected([]); setAllResultsSelected(false); await load(); request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {}); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Zprávy se nepodařilo označit jako přečtené."); }
   }
   async function moveMessages(ids: string[], destination: string, allResults = false) {
     if (!destination || (!ids.length && !allResults)) return;
-    if (allResults && !window.confirm(`Přesunout všech ${total} e-mailů odpovídajících aktuální složce a filtrům?`)) return;
+    if (allResults && !await confirmDialog({ title: `Přesunout všech ${total} e-mailů?`, message: "Přesunou se všechny zprávy odpovídající aktuální složce a filtrům.", confirmLabel: "Přesunout zprávy", tone: "primary" })) return;
     setError(""); setNotice("");
     try {
       if (allResults) {
@@ -1993,7 +1996,7 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
     catch (cause) { setError(cause instanceof Error ? cause.message : "Pořadí složek se nepodařilo změnit."); }
   }
   async function deleteFolder(entity: "EmailFolder" | "GroupEmailFolder", folder: MailFolder) {
-    if (!window.confirm(`Opravdu odstranit složku „${folder.name}“? Zprávy ve složce zůstanou v CRM.`)) return;
+    if (!await confirmDialog({ title: "Odstranit e-mailovou složku?", message: `Složka „${folder.name}“ bude odstraněna. Zprávy v CRM zůstanou zachované.`, confirmLabel: "Odstranit složku", tone: "danger" })) return;
     try { await request(`${entity}/${encodeURIComponent(folder.entityId || folder.id)}`, { method: "DELETE" }); if (folder.id === folderId) setFolderId("inbox"); setFolderReload((value) => value + 1); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Složku se nepodařilo odstranit."); }
   }
@@ -2870,6 +2873,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
 }
 
 function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailSaved, userType, title, fixedWhere = [], routeAction = null, routeActionId = null, reloadKey = 0, onEditorRouteChange }: { entity: string; metadata: Metadata; onOpenRecord: (record: Row) => void; onNavigateEntity?: (name: string) => void; onEmailSaved?: (message: string) => void; userType?: "api" | "portal"; title?: string; fixedWhere?: Row[]; routeAction?: "create" | "edit" | null; routeActionId?: string | null; reloadKey?: number; onEditorRouteChange?: (action: "create" | null | "edit", id?: string) => void }) {
+  const confirmDialog = useConfirmDialog();
   const fieldDefs = metadata.entityDefs?.[entity]?.fields || {};
   const [dateTimeZone, setDateTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   useEffect(() => { const id = getSession()?.user.id; if (!id) return; let live = true; request<Row>(`Preferences/${encodeURIComponent(id)}`).then((prefs) => live && typeof prefs.timeZone === "string" && Boolean(prefs.timeZone) && setDateTimeZone(prefs.timeZone)).catch(() => {}); return () => { live = false; }; }, [entity]);
@@ -3348,7 +3352,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
     finally { setPresetSaving(false); }
   }
   async function removeSavedPreset() {
-    if (!selectedPresetId || !preferencesUserId || presetOrderSaving || !window.confirm("Opravdu odstranit tento uložený filtr?")) return;
+    if (!selectedPresetId || !preferencesUserId || presetOrderSaving || !await confirmDialog({ title: "Odstranit uložený filtr?", message: "Tento filtr bude odebrán z vašich uložených filtrů.", confirmLabel: "Odstranit filtr", tone: "danger" })) return;
     setPresetOrderSaving(true);
     try {
       const preferences = await request<Row>(`Preferences/${encodeURIComponent(preferencesUserId)}`);
@@ -3537,7 +3541,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
     finally { setStarBusyId(""); }
   }
   async function removeTaskRow(row: Row) {
-    if (!canDelete || !window.confirm(`Opravdu odstranit úkol „${row.name || row.id}“?`)) return;
+    if (!canDelete || !await confirmDialog({ title: "Odstranit úkol?", message: `Úkol „${row.name || row.id}“ bude odstraněn.`, confirmLabel: "Odstranit úkol", tone: "danger" })) return;
     setMassBusy(true); setError(""); setTaskActionMenuId("");
     try {
       await request(`Task/${encodeURIComponent(row.id)}`, { method: "DELETE" });
@@ -3584,7 +3588,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
     finally { setMassBusy(false); }
   }
   async function removeEventRow(row: Row) {
-    if (!canDelete || !window.confirm(`Opravdu odstranit ${entityLabel(metadata, entity, true).toLocaleLowerCase("cs")} „${row.name || "bez názvu"}“?`)) return;
+    if (!canDelete || !await confirmDialog({ title: `Odstranit ${entityLabel(metadata, entity, true).toLocaleLowerCase("cs-CZ")}?`, message: `Záznam „${row.name || "bez názvu"}“ bude odstraněn.`, confirmLabel: "Odstranit záznam", tone: "danger" })) return;
     setMassBusy(true); setError(""); setTaskActionMenuId("");
     try { await request(`${encodeURIComponent(entity)}/${encodeURIComponent(row.id)}`, { method: "DELETE" }); setSelectedIds((current) => current.filter((id) => id !== row.id)); setMassNotice("Záznam byl odstraněn."); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Záznam se nepodařilo odstranit."); }
@@ -3603,7 +3607,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
     finally { setKanbanBusyId(""); }
   }
   async function removeKanbanRecord(row: Row) {
-    if (!canDelete || !window.confirm(`Opravdu trvale odstranit „${row.name || row.subject || row.id}“?`)) return;
+    if (!canDelete || !await confirmDialog({ title: "Trvale odstranit záznam?", message: `Záznam „${row.name || row.subject || row.id}“ bude trvale odstraněn.`, confirmLabel: "Trvale odstranit", tone: "danger" })) return;
     setKanbanBusyId(row.id); setError("");
     try { await request(`${encodeURIComponent(entity)}/${encodeURIComponent(row.id)}`, { method: "DELETE" }); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Záznam se nepodařilo odstranit."); }
@@ -3636,7 +3640,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
   const editableFields = Object.entries(fieldDefs).filter(([name, def]) => fieldPermissions[name]?.edit !== "no" && fieldPermissions[name]?.read !== "no" && !def.readOnly && !def.disabled && !def.notStorable && !def.utility && !def.hidden && !name.endsWith("Id") && !name.endsWith("Data") && !["linkMultiple", "password", "jsonObject", "jsonArray"].includes(def.type || ""));
   async function bulkDelete() {
     const count = allResultsSelected ? total : selectedIds.length;
-    if (!window.confirm(`Smazat ${allResultsSelected ? "všech " : ""}${count} vybraných záznamů?`)) return;
+    if (!await confirmDialog({ title: `Smazat ${allResultsSelected ? "všech " : ""}${count} vybraných záznamů?`, message: "Vybrané záznamy budou odstraněny z CRM.", confirmLabel: "Smazat záznamy", tone: "danger" })) return;
     setMassBusy(true); setError("");
     try { await request("MassAction", { method: "POST", body: JSON.stringify({ entityType: entity, action: "delete", params: massSelectionParams }) }); setSelectedIds([]); setAllResultsSelected(false); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Hromadné mazání selhalo."); }
@@ -3676,8 +3680,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
   }
   async function massFollow(action: "follow" | "unfollow") {
     const countSelected = allResultsSelected ? total : selectedIds.length;
-    const verb = action === "follow" ? "začít sledovat" : "přestat sledovat";
-    if (!window.confirm(`Opravdu chcete ${verb} ${allResultsSelected ? "všech " : ""}${countSelected} vybraných záznamů?`)) return;
+    if (!await confirmDialog({ title: `${action === "follow" ? "Začít sledovat" : "Přestat sledovat"} ${countSelected} záznamů?`, message: `Akce se použije na ${allResultsSelected ? "všechny záznamy odpovídající výběru" : "vybrané záznamy"}.`, confirmLabel: action === "follow" ? "Začít sledovat" : "Přestat sledovat", tone: "primary" })) return;
     setMassBusy(true); setError(""); setMassNotice("");
     try {
       const result = await request<Row>("MassAction", { method: "POST", body: JSON.stringify({ entityType: entity, action, params: massSelectionParams }) });
@@ -3688,7 +3691,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
   }
   async function removeReadOnlyListRecord(row: Row) {
     const label = isAuthLogRecord ? "záznam historie přihlášení" : "položku fronty e-mailů";
-    if (!canDelete || !window.confirm(`Opravdu odstranit: ${label}?`)) return;
+    if (!canDelete || !await confirmDialog({ title: "Odstranit položku?", message: `Opravdu chcete odstranit ${label}?`, confirmLabel: "Odstranit", tone: "danger" })) return;
     setMassBusy(true); setError("");
     try { await request(`${encodeURIComponent(entity)}/${encodeURIComponent(row.id)}`, { method: "DELETE" }); setSelectedIds((ids) => ids.filter((id) => id !== row.id)); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : `Záznam se nepodařilo odstranit.`); }
@@ -3880,6 +3883,7 @@ function emailSignaturePlainText(signature: string) {
 }
 
 function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata: Metadata; onClose: () => void; onSaved: (result: { message: string }) => void; initial?: Row }) {
+  const confirmDialog = useConfirmDialog();
   const templateDisabled = Boolean(initial.selectTemplateDisabled);
   const signatureDisabled = Boolean(initial.signatureDisabled);
   const [to, setTo] = useState(initial.to || "");
@@ -3975,7 +3979,7 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
     if (!id) return;
     setError("");
     try {
-      if (bodyChanged && body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim() && !window.confirm("Použití šablony nahradí rozepsaný text. Pokračovat?")) { setTemplateId(""); return; }
+      if (bodyChanged && body.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim() && !await confirmDialog({ title: "Nahradit rozepsaný text?", message: "Obsah e-mailové šablony nahradí text, který jste už napsali.", confirmLabel: "Použít šablonu", tone: "primary" })) { setTemplateId(""); return; }
       templateChosenRef.current = true;
       const prepared = await request<Row>(`EmailTemplate/${encodeURIComponent(id)}/prepare`, { method: "POST", body: JSON.stringify({ emailAddress: to || undefined }) });
       if (prepared.subject) setSubject(prepared.subject);
@@ -4051,7 +4055,7 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
     setter([...new Map([...current, ...additions].map((address) => [address.toLowerCase(), address])).values()].join("; "));
     setError("");
   }
-  function closeComposer() { if (!hasUnsavedChanges || window.confirm("E-mail obsahuje neuložené změny. Opravdu chcete zavřít editor?")) onClose(); }
+  async function closeComposer() { if (!hasUnsavedChanges || await confirmDialog({ title: "Zahodit neuložené změny?", message: "E-mail obsahuje změny, které ještě nejsou uložené.", confirmLabel: "Zahodit změny", tone: "danger" })) onClose(); }
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (event.key === "Escape") { if (insertFieldOpen) return; event.preventDefault(); closeComposer(); return; }
@@ -4145,6 +4149,7 @@ function addCalendarPeriod(timestamp: number, period: string) {
 }
 
 function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, onOpenRelated, onOpenPreferences, onOpenEmailAccounts, onOpenEntity, onOpenCalendar, onComposeEmail, onEditorRouteChange }: { entity: string; record: Row; metadata: Metadata; onClose: () => void; onChanged: (record: Row) => void; onOpenRelated: (entity: string, row: Row) => void; onOpenPreferences: (record: Row) => void; onOpenEmailAccounts: (record: Row) => void; onOpenEntity: (entity: string, where?: Row[]) => void; onOpenCalendar: (record: Row) => void; onComposeEmail: (draft: Row) => void; onEditorRouteChange: (action: "edit" | null, id?: string) => void }) {
+  const confirmDialog = useConfirmDialog();
   const [record, setRecord] = useState(() => entity === "AppSecret" ? { ...initial, value: "" } : initial);
   const [copiedCredential, setCopiedCredential] = useState("");
   const [dateTimeZone, setDateTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
@@ -4281,7 +4286,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     return () => { live = false; };
   }, [entity, hasPersonalData]);
   async function remove() {
-    if (!window.confirm(`Opravdu smazat tento záznam?`)) return;
+    if (!await confirmDialog({ title: "Smazat záznam?", message: `Záznam „${record.name || record.subject || entityLabel(metadata, entity, true)}“ bude odstraněn.`, confirmLabel: "Smazat záznam", tone: "danger" })) return;
     setBusy(true); setError("");
     try { await request(`${entity}/${record.id}`, { method: "DELETE" }); onClose(); }
     catch (e) { setError(e instanceof Error ? e.message : "Záznam se nepodařilo smazat."); }
@@ -4404,7 +4409,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   }
   async function userSecurityAction(action: "apiKey" | "recovery" | "password") {
     const message = action === "apiKey" ? "Vygenerovat nový API klíč? Původní klíč okamžitě přestane fungovat." : action === "recovery" ? `Odeslat uživateli ${record.emailAddress} odkaz pro změnu hesla?` : `Vygenerovat nové heslo a odeslat je uživateli ${record.emailAddress}?`;
-    if (!window.confirm(message)) return;
+    if (!await confirmDialog({ title: action === "apiKey" ? "Vytvořit nový API klíč?" : action === "recovery" ? "Odeslat odkaz pro změnu hesla?" : "Vygenerovat nové heslo?", message, confirmLabel: action === "apiKey" ? "Vytvořit nový klíč" : action === "recovery" ? "Odeslat odkaz" : "Vygenerovat heslo", tone: "primary" })) return;
     setBusy(true); setError(""); setUserNotice("");
     try {
       if (action === "apiKey") {
@@ -4439,16 +4444,16 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
       setError(`Hodnotu „${label}“ se nepodařilo zkopírovat.`);
     }
   }
-  function loginAsUser() {
+  async function loginAsUser() {
     if (!isAdminViewer || entity !== "User" || record.type !== "regular") return;
     const sessionUser = getSession()?.user;
-    if (!sessionUser?.userName || !record.userName || !window.confirm(`Otevřít nové okno přihlášené jako ${record.name || record.userName}?`)) return;
+    if (!sessionUser?.userName || !record.userName || !await confirmDialog({ title: "Otevřít relaci uživatele?", message: `Otevře se nové okno přihlášené jako ${record.name || record.userName}.`, confirmLabel: "Otevřít nové okno", tone: "primary" })) return;
     const query = new URLSearchParams({ entryPoint: "loginAs", anotherUser: String(record.userName), username: String(sessionUser.userName) });
     window.open(`/?${query.toString()}`, "_blank", "noopener,noreferrer");
   }
   async function leadCaptureTokenAction(action: "generateNewApiKey" | "generateNewFormId") {
     const label = action === "generateNewApiKey" ? "API klíč" : "ID formuláře";
-    if (!window.confirm(`Vytvořit nové ${label}? Původní hodnota přestane fungovat.`)) return;
+    if (!await confirmDialog({ title: `Vytvořit nové ${label}?`, message: `Původní ${label.toLocaleLowerCase("cs-CZ")} okamžitě přestane fungovat.`, confirmLabel: `Vytvořit nové ${label}`, tone: "danger" })) return;
     setBusy(true); setError(""); setUserNotice("");
     try {
       const result = await request<Row>(`LeadCapture/action/${action}`, { method: "POST", body: JSON.stringify({ id: record.id }) });
