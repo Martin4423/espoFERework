@@ -34,3 +34,14 @@ export async function search(page: Page, text: string) {
 }
 
 export const rows = (page: Page) => page.locator('table tbody tr')
+
+// The list shows a "loading" row first; an older response must not land after a search was typed, so wait it out.
+export async function listReady(page: Page) {
+  await expect(page.locator('table .table-loading')).toHaveCount(0)
+  await expect(page.locator('.table-footer')).toBeVisible()
+}
+
+export async function openList(page: Page, label: string) {
+  await openEntity(page, label)
+  await listReady(page)
+}

@@ -148,6 +148,15 @@ export default function RecordStream({ entity, record, metadata, onOpenNote, onO
   }, [entity, record.id, streamFilter]);
 
   useEffect(() => { void load(); }, [load]);
+  // a note or a change of this record made by somebody else arrives as an event: show it without a reload
+  useEffect(() => {
+    const onRealtime = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if ((detail?.event === "note" && detail.data?.recordId === record.id) || (detail?.event === "record" && detail.data?.id === record.id)) void load();
+    };
+    window.addEventListener("via-realtime", onRealtime);
+    return () => window.removeEventListener("via-realtime", onRealtime);
+  }, [load, record.id]);
   useEffect(() => {
     const saveDraft = () => {
       try {

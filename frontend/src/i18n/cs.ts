@@ -43,6 +43,18 @@ export const cs = {
   "error.UNSUPPORTED_MEDIA_TYPE": "Nepodporovaný typ obsahu.",
   "error.INTERNAL": "Na serveru došlo k chybě. Zkuste to později.",
 
+  "files.title": "Soubory",
+  "files.upload": "Nahrát soubor",
+  "files.uploading": "Nahrávám…",
+  "files.empty": "K záznamu zatím nejsou žádné soubory.",
+  "files.delete": "Smazat soubor",
+  "files.deleteTitle": "Smazat soubor?",
+  "files.deleteMessage": "Soubor „{name}“ bude odstraněn.",
+  "files.tooLarge": "Soubor je větší než {limit} MB.",
+  "files.failed": "Soubor se nepodařilo nahrát.",
+  "files.download": "Stáhnout",
+  "files.by": "nahrál/a {name}",
+
   "fieldError.REQUIRED": "je povinné",
   "fieldError.INVALID_VALUE": "má neplatnou hodnotu",
   "fieldError.INVALID_TYPE": "má neplatný typ hodnoty",

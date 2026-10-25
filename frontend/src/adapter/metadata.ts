@@ -2,7 +2,7 @@ import { apiJson } from "../http.ts";
 import { getLocale } from "../i18n/index.ts";
 import { UNSUPPORTED_SCOPES } from "../unsupported.ts";
 import { keyOf, scopeOf, screenField } from "./names.ts";
-import { setSchema } from "./schema.ts";
+import { reverseLinks, setSchema } from "./schema.ts";
 import { clearLookupCache } from "./lookup.ts";
 import type { FieldDef, Metadata, UserAcl } from "../api";
 
@@ -83,6 +83,7 @@ function fieldTable(perms: ViaPermissions): NonNullable<UserAcl["fieldTable"]> {
 
 // Pure: ViaCRM entities + permissions -> the metadata the screens read.
 export function buildMetadata(source: ViaEntities, perms: ViaPermissions): Metadata {
+  setSchema(source.entities);
   const locale = getLocale();
   const scopes: Metadata["scopes"] = {};
   const entityDefs: Metadata["entityDefs"] = {};
@@ -94,7 +95,7 @@ export function buildMetadata(source: ViaEntities, perms: ViaPermissions): Metad
   source.entities.forEach((entity, index) => {
     const scope = scopeOf(entity.key);
     scopes[scope] = {
-      entity: true, object: true, tab: !NO_TAB.has(entity.key), layouts: true, acl: true, stream: false, calendar: CALENDAR.has(entity.key),
+      entity: true, object: true, tab: !NO_TAB.has(entity.key), layouts: true, acl: true, stream: !NO_TAB.has(entity.key), calendar: CALENDAR.has(entity.key),
       importable: false, customizable: perms.isAdmin, isCustom: !entity.builtIn, isNotRemovable: true, type: "Base", order: index,
       entityManager: { fields: true, addField: true, edit: true, relationships: false },
     } as Metadata["scopes"][string];
@@ -111,9 +112,17 @@ export function buildMetadata(source: ViaEntities, perms: ViaPermissions): Metad
     // The display name of a record is computed (name, subject or first + last name); it is not a field of the schema.
     if (!fields.name) fields.name = { type: "varchar", label: entity.labelSingular, notStorable: true, readOnly: true, utility: true };
     entityDefs[scope] = { object: true, fields, links, collection: { orderBy: "createdAt", order: "desc" } };
-    clientDefs[scope] = { iconClass: ICONS[scope] ?? "fas fa-cube" };
     scopeNames[scope] = entity.labelSingular;
     scopeNamesPlural[scope] = entity.labelPlural;
+    // related records: every link that points at this entity gives a panel with the records that refer to it
+    const panels: Array<{ name: string; label: string }> = [];
+    for (const reverse of reverseLinks(entity.key)) {
+      const from = source.entities.find((candidate) => candidate.key === reverse.entityKey);
+      if (!from) continue;
+      links[reverse.name] = { entity: scopeOf(reverse.entityKey), type: "hasMany", foreign: reverse.field } as { entity?: string; type?: string };
+      panels.push({ name: reverse.name, label: from.labelPlural });
+    }
+    clientDefs[scope] = { iconClass: ICONS[scope] ?? "fas fa-cube", ...(panels.length ? { bottomPanels: { detail: panels } } : {}) };
     labels[scope] = { fields: Object.fromEntries(Object.entries(fields).map(([name, def]) => [name, String(def.label ?? name)])) };
   });
 

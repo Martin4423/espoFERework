@@ -44,6 +44,18 @@ export const en: Record<MessageKey, string> = {
   "error.UNSUPPORTED_MEDIA_TYPE": "Unsupported content type.",
   "error.INTERNAL": "A server error occurred. Please try again later.",
 
+  "files.title": "Files",
+  "files.upload": "Upload a file",
+  "files.uploading": "Uploading…",
+  "files.empty": "This record has no files yet.",
+  "files.delete": "Delete file",
+  "files.deleteTitle": "Delete the file?",
+  "files.deleteMessage": "The file “{name}” will be removed.",
+  "files.tooLarge": "The file is larger than {limit} MB.",
+  "files.failed": "The file could not be uploaded.",
+  "files.download": "Download",
+  "files.by": "uploaded by {name}",
+
   "fieldError.REQUIRED": "is required",
   "fieldError.INVALID_VALUE": "has an invalid value",
   "fieldError.INVALID_TYPE": "has an invalid type of value",

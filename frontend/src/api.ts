@@ -4,7 +4,8 @@ import { loadMetadata } from "./adapter/metadata.ts";
 import { legacyRequest } from "./adapter/router.ts";
 import { clearLayoutCache, loadLayout } from "./adapter/layouts.ts";
 import type { MeResponse, Session } from "./auth/client.ts";
-import { ApiError, UnsupportedError } from "./problem.ts";
+import { ApiError, UnsupportedError, problemFromResponse } from "./problem.ts";
+import { downloadFile } from "./RecordFiles.tsx";
 
 export type { Session, User } from "./auth/client.ts";
 export { ApiError, UnsupportedError, isUnsupported } from "./problem.ts";
@@ -71,9 +72,13 @@ export async function request<T = any>(path: string, init: RequestInit = {}): Pr
   return legacyRequest(path, init) as Promise<T>;
 }
 
-export async function downloadAttachment(_id: string, _name: string): Promise<void> { throw new UnsupportedError("Attachment/file"); }
+export async function downloadAttachment(id: string, name: string): Promise<void> { return downloadFile(id, name); }
 
-export async function getAttachmentPreviewUrl(_id: string): Promise<string> { throw new UnsupportedError("Attachment/file"); }
+export async function getAttachmentPreviewUrl(id: string): Promise<string> {
+  const response = await auth.authorizedFetch(`/v1/files/${encodeURIComponent(id)}/content`);
+  if (!response.ok) throw await problemFromResponse(response);
+  return URL.createObjectURL(await response.blob());
+}
 
 export async function uploadAttachment(_file: File, _entity: string, _field: string, _multiple = false, _role = "Attachment"): Promise<{ id: string; name: string; type: string }> { throw new UnsupportedError("Attachment"); }
 

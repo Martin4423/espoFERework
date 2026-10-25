@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { adminToken, createRecord, openEntity, rows, search, signIn, stamp } from './support.ts'
+import { adminToken, createRecord, openEntity, openList, rows, search, signIn, stamp } from './support.ts'
 
 // Step S4: detail, create, edit, delete.
 const edit = (page: Page) => page.getByRole('button', { name: 'Upravit záznam', exact: true })
@@ -8,8 +8,7 @@ const field = (page: Page, id: string) => page.locator(`.record-modal #field-${i
 const save = (page: Page) => page.getByRole('button', { name: 'Uložit změny' })
 
 async function openContact(page: Page, tag: string) {
-  await openEntity(page, 'Contacts')
-  await expect(rows(page).first()).toBeVisible()
+  await openList(page, 'Contacts')
   await search(page, tag)
   await expect(rows(page)).toHaveCount(1)
   await rows(page).first().click()
@@ -69,8 +68,7 @@ test('a record is created from the list and shows up in it', async ({ page, requ
   const token = await adminToken(request)
   const tag = stamp()
   await signIn(page)
-  await openEntity(page, 'Contacts')
-  await expect(rows(page).first()).toBeVisible()
+  await openList(page, 'Contacts')
 
   await page.getByRole('button', { name: /Nový záznam/ }).first().click()
   await field(page, 'lastName').fill(`Created ${tag}`)
@@ -147,6 +145,7 @@ test('the owner is changed from the user choice and saved as ownerId', async ({ 
   await openContact(page, tag)
   await edit(page).click()
 
+  await page.locator('.record-modal:visible').getByPlaceholder('Hledat user…').fill(`Owner${tag}`)
   await page.locator('.record-modal:visible #field-assignedUser').selectOption({ label: `Owner${tag}` })
   await save(page).click()
 

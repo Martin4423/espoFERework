@@ -2,9 +2,14 @@ import { apiJson } from "../http.ts";
 import { ApiError, UnsupportedError } from "../problem.ts";
 import { forgetPagers, pagerFor } from "./pager.ts";
 import { forgetVersion, seenVersion, toScreenRecord, toScreenRecords, toViaBody } from "./records.ts";
-import { expandableLinks, schemaOf } from "./schema.ts";
+import { expandableLinks, reverseLinks, schemaOf } from "./schema.ts";
 import { keyOf, screenField } from "./names.ts";
 import { toFilter } from "./where.ts";
+import { createNote, deleteNote, filesOf, followersOf, getNote, setFollowing, streamList, updateNote } from "./stream.ts";
+import { markRead, notificationList, setRead, unreadCount } from "./notifications.ts";
+import { rememberUsers } from "./lookup.ts";
+import type { FilterNode } from "./where.ts";
+import { auth } from "../http.ts";
 import type { WhereItem } from "./where.ts";
 
 // The screens still call the old REST shape: `Account?maxSize=20&offset=40&where=[...]`, `Account/{id}`, `PUT Account/{id}`.
@@ -69,14 +74,15 @@ export function sortFor(entityKey: string, orderBy: string | null, order: string
   return field && SORTABLE.has(field.type) ? `${direction}${key}` : null;
 }
 
-async function listRecords(scope: string, params: URLSearchParams): Promise<{ total: number; list: Row[] }> {
+async function listRecords(scope: string, params: URLSearchParams, extra: FilterNode | null = null): Promise<{ total: number; list: Row[] }> {
   const entityKey = keyOf(scope);
   const entity = schemaOf(entityKey);
   if (!entity) throw new UnsupportedError(scope);
   for (const name of ["primaryFilter", "boolFilterList"]) {
     if ([...params.keys()].some((key) => key === name || key.startsWith(`${name}[`)) && (params.get(name) || params.getAll(`${name}[]`).length)) throw new UnsupportedError(name);
   }
-  const { filter, q } = toFilter(entityKey, whereItems(params));
+  const { filter: where, q } = toFilter(entityKey, whereItems(params));
+  const filter = extra && where ? { and: [extra, where] } : extra ?? where;
   const textFilter = params.get("textFilter")?.trim() || q;
   const limit = Math.min(MAX_PAGE, Math.max(1, Number(params.get("maxSize")) || 20));
   const offset = Math.max(0, Number(params.get("offset")) || 0);
@@ -110,7 +116,12 @@ async function getRecord(scope: string, id: string): Promise<Row> {
     try { record[field.key] = await apiJson<Row>(`/v1/records/${field.properties.target}/${record[`${field.key}Id`]}`); }
     catch { /* the target may be unreadable for this user: the link then shows no name */ }
   }));
-  return toScreenRecord(entityKey, record);
+  const row = await toScreenRecord(entityKey, record);
+  try {
+    const me = auth.getSession()?.user.id;
+    row.isFollowed = Boolean(me) && (await followersOf(scope, id)).list.some((follower) => follower.id === me);
+  } catch { row.isFollowed = false; }
+  return row;
 }
 
 // Field errors of the backend use ViaCRM names; the screens know the names of their own attributes.
@@ -138,6 +149,91 @@ async function write(entityKey: string, run: () => Promise<any>): Promise<any> {
   }
 }
 
+// ---- related records: GET/POST/DELETE Account/{id}/contacts ----
+async function relatedRequest(scope: string, id: string, linkName: string, method: string, query: string, body: () => Row): Promise<any> {
+  const reverse = reverseLinks(keyOf(scope)).find((link) => link.name === linkName);
+  if (!reverse) throw new UnsupportedError(`${scope}/${id}/${linkName}`);
+  const relatedScope = scopeOfKey(reverse.entityKey);
+  if (method === "GET") return listRecords(relatedScope, new URLSearchParams(query), { field: `${reverse.field}Id`, op: "eq", value: id });
+  const ids = (() => { const data = body(); return Array.isArray(data.ids) ? data.ids : data.id ? [data.id] : []; })() as string[];
+  if (method === "POST" || method === "DELETE") {
+    await Promise.all(ids.map((target) => apiJson(`/v1/records/${reverse.entityKey}/${target}`, { method: "PATCH", body: JSON.stringify({ [`${reverse.field}Id`]: method === "POST" ? id : null }) })));
+    forgetPagers(reverse.entityKey);
+    return true;
+  }
+  throw new UnsupportedError(`${scope}/${id}/${linkName}`);
+}
+
+const scopeOfKey = (key: string) => key.charAt(0).toUpperCase() + key.slice(1);
+
+// ---- mass actions: delete and update many records ----
+const MAX_MASS = 5000;
+
+async function collectIds(scope: string, params: Row): Promise<string[]> {
+  if (Array.isArray(params.ids)) return params.ids;
+  if (!params.byWhere) return [];
+  const query = new URLSearchParams();
+  const items = [...(Array.isArray(params.where) ? params.where : []), ...(params.searchParams?.textFilter ? [{ type: "textFilter", value: params.searchParams.textFilter }] : [])];
+  query.set("whereGroup", JSON.stringify(items));
+  const ids: string[] = [];
+  for (let offset = 0; offset < MAX_MASS; offset += MAX_PAGE) {
+    query.set("maxSize", String(MAX_PAGE));
+    query.set("offset", String(offset));
+    const page = await listRecords(scope, query);
+    ids.push(...page.list.map((row) => row.id));
+    if (page.list.length < MAX_PAGE) break;
+  }
+  return ids;
+}
+
+async function massAction(init: RequestInit): Promise<any> {
+  let body: Row = {};
+  try { body = JSON.parse(String(init.body ?? "{}")); } catch { /* an empty body selects nothing */ }
+  const scope = String(body.entityType ?? "");
+  const entityKey = keyOf(scope);
+  if (!schemaOf(entityKey)) throw new UnsupportedError(`MassAction:${scope}`);
+  const action = String(body.action ?? "");
+  if (action !== "delete" && action !== "update") throw new UnsupportedError(`MassAction:${action}`);
+  const ids = await collectIds(scope, body.params ?? {});
+  const set = action === "update" ? toViaBody(entityKey, body.data?.values ?? body.data ?? {}) : undefined;
+  const done: string[] = [];
+  const errors: Array<{ id: string; message: string }> = [];
+  for (let i = 0; i < ids.length; i += MAX_PAGE) {
+    const chunk = ids.slice(i, i + MAX_PAGE);
+    const result = await write(entityKey, () => apiJson<{ results: Array<{ id: string; status: string; message?: string }> }>(`/v1/records/${entityKey}/bulk`, {
+      method: "POST", body: JSON.stringify(action === "delete" ? { action, ids: chunk } : { action, ids: chunk, set }),
+    }));
+    for (const item of result.results) {
+      if (item.status === "ok") done.push(item.id);
+      else errors.push({ id: item.id, message: item.message ?? "" });
+    }
+  }
+  return { count: done.length, ids: done, errors };
+}
+
+// ---- preferences: the per-user object of /v1/me/preferences ----
+// The screens read it from a dozen places while one page renders: reads within a moment share one request.
+let preferencesRead: { at: number; value: Promise<Row> } | null = null;
+const PREFERENCES_REUSE_MS = 1500;
+
+async function preferences(segments: string[], method: string, body: () => Row): Promise<any> {
+  const session = auth.getSession();
+  if (segments.length !== 2 || segments[1] !== session?.user.id) throw new UnsupportedError("Preferences:other-user");
+  if (method === "GET") {
+    if (!preferencesRead || Date.now() - preferencesRead.at > PREFERENCES_REUSE_MS) {
+      const value = apiJson<Row>("/v1/me/preferences");
+      value.catch(() => { preferencesRead = null; });
+      preferencesRead = { at: Date.now(), value };
+    }
+    return preferencesRead.value;
+  }
+  if (method === "PUT" || method === "PATCH") {
+    preferencesRead = null;
+    return apiJson<Row>("/v1/me/preferences", { method: "PATCH", body: JSON.stringify(body()) });
+  }
+  throw new UnsupportedError("Preferences");
+}
+
 // Users and teams are not records of the schema. For pickers and name displays they are answered from the lookups
 // (id and name only; the administration screens of step S8 use /v1/users and /v1/teams).
 async function lookupScope(scope: "User" | "Team", segments: string[], query: string): Promise<any> {
@@ -157,6 +253,7 @@ async function lookupScope(scope: "User" | "Team", segments: string[], query: st
   const request = new URLSearchParams({ limit: String(limit) });
   if (text) request.set("q", text);
   const result = await apiJson<{ items: Array<{ id: string; name: string; isActive?: boolean }> }>(`/v1/lookup/${kind}?${request.toString()}`);
+  if (scope === "User") rememberUsers(result.items);
   return { total: result.items.length, list: result.items.map(shape) };
 }
 
@@ -166,10 +263,27 @@ export async function legacyRequest(path: string, init: RequestInit = {}): Promi
   const segments = pathname.split("/").map(decodeURIComponent);
   const scope = segments[0];
   const entityKey = keyOf(scope);
+  const body = (): Row => { try { return JSON.parse(String(init.body ?? "{}")); } catch { return {}; } };
+  if (scope === "MassAction" && method === "POST" && segments.length === 1) return massAction(init);
+  if (scope === "Notification") {
+    if (method === "GET" && segments.length === 1) return notificationList(new URLSearchParams(query));
+    if (method === "GET" && segments[1] === "action" && segments[2] === "notReadCount") return unreadCount();
+    if (method === "POST" && segments[1] === "action" && segments[2] === "markAllRead") { forgetPagers("__notification"); return markRead("all"); }
+    if (method === "PUT" && segments.length === 2 && UUID.test(segments[1])) { forgetPagers("__notification"); return setRead(segments[1], Boolean(body().read)); }
+    throw new UnsupportedError(path);
+  }
+  if (scope === "Note") {
+    if (method === "POST" && segments.length === 1) return createNote(body());
+    if (segments.length === 2 && UUID.test(segments[1])) {
+      if (method === "GET") return getNote(segments[1]);
+      if (method === "PUT" || method === "PATCH") return updateNote(segments[1], body());
+      if (method === "DELETE") return deleteNote(segments[1]);
+    }
+    throw new UnsupportedError(path);
+  }
+  if (scope === "Preferences") return preferences(segments, method, () => { try { return JSON.parse(String(init.body ?? "{}")); } catch { return {}; } });
   if ((scope === "User" || scope === "Team") && method === "GET") return lookupScope(scope, segments, query);
   if (!schemaOf(entityKey)) throw new UnsupportedError(path);
-  const body = (): Row => { try { return JSON.parse(String(init.body ?? "{}")); } catch { return {}; } };
-
   if (segments.length === 1) {
     if (method === "GET") return listRecords(scope, new URLSearchParams(query));
     if (method === "POST") {
@@ -192,5 +306,14 @@ export async function legacyRequest(path: string, init: RequestInit = {}): Promi
       return write(entityKey, async () => { await apiJson(`/v1/records/${entityKey}/${id}`, { method: "DELETE" }); forgetVersion(entityKey, id); return true; });
     }
   }
+  if (segments.length === 3 && UUID.test(segments[1])) {
+    const [, id, part] = segments;
+    if (part === "stream" && method === "GET") return streamList(scope, id, new URLSearchParams(query), false);
+    if (part === "posts" && method === "GET") return streamList(scope, id, new URLSearchParams(query), true);
+    if (part === "streamAttachments" && method === "GET") return filesOf(scope, id);
+    if (part === "followers" && method === "GET") return followersOf(scope, id);
+    if (part === "subscription" && (method === "PUT" || method === "DELETE")) return setFollowing(scope, id, method === "PUT");
+  }
+  if (segments.length === 3 && UUID.test(segments[1])) return relatedRequest(scope, segments[1], segments[2], method, query, body);
   throw new UnsupportedError(path);
 }

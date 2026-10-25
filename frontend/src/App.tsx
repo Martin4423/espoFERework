@@ -17,6 +17,8 @@ import { dateFilterBoundaryInTimeZone, espocrmDateTimeFromInput, formatEspoDateT
 import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, logout, request, restoreSession, uploadAttachment } from "./api";
 import { Lock } from "lucide-react";
 import { fieldErrorsText } from "./problem.ts";
+import { startRealtime } from "./realtime.ts";
+import RecordFiles from "./RecordFiles.tsx";
 import { Login } from "./Login.tsx";
 import { NotAvailable } from "./NotAvailable.tsx";
 import { isUnsupportedScope } from "./unsupported.ts";
@@ -477,6 +479,9 @@ function App() {
 
   useEffect(() => { void loadApp(); }, [loadApp]);
 
+  const signedIn = Boolean(session);
+  useEffect(() => (signedIn ? startRealtime() : undefined), [signedIn]);
+
   async function onLogin(email: string, password: string): Promise<Session> {
     const next = await login(email, password);
     setFatal("");
@@ -728,9 +733,11 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
     const refreshWhenVisible = () => { if (document.visibilityState === "visible") refreshNotificationCount(); };
     refreshNotificationCount();
     const timer = window.setInterval(refreshNotificationCount, notificationCheckInterval);
+    const onRealtime = (event: Event) => { if ((event as CustomEvent).detail?.event === "notification") refreshNotificationCount(); };
     document.addEventListener("visibilitychange", refreshWhenVisible);
     window.addEventListener("focus", refreshNotificationCount);
-    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refreshWhenVisible); window.removeEventListener("focus", refreshNotificationCount); };
+    window.addEventListener("via-realtime", onRealtime);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refreshWhenVisible); window.removeEventListener("focus", refreshNotificationCount); window.removeEventListener("via-realtime", onRealtime); };
   }, [refreshNotificationCount, notificationCheckInterval]);
   const [mobileNav, setMobileNav] = useState(false);
   const sidebarStorageKey = `via-sidebar-collapsed:${user.id}`;
@@ -4170,6 +4177,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     {!record.deleted && isAdminViewer && entity === "User" && record.type === "api" && <section className="detail-panel"><div className="drawer-section-title">API PŘÍSTUP</div><div className="user-api-credentials">{[["Metoda ověření", record.authMethod || "ApiKey"], ["API klíč", record.apiKey], ...(record.authMethod === "Hmac" ? [["Tajný klíč", record.secretKey]] : [])].filter(([, value]) => Boolean(value)).map(([label, value]) => <div key={String(label)}><span><small>{label}</small><code>{String(value)}</code></span><button type="button" className="button subtle" aria-label={copiedCredential === label ? `${String(label)} zkopírován` : `Zkopírovat ${String(label)}`} onClick={() => void copyUserCredential(String(label), String(value))}>{copiedCredential === label ? <><Check size={13}/> Zkopírováno</> : <><Copy size={13}/> Kopírovat</>}</button></div>)}</div><span className="sr-only" aria-live="polite">{copiedCredential ? `${copiedCredential} zkopírován do schránky.` : ""}</span><p className="user-api-credentials-hint">Přístupové údaje vidí pouze administrátoři. Při změně klíče přestane původní hodnota okamžitě platit.</p></section>}
     {!record.deleted && entity === "User" && isAdminViewer && <AdminUserLoginHistory userId={record.id}/>}
     {!record.deleted && <Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/>Načítám související záznamy…</div>}><RecordRelationships entity={entity} record={record} metadata={metadata} onOpenRecord={onOpenRelated} onOpenTaskList={(scope, where) => onOpenEntity(scope, where)} onComposeEmail={onComposeEmail} renderActivityEditor={(scope, initialValues, onActivitySaved, onActivityClose) => <RecordEditor key={`${scope}-${initialValues.id || "new"}`} entity={scope} fields={getEditorFields(metadata, scope)} metadata={metadata} record={initialValues.id ? initialValues : undefined} initialValues={initialValues} onClose={onActivityClose} onSaved={onActivitySaved}/>}/></Suspense>}
+    {!record.deleted && record.id && <RecordFiles entity={entity} recordId={String(record.id)} canUpload={canChangeEntity(metadata, entity, "edit")} currentUserId={String(getSession()?.user.id || "")} isAdmin={getSession()?.user.type === "admin"}/>}
     {!record.deleted && entity === "OAuthAccount" && <OAuthConnectionPanel record={record} onChanged={(next) => { setRecord(next); onChanged(next); }}/>}
     {!record.deleted && aclLevel(metadata, entity, "stream") !== "no" && <Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/>Načítám aktivitu…</div>}><RecordStream entity={entity} record={record} metadata={metadata} onOpenNote={(note) => { void request<Row>(`Note/${encodeURIComponent(note.id)}`).then((fresh) => onOpenRelated("Note", fresh)).catch(() => onOpenRelated("Note", note)); }} onOpenEmail={(note) => { const emailId = String(note.data?.emailId || ""); if (!emailId) return; void request<Row>(`Email/${encodeURIComponent(emailId)}`).then((email) => onOpenRelated("Email", email)).catch((cause) => setError(cause instanceof Error ? cause.message : "Související e-mail se nepodařilo otevřít.")); }} onOpenRelated={(scope, id, name) => onOpenRelated(scope, { id, name })}/></Suspense>}
     {showComplexCreated || showComplexModified ? <div className="drawer-meta">{showComplexCreated && <><span>Vytvořeno</span><b>{auditMetaValue("created")}</b></>}{showComplexModified && <><span>Upraveno</span><b>{auditMetaValue("modified")}</b></>}</div> : null}

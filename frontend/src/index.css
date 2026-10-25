@@ -3917,3 +3917,10 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 /* The record picker dialog and the picker field share a class: the dialog's fixed width must not apply to the field. */
 .field-input.relationship-picker { width: auto; max-height: none; display: grid; flex-direction: initial; }
 .modal-fields { align-items: start; }
+
+.record-files { margin-top: 18px; padding: 18px 20px; }
+.record-files-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.record-files-list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line, #e3e7ee); }
+.record-files-list li small { color: var(--muted, #667085); margin-right: auto; }
+.record-files .link-button { border: 0; background: none; padding: 0; color: var(--primary, #5b4bd6); cursor: pointer; font: inherit; text-align: left; }
+.record-files .link-button:hover { text-decoration: underline; }

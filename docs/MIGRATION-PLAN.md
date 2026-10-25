@@ -24,7 +24,10 @@ Větev `dot-net`. Navazuje na `docs/BACKEND-MIGRATION-ANALYSIS.md` (co se mění
 | B1 | hotovo (`/v1/lookup/users`, `/v1/lookup/teams` v `viacrm-be`) |
 | S3 | hotovo (seznamy: layout, řazení, hledání, stránkování nad kurzory s čísly stránek, názvy vazeb a vlastníků) |
 | S4 | hotovo (detail, vytvoření, úprava, smazání; chyby polí, konflikt verzí přes If-Match, výběr vazeb a vlastníka; všechny entity lze vytvořit) |
-| S5 a dál | čeká |
+| B2 | hotovo (`/v1/me/preferences`, per-user JSON; slouží uloženým filtrům, kalendáři, záložkám) |
+| S5 | hotovo (filtry vč. datumových předvoleb, uložené filtry v preferencích, hromadné mazání a úprava, související záznamy) |
+| S6 | hotovo (příspěvky se zmínkami, historie změn, sledování, notifikace, živý SSE stream, soubory záznamu) |
+| S7 a dál | čeká |
 
 ## Kroky
 

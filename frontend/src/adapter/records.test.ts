@@ -111,9 +111,29 @@ describe("where to filter", () => {
     expect(toFilter("task", [{ type: "greaterThan", attribute: "dueDate", value: "2026-02-01 10:00:00" }]).filter).toEqual({ field: "dueDate", op: "gt", value: "2026-02-01T10:00:00Z" });
   });
   it("reports what ViaCRM cannot filter yet as not available", () => {
-    for (const where of [{ type: "primary", value: "active" }, { type: "bool", value: ["onlyMy"] }, { type: "today", attribute: "dueDate" }, { type: "equals", attribute: "nope", value: 1 }]) {
+    for (const where of [{ type: "primary", value: "active" }, { type: "bool", value: ["onlyMy"] }, { type: "currentFiscalYear", attribute: "dueDate" }, { type: "equals", attribute: "nope", value: 1 }]) {
       expect(() => toFilter("task", [where])).toThrow(UnsupportedError);
     }
+  });
+});
+
+describe("date presets", () => {
+  it("turn into half-open ranges", async () => {
+    const { presetRange } = await import("./where.ts");
+    const now = new Date(2026, 0, 15, 12, 30);
+    expect(presetRange("today", 0, now)).toEqual({ from: new Date(2026, 0, 15), to: new Date(2026, 0, 16) });
+    expect(presetRange("currentMonth", 0, now)).toEqual({ from: new Date(2026, 0, 1), to: new Date(2026, 1, 1) });
+    expect(presetRange("lastMonth", 0, now)).toEqual({ from: new Date(2025, 11, 1), to: new Date(2026, 0, 1) });
+    expect(presetRange("currentQuarter", 0, now)).toEqual({ from: new Date(2026, 0, 1), to: new Date(2026, 3, 1) });
+    expect(presetRange("lastQuarter", 0, now)).toEqual({ from: new Date(2025, 9, 1), to: new Date(2026, 0, 1) });
+    expect(presetRange("lastXDays", 3, now)).toEqual({ from: new Date(2026, 0, 12), to: new Date(2026, 0, 16) });
+    expect(presetRange("past", 0, now)).toEqual({ from: null, to: new Date(2026, 0, 15) });
+    expect(presetRange("currentFiscalYear", 0, now)).toBeUndefined();
+  });
+  it("become comparisons on the field, dates for date fields and UTC for date-times", () => {
+    const filter = toFilter("task", [{ type: "past", attribute: "dueDate" }]).filter as { field: string; op: string; value: string };
+    expect(filter).toMatchObject({ field: "dueDate", op: "lt" });
+    expect(filter.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
   });
 });
 
