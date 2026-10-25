@@ -1,6 +1,6 @@
 {
   "name": "ViaCRM Frontend",
-  "version": "2.0.370",
+  "version": "2.0.371",
   "acceptableVersions": [
     ">=9.1.7 <10.0.0"
   ],

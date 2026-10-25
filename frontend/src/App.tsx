@@ -2938,7 +2938,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
   const isEmailQueueItem = entity === "EmailQueueItem";
   const currentUserIsAdmin = ["admin", "super-admin"].includes(String(getSession()?.user.type || ""));
   const hasNativeListSettings = Boolean(metadata.scopes?.[entity]?.object) || ["AppLogRecord", "AuthLogRecord", "Job"].includes(entity);
-  const canEdit = canChangeEntity(metadata, entity, "edit") && !entityClientDefs.editDisabled && !isAuthLogRecord && !isEmailQueueItem && entity !== "Job" && !isLeadCaptureLogRecord;
+  const canEdit = canChangeEntity(metadata, entity, "edit") && !entityClientDefs.editDisabled && entity !== "Attachment" && !isAuthLogRecord && !isEmailQueueItem && entity !== "Job" && !isLeadCaptureLogRecord;
   const canDelete = canChangeEntity(metadata, entity, "delete") && !entityClientDefs.removeDisabled && entity !== "EmailFolder";
   const canExport = canUsePermission(metadata, "exportPermission") && !(metadata.appSettings?.exportDisabled && !currentUserIsAdmin) && !entityClientDefs.exportDisabled && !isAuthLogRecord && !inboundEmailList && !emailAccountList && entity !== "EmailFolder";
   const canMassUpdate = canUsePermission(metadata, "massUpdatePermission") && canEdit && !entityClientDefs.massUpdateDisabled && !isAuthLogRecord && !emailFilterList && entity !== "EmailFolder";
@@ -4258,9 +4258,9 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   };
   const showComplexCreated = entity !== "User" && ((auditFieldReadable("createdAt") && Boolean(record.createdAt)) || (auditFieldReadable("createdBy") && Boolean(record.createdById)));
   const showComplexModified = entity !== "User" && ((auditFieldReadable("modifiedAt") && Boolean(record.modifiedAt)) || (auditFieldReadable("modifiedBy") && Boolean(record.modifiedById))) && (Boolean(record.modifiedById) || record.modifiedAt !== record.createdAt);
-  const canEditRecord = fullRecordLoaded && !record.deleted && !["AuthLogRecord", "EmailQueueItem", "LeadCaptureLogRecord"].includes(entity) && canChangeEntity(metadata, entity, "edit") && !metadata.clientDefs?.[entity]?.editDisabled;
+  const canEditRecord = fullRecordLoaded && !record.deleted && !["Attachment", "AuthLogRecord", "EmailQueueItem", "LeadCaptureLogRecord"].includes(entity) && canChangeEntity(metadata, entity, "edit") && !metadata.clientDefs?.[entity]?.editDisabled;
   const canDeleteRecord = !record.deleted && canChangeEntity(metadata, entity, "delete") && !metadata.clientDefs?.[entity]?.removeDisabled;
-  const canDuplicateRecord = !record.deleted && !["LeadCaptureLogRecord", "Job", "Email", "ScheduledJob", "Import"].includes(entity) && canCreateEntity(metadata, entity) && !metadata.clientDefs?.[entity]?.duplicateDisabled;
+  const canDuplicateRecord = !record.deleted && !["LeadCaptureLogRecord", "Job", "Email", "ScheduledJob", "Import"].includes(entity) && canCreateEntity(metadata, entity) && !metadata.clientDefs?.[entity]?.createDisabled && !metadata.clientDefs?.[entity]?.duplicateDisabled;
   const canPrintPdf = !record.deleted && Array.isArray(metadata.appParams?.templateEntityTypeList) && metadata.appParams.templateEntityTypeList.includes(entity);
   const currencyFields = Object.entries(fields).filter(([name, def]) => readableFieldPermissions[name]?.edit !== "no" && readableFieldPermissions[name]?.read !== "no" && def.type === "currency" && !def.readOnly && !def.disabled && !def.notStorable && !def.utility && !def.hidden);
   const canConvertCurrency = canEditRecord && !metadata.clientDefs?.[entity]?.convertCurrencyDisabled && (metadata.appSettings?.currencyList?.length || 0) > 1 && currencyFields.length > 0;
