@@ -256,7 +256,7 @@ export function getFormFields(metadata: Metadata, entity: string) {
   const fields = metadata.entityDefs?.[entity]?.fields || {};
   const ordered = Object.entries(fields).filter(([name, def]) =>
     !def.notStorable && !def.utility && !def.readOnly && !def.disabled && !def.hidden && !def.layoutDetailDisabled && !name.endsWith("Id") && !name.endsWith("Data") &&
-    (["varchar", "personName", "address", "text", "enum", "enumInt", "enumFloat", "multiEnum", "arrayInt", "barcode", "bool", "date", "datetime", "datetimeOptional", "int", "float", "currency", "url", "urlMultiple", "email", "phone", "wysiwyg", "array", "jsonObject", "jsonArray", "password", "colorpicker", "file", "image", "attachmentMultiple", "checklist", "linkParent"].includes(def.type || "") || ["link", "linkOne", "linkMultiple"].includes(def.type || "") && Boolean(metadata.entityDefs?.[entity]?.links?.[name]?.entity))
+    (["varchar", "personName", "address", "text", "enum", "enumInt", "enumFloat", "multiEnum", "arrayInt", "barcode", "bool", "date", "datetime", "datetimeOptional", "int", "float", "currency", "rangeInt", "rangeFloat", "rangeCurrency", "url", "urlMultiple", "email", "phone", "wysiwyg", "array", "jsonObject", "jsonArray", "password", "colorpicker", "file", "image", "attachmentMultiple", "checklist", "linkParent"].includes(def.type || "") || ["link", "linkOne", "linkMultiple"].includes(def.type || "") && Boolean(metadata.entityDefs?.[entity]?.links?.[name]?.entity))
   );
   const incompatibleFields = new Set(ordered.flatMap(([, def]) => (def.detailLayoutIncompatibleFieldList || []) as string[]));
   const compatible = ordered.filter(([name]) => !incompatibleFields.has(name));
