@@ -3238,6 +3238,10 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 @media (max-width: 760px) { .list-toolbar .list-view-mode { order: 3; } .kanban-board { gap: 9px; padding: 9px; } .kanban-column { width: 242px; min-width: 242px; } }
 
 .admin-formula-backdrop { z-index: 180; }
+.formula-confirm-backdrop { z-index: 181; }
+.formula-confirm-dialog { width: min(490px, calc(100vw - 32px)); }
+.formula-confirm-dialog .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.formula-confirm-dialog .modal-heading p strong { color: var(--ink); }
 .admin-entity-formula { width: min(1240px, calc(100vw - 32px)); max-height: min(920px, calc(100vh - 28px)); display: flex; flex-direction: column; }
 .entity-formula-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-bottom: 12px; }
 .entity-formula-tabs button { display: grid; gap: 5px; padding: 11px 13px; text-align: left; color: var(--text, #202b40); border: 1px solid var(--line, #e4e8f0); border-radius: 8px; background: var(--surface-muted, #fafbfc); cursor: pointer; }
