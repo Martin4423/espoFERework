@@ -925,6 +925,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-input > span:first-child { color: #68748a; }
 .field-input.required > span:first-child i { color: #d06b74; font-style: normal; }
 .field-input input, .field-input select { min-height: 36px; padding: 8px 10px; font-size: 11px; }
+.optional-datetime-field { min-width: 0; }
+.optional-datetime-controls { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(110px, .75fr); gap: 8px; }
+.optional-datetime-field:has(.optional-datetime-toggle input:checked) .optional-datetime-controls { grid-template-columns: minmax(0, 1fr); }
+.optional-datetime-toggle { display: inline-flex; width: fit-content; align-items: center; gap: 8px; color: var(--muted, #778198); cursor: pointer; font-size: 11px; font-weight: 500; }
+.optional-datetime-toggle input { width: 15px; min-height: 15px; height: 15px; margin: 0; accent-color: var(--accent, #6759dc); }
 .field-input textarea { resize: vertical; font-size: 11px; }
 .template-style-input .template-style-editor { height: 248px; overflow: hidden; border: 1px solid #d9deea; border-radius: 8px; background: #fff; }
 .template-style-input .template-style-editor .ace_gutter { background: #f7f8fb; color: #8a92a4; }
