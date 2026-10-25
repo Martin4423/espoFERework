@@ -2038,6 +2038,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .email-test-bar .button { flex: 0 0 auto; }
 @media(max-width:560px) { .email-test-bar { align-items: flex-start; flex-direction: column; } }
 .personal-data-backdrop { z-index: 115; }
+.personal-data-confirm-backdrop { z-index: 116; }
+.personal-data-confirm { width: min(540px, calc(100vw - 32px)); }
+.personal-data-confirm .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.personal-data-confirm .modal-heading p strong { color: var(--ink); }
+.personal-data-confirm-fields { margin: 0 22px 14px; padding: 11px 13px; border: 1px solid #f0d7d8; border-radius: 9px; background: #fff8f8; color: var(--ink); font-size: 11px; }
+.personal-data-confirm-fields ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 9px 0 0; padding: 0; list-style: none; }
+.personal-data-confirm-fields li { padding: 4px 7px; border-radius: 5px; background: #ffeded; color: #97444a; font-size: 10px; }
 .personal-data-modal { width: min(780px,100%); }
 .personal-data-modal .modal-heading p { margin: 5px 0 0; color: #8c97a9; font-size: 9px; }
 .personal-data-list { max-height: min(55vh,520px); overflow: auto; padding: 0 18px; }

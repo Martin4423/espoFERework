@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ArrowDownToLine, Check, Shield, Trash2, X } from "./Icons";
 import { request } from "./api";
 import type { FieldDef } from "./api";
+import { useDialogFocus } from "./useDialogFocus";
 
 type PersonalField = { name: string; label: string; value: any; def: FieldDef; attributes?: Array<{ name: string; value: any }>; canErase: boolean };
 function printable(value: any): string {
@@ -17,6 +18,8 @@ export default function PersonalDataDialog({ entity, record, fields, canErase, o
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [confirmErase, setConfirmErase] = useState(false);
+  const confirmDialogRef = useDialogFocus<HTMLElement>(() => { if (!busy) setConfirmErase(false); }, !busy, confirmErase);
   const erasableFields = fields.filter((field) => canErase && field.canErase);
   const allSelected = erasableFields.length > 0 && erasableFields.every((field) => selected.includes(field.name));
   const exportFields = useMemo(() => selected.length ? fields.filter((field) => selected.includes(field.name)) : fields, [fields, selected]);
@@ -31,8 +34,13 @@ export default function PersonalDataDialog({ entity, record, fields, canErase, o
   async function eraseSelected() {
     const selectedFields = erasableFields.filter((field) => selected.includes(field.name));
     if (!selectedFields.length) { setError("Vyberte alespoň jedno pole, ke kterému máte oprávnění pro úpravu."); return; }
-    const labels = selectedFields.map((field) => field.label);
-    if (!window.confirm(`Opravdu odstranit osobní údaje z těchto polí?\n\n${labels.join(", ")}\n\nZměna je nevratná.`)) return;
+    setConfirmErase(true);
+  }
+  async function confirmErasure() {
+    if (busy) return;
+    const selectedFields = erasableFields.filter((field) => selected.includes(field.name));
+    if (!selectedFields.length) { setConfirmErase(false); setError("Výběr polí se změnil. Vyberte alespoň jedno pole k odstranění."); return; }
+    setConfirmErase(false);
     setBusy(true); setError(""); setNotice("");
     try {
       await request("DataPrivacy/action/erase", { method: "POST", body: JSON.stringify({ fieldList: selectedFields.map((field) => field.name), entityType: entity, id: record.id }) });
@@ -62,5 +70,5 @@ export default function PersonalDataDialog({ entity, record, fields, canErase, o
     )}
     <div className="personal-data-note"><Shield size={15}/><span>Export stahuje tato osobní data do vašeho zařízení. Pole bez oprávnění pro úpravu nelze označit ke smazání; mazání se zaznamená v auditu EspoCRM.</span></div>
     <div className="modal-footer"><button type="button" className="button subtle" onClick={onClose} disabled={busy}>Zavřít</button><button type="button" className="button subtle" onClick={exportSelected} disabled={!fields.length || busy}><ArrowDownToLine size={14}/>Exportovat{selected.length ? ` (${selected.length})` : " vše"}</button>{canErase && <button type="button" className="button danger" onClick={() => void eraseSelected()} disabled={!selected.length || busy}><Trash2 size={14}/>{busy ? "Odstraňuji…" : `Odstranit${selected.length ? ` (${selected.length})` : ""}`}</button>}</div>
-  </section></div>;
+    </section>{confirmErase && <div className="modal-backdrop personal-data-confirm-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && setConfirmErase(false)}><section ref={confirmDialogRef} className="record-modal personal-data-confirm" role="alertdialog" aria-modal="true" aria-labelledby="personal-data-confirm-title" aria-describedby="personal-data-confirm-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">OCHRANA SOUKROMÍ · NEVRATNÁ AKCE</span><h2 id="personal-data-confirm-title">Odstranit vybrané osobní údaje?</h2><p id="personal-data-confirm-description">Údaje v následujících polích záznamu <strong>{record.name || [record.firstName, record.lastName].filter(Boolean).join(" ") || record.id}</strong> budou trvale vymazány. Tuto změnu nelze vrátit zpět.</p></div><button type="button" className="icon-button" aria-label="Zrušit odstranění" onClick={() => setConfirmErase(false)}><X size={16}/></button></div><div className="personal-data-confirm-fields"><strong>{erasableFields.filter((field) => selected.includes(field.name)).length} {erasableFields.filter((field) => selected.includes(field.name)).length === 1 ? "vybrané pole" : "vybraná pole"}</strong><ul>{erasableFields.filter((field) => selected.includes(field.name)).map((field) => <li key={field.name}>{field.label}</li>)}</ul></div><div className="modal-footer"><button type="button" autoFocus className="button subtle" onClick={() => setConfirmErase(false)}>Ponechat údaje</button><button type="button" className="button danger" onClick={() => void confirmErasure()} disabled={busy}><Trash2 size={14}/> Trvale odstranit</button></div></section></div>}</div>;
 }
