@@ -72,6 +72,7 @@ const PopupReminderToasts = lazy(() => import("./PopupReminderToasts"));
 const NotificationPanel = lazy(() => import("./SocialViews").then((module) => ({ default: module.NotificationPanel })));
 const UserPreferencesView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserPreferencesView })));
 const UserSecurityView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserSecurityView })));
+const RequiredTwoFactorGate = lazy(() => import("./UserAccount").then((module) => ({ default: module.RequiredTwoFactorGate })));
 const PersonalDashboard = lazy(() => import("./PersonalDashboard"));
 const DashboardLayoutEditor = lazy(() => import("./DashboardLayoutEditor"));
 const AdminExtensions = lazy(() => import("./AdminPackages").then((module) => ({ default: module.AdminExtensions })));
@@ -925,6 +926,7 @@ function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (use
 function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: Metadata; user: User; onLogout: () => void; onRefreshMetadata: () => Promise<void> }) {
   metadataEntityIcons = Object.fromEntries(Object.entries(metadata.clientDefs || {}).map(([scope, defs]) => [scope, String(defs.iconClass || "")]).filter(([, icon]) => Boolean(icon))) as Record<string, string>;
   const isPortalUser = user.type === "portal" || user.type === "portal-user";
+  const [requiredTwoFactor, setRequiredTwoFactor] = useState(() => Boolean(metadata.appParams?.auth2FARequired && user.auth2FA !== true && (!isPortalUser || metadata.appSettings?.auth2FAInPortal)));
   const portalSettings = isPortalUser ? metadata.appSettings || {} : {};
   const portalName = String(portalSettings.applicationName || "Klientský portál");
   const portalTheme = String(portalSettings.theme || "Espo");
@@ -1207,7 +1209,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
     if (!window.location.hash && next === "#Home") return;
     if (window.location.hash !== next) window.history.pushState({ viaCrm: true }, "", `${window.location.pathname}${window.location.search}${next}`);
   }, [entity, record?.id, relatedRoute?.entity, relatedRoute?.id, relatedRoute?.link, routeAction, routeActionId, calendarOpen, adminOpen, activityOpen, globalStreamOpen, notificationsOpen, lastViewedOpen, accountPage, preferencesTarget?.id]);
-  return <div className={`app-shell ${!isPortalUser && sidebarCollapsed ? "sidebar-collapsed" : ""} ${isPortalUser ? `portal-theme-${portalTheme.toLowerCase()} portal-navbar-${portalNavbar} ${portalDirection === "rtl" ? "portal-rtl" : ""}` : ""}`} style={portalStyle} dir={isPortalUser ? portalDirection : undefined}>
+  return <><div aria-hidden={requiredTwoFactor || undefined} className={`app-shell ${!isPortalUser && sidebarCollapsed ? "sidebar-collapsed" : ""} ${isPortalUser ? `portal-theme-${portalTheme.toLowerCase()} portal-navbar-${portalNavbar} ${portalDirection === "rtl" ? "portal-rtl" : ""}` : ""}`} style={portalStyle} dir={isPortalUser ? portalDirection : undefined}>
     <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
       <div className="brand sidebar-brand">{sidebarLogoUrl && !brandLogoFailed ? <img className={`sidebar-brand-logo ${isPortalUser ? "portal-brand-logo" : ""}`} src={sidebarLogoUrl} alt={isPortalUser ? portalName : "Logo společnosti"} onError={() => setBrandLogoFailed(true)}/> : <span className="brand-mark">{isPortalUser ? portalName.slice(0, 1).toUpperCase() : "v"}</span>}<span>{isPortalUser ? portalName : <>via<span className="brand-light">crm</span></>}</span><button className="sidebar-close" onClick={() => setMobileNav(false)} aria-label="Zavřít nabídku"><X size={17}/></button>{!isPortalUser && <button type="button" className="sidebar-collapse-toggle" onClick={toggleSidebarCollapsed} aria-label={sidebarCollapsed ? "Rozbalit navigaci" : "Zúžit navigaci"} title={sidebarCollapsed ? "Rozbalit navigaci" : "Zúžit navigaci"}>{sidebarCollapsed ? <ChevronRight size={15}/> : <ChevronLeft size={15}/>}</button>}</div>
       <div className="workspace-pill" aria-label={isPortalUser ? "Klientský portál" : "Pracovní prostor"} title={sidebarCollapsed ? (isPortalUser ? "Klientský portál" : "Pracovní prostor") : undefined}><span className="workspace-dot"/><span>{isPortalUser ? "KLIENTSKÝ PORTÁL" : "PRACOVNÍ PROSTOR"}</span>{!isPortalUser && <ChevronDown size={14}/>}</div>
@@ -1327,7 +1329,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
       <Suspense fallback={null}><PopupReminderToasts metadata={metadata} isPortalUser={isPortalUser} onOpenRecord={(scope, id) => void openNotificationRecord(scope, id)}/></Suspense>
       <footer className="app-footer"><span>ViaCRM</span><span>Vaše vztahy. Váš přehled.</span></footer>
     </section>
-  </div>;
+  </div>{requiredTwoFactor && <Suspense fallback={<div className="required-two-factor-backdrop"><div className="required-two-factor-loading" role="status"><span className="spinner"/>Připravuji nastavení zabezpečení…</div></div>}><RequiredTwoFactorGate metadata={metadata} user={user} onLogout={onLogout} onComplete={() => setRequiredTwoFactor(false)}/></Suspense>}</>;
 }
 
 const adminGroups = [

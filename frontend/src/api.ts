@@ -1,4 +1,4 @@
-export type User = { id: string; name: string; userName: string; type?: string; portalId?: string };
+export type User = { id: string; name: string; userName: string; type?: string; portalId?: string; auth2FA?: boolean };
 export type Session = { username: string; token: string; user: User };
 export type PendingSecondStep = { secondStepRequired: true; username: string; token: string; message?: string; authorizationHeaders?: Record<string, string> };
 export type UserAcl = { table?: Record<string, boolean | Record<string, string>>; fieldTable?: Record<string, Record<string, Record<string, string>>>; exportPermission?: string; massUpdatePermission?: string; [key: string]: any };

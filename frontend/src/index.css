@@ -964,6 +964,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .user-security-modal .entity-heading h1 { font-size: 22px; }
 .user-security-modal .security-grid { grid-template-columns: minmax(0, 1fr); }
 .user-security-modal .admin-user-security .security-grid { grid-template-columns: minmax(0, 1fr); }
+.required-two-factor-backdrop { position: fixed; z-index: 5000; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: clamp(12px, 3vw, 28px); background: rgba(18, 25, 43, .62); backdrop-filter: blur(5px); }
+.required-two-factor-intro { width: min(540px, 100%); padding: 24px; overflow: visible; }
+.required-two-factor-intro .modal-heading { align-items: flex-start; }
+.required-two-factor-intro .modal-heading > div { min-width: 0; }
+.required-two-factor-intro .modal-heading h2 { margin: 7px 0 0; color: #26324b; font: 700 20px Manrope,sans-serif; letter-spacing: -.4px; }
+.required-two-factor-intro .modal-heading p { max-width: 420px; margin: 9px 0 0; color: #788398; font-size: 12px; line-height: 1.65; }
+.required-two-factor-icon { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border: 1px solid #e4e3f6; border-radius: 12px; background: #f0effb; color: #706ac2; }
+.required-two-factor-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 24px; padding-top: 16px; border-top: 1px solid #edf0f4; }
+.required-two-factor-loading { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border: 1px solid #ffffff70; border-radius: 11px; background: #fff; color: #69748a; font-size: 12px; box-shadow: 0 20px 80px #101a3150; }
+.required-two-factor-setup { width: min(920px, 100%); max-height: calc(100vh - 32px); overflow: auto; border: 1px solid #ffffff80; border-radius: 14px; background: #f6f7fb; box-shadow: 0 24px 90px #101a3150; }
+.required-two-factor-setup > .user-account-view { min-height: 0; padding: clamp(16px, 3vw, 26px); }
+.required-two-factor-setup .entity-heading { align-items: flex-start; margin-bottom: 16px; }
+.required-two-factor-setup .entity-heading h1 { font-size: 23px; }
+.required-two-factor-setup .security-grid { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 520px) { .required-two-factor-intro { padding: 18px; } .required-two-factor-icon { width: 36px; height: 36px; flex-basis: 36px; } .required-two-factor-actions { flex-direction: column-reverse; } .required-two-factor-actions > .button { width: 100%; justify-content: center; } }
 .security-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .user-api-credentials { display: grid; gap: 8px; }
 .user-api-credentials > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid #e6e9f0; border-radius: 8px; background: #fbfcfe; }
