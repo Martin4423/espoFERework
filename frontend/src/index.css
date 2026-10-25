@@ -1374,6 +1374,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .oauth-connection-state > span:last-child { margin-left: auto; color: #9ba5b4; }
 .oauth-connection-actions { display: flex; gap: 8px; }
 .oauth-connection-panel .inline-error,.oauth-connection-panel .save-confirm { margin-bottom: 9px; }
+.oauth-disconnect-backdrop { z-index: 181; }
+.oauth-disconnect-dialog { width: min(470px, calc(100vw - 32px)); }
+.oauth-disconnect-dialog .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.oauth-disconnect-dialog .modal-heading p strong { color: var(--ink); }
 .oauth-connection-panel .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .import-error-report { margin: 0 18px 13px; border: 1px solid #f0e5dc; border-radius: 8px; background: #fffdfb; overflow: hidden; }

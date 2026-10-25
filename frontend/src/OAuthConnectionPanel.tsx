@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Link2, LoaderCircle, Unlink } from "./Icons";
+import { Check, Link2, LoaderCircle, Unlink, X } from "./Icons";
 import { request } from "./api";
+import { useDialogFocus } from "./useDialogFocus";
 
 type Row = Record<string, any>;
 
@@ -10,6 +11,8 @@ export default function OAuthConnectionPanel({ record, onChanged }: { record: Ro
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const confirmDialogRef = useDialogFocus<HTMLElement>(() => { if (!busy) setConfirmDisconnect(false); }, !busy, confirmDisconnect);
   const live = useRef(true);
   useEffect(() => {
     live.current = true;
@@ -88,7 +91,11 @@ export default function OAuthConnectionPanel({ record, onChanged }: { record: Ro
   }
 
   async function disconnect() {
-    if (!window.confirm("Odpojit tento OAuth účet? Přístupový token přestane být dostupný.")) return;
+    setConfirmDisconnect(true);
+  }
+  async function confirmDisconnectAccount() {
+    if (busy) return;
+    setConfirmDisconnect(false);
     setBusy(true); setError(""); setNotice("");
     try {
       await request(`OAuth/${encodeURIComponent(record.id)}/connection`, { method: "DELETE" });
@@ -107,5 +114,6 @@ export default function OAuthConnectionPanel({ record, onChanged }: { record: Ro
     <div className="oauth-connection-actions">{hasToken
       ? <button className="button subtle" disabled={busy} onClick={() => void disconnect()}>{busy ? <LoaderCircle size={14} className="spin"/> : <Unlink size={14}/>} Odpojit účet</button>
       : <button className="button primary" disabled={busy || current.providerIsActive === false} onClick={() => void connect()}>{busy ? <LoaderCircle size={14} className="spin"/> : <Link2 size={14}/>} Připojit účet</button>}</div>
+    {confirmDisconnect && <div className="modal-backdrop oauth-disconnect-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && setConfirmDisconnect(false)}><section ref={confirmDialogRef} className="record-modal oauth-disconnect-dialog" role="alertdialog" aria-modal="true" aria-labelledby="oauth-disconnect-title" aria-describedby="oauth-disconnect-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">PŘIPOJENÍ OAUTH</span><h2 id="oauth-disconnect-title">Odpojit účet?</h2><p id="oauth-disconnect-description">OAuth účet <strong>{record.name || current.providerName || record.id}</strong> se odpojí a jeho přístupový token přestane být dostupný pro CRM.</p></div><button type="button" className="icon-button" aria-label="Zrušit odpojení" onClick={() => setConfirmDisconnect(false)}><X size={16}/></button></div><div className="modal-footer"><button type="button" autoFocus className="button subtle" onClick={() => setConfirmDisconnect(false)}>Ponechat připojení</button><button type="button" className="button danger" onClick={() => void confirmDisconnectAccount()}><Unlink size={14}/> Odpojit účet</button></div></section></div>}
   </section>;
 }
