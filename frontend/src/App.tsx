@@ -2222,9 +2222,39 @@ function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, o
     const body = mode === "forward"
       ? isHtml ? `${forwardHead}${safeBody}` : `\n\n${forwardHead}${plainBody}`
       : isHtml ? `<p data-quote-start="true"><br></p><p>${escapeHtml(replyHead)}</p><blockquote>${safeBody}</blockquote>` : `\n\n${replyHead}\n${String(plainBody).split("\n").map((line: string) => `> ${line}`).join("\n")}\n`;
-    const replyToValue = String(record.replyTo || record.replyToString || record.from || record.fromAddress || record.fromString || "");
-    const replyAddresses = replyToValue.split(/[;,]/).map((part) => part.match(/<([^<>]+)>/)?.[1] || part).map((item) => item.trim()).filter((item) => item.includes("@"));
-    onReply({ to: reply ? replyAddresses.join("; ") : "", cc: mode === "replyAll" ? Array.isArray(record.ccEmailAddresses) ? record.ccEmailAddresses.join("; ") : record.ccEmailAddresses || "" : "", subject: `${mode === "forward" ? "Fwd" : "Re"}: ${subject.replace(/^(re|fwd):\s*/i, "")}`, body, isHtml, ...(record.parentId && record.parentType ? { parentId: record.parentId, parentType: record.parentType, parentName: record.parentName } : {}), ...(record.nameHash ? { nameHash: record.nameHash } : {}), ...(reply ? { repliedId: record.id, inReplyTo: record.messageId } : {}) });
+    const sessionUser = getSession()?.user as (User & Row) | undefined;
+    const parseAddresses = (value: unknown): string[] => {
+      const parts = Array.isArray(value) ? value.flatMap((item) => typeof item === "string" ? [item] : item && typeof item === "object" ? [String((item as Row).emailAddress || (item as Row).address || "")] : []) : [String(value || "")];
+      return parts.flatMap((part) => part.split(/[;,]/)).map((part) => (part.match(/<([^<>]+)>/)?.[1] || part).trim()).filter((item) => item.includes("@") && !item.startsWith("ERASED:"));
+    };
+    const ownAddresses = new Set<string>([
+      ...parseAddresses(sessionUser?.emailAddress),
+      ...parseAddresses(sessionUser?.emailAddressList),
+      ...parseAddresses(sessionUser?.userEmailAddressList),
+      ...parseAddresses(sessionUser?.emailAddressData),
+    ].map((address) => address.toLowerCase()));
+    const replyToAddresses = parseAddresses(record.replyTo || record.replyToString);
+    const senderAddresses = parseAddresses(record.from || record.fromAddress || record.fromString);
+    const sentByCurrentUser = senderAddresses.some((address) => ownAddresses.has(address.toLowerCase()));
+    let replyAddresses = replyToAddresses.length ? replyToAddresses : sentByCurrentUser ? [] : senderAddresses;
+    let ccAddresses: string[] = [];
+    if (mode === "replyAll") {
+      ccAddresses = parseAddresses(record.cc || record.ccEmailAddresses);
+      const originalToAddresses = parseAddresses(record.to || record.toEmailAddresses);
+      if (sentByCurrentUser && !replyToAddresses.length) replyAddresses = [...replyAddresses, ...originalToAddresses];
+      else ccAddresses.push(...originalToAddresses);
+      const excludedAddresses = new Set([...ownAddresses, ...replyAddresses].map((address) => address.toLowerCase()));
+      const seenCc = new Set<string>();
+      ccAddresses = ccAddresses.filter((address) => {
+        const normalized = address.toLowerCase();
+        if (excludedAddresses.has(normalized) || seenCc.has(normalized)) return false;
+        seenCc.add(normalized);
+        return true;
+      });
+      const excluded = sessionUser?.excludeFromReplyEmailAddressList;
+      if (Array.isArray(excluded)) ccAddresses = ccAddresses.filter((address) => !excluded.some((item) => String(item).toLowerCase() === address.toLowerCase()));
+    }
+    onReply({ to: reply ? [...new Set(replyAddresses)].join("; ") : "", cc: ccAddresses.join("; "), subject: `${mode === "forward" ? "Fwd" : "Re"}: ${subject.replace(/^(re|fwd):\s*/i, "")}`, body, isHtml, ...(record.parentId && record.parentType ? { parentId: record.parentId, parentType: record.parentType, parentName: record.parentName } : {}), ...(record.nameHash ? { nameHash: record.nameHash } : {}), ...(reply ? { repliedId: record.id, inReplyTo: record.messageId } : {}) });
   }
   const attachmentIds: string[] = Array.isArray(record.attachmentsIds) ? record.attachmentsIds : Array.isArray(record.attachments) ? record.attachments.map((item: Row) => item.id) : [];
   const attachmentNames: Record<string, string> = record.attachmentsNames || {};
