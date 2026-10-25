@@ -17,6 +17,11 @@ function fieldAttributes(name: string, field: Data) {
     case "linkParent": return [make(`${name}Id`, "string"), make(`${name}Type`, "string"), make(`${name}Name`, "string", { notStorable: true, readOnly: true })];
     case "linkMultiple": case "attachmentMultiple": return [make(`${name}Ids`, "string[]"), make(`${name}Names`, "Record.<string, string>", { notStorable: true, readOnly: field.readOnly || true }), ...(field.columns ? [make(`${name}Columns`, "Record.<string, Record.<string, string>>")] : [])];
     case "currency": return [make(name, field.decimal ? "string" : "float"), make(`${name}Currency`, "string", { notStorable: Boolean(field.notStorable || field.onlyDefaultCurrency) })];
+    case "rangeInt": case "rangeFloat": {
+      const type = field.type === "rangeInt" ? "int" : "float";
+      return [make(`from${upper}`, type), make(`to${upper}`, type)];
+    }
+    case "rangeCurrency": return [make(`from${upper}`, "float"), make(`from${upper}Currency`, "string"), make(`to${upper}`, "float"), make(`to${upper}Currency`, "string")];
     case "personName": return [make(name, "string", { notStorable: true, readOnly: true }), ...["salutation", "first", "last", "middle"].map((part) => make(`${part}${upper}`, "string"))];
     case "address": return [make(name, "string", { notStorable: true, readOnly: true }), ...["Street", "City", "Country", "State", "PostalCode"].map((part) => make(`${name}${part}`, "string"))];
     case "enum": { const options = Array.isArray(field.options) ? field.options.filter((value: unknown) => !(field.required && value === "")) : null; return [make(name, options ? options.map((value: unknown) => value === "" ? "null" : JSON.stringify(value)).join("|") || "string" : "string")]; }
@@ -26,6 +31,9 @@ function fieldAttributes(name: string, field: Data) {
     case "autoincrement": return [make(name, "int", { readOnly: true })];
     case "number": return [make(name, "string", { readOnly: true })];
     case "multiEnum": case "checklist": case "array": case "urlMultiple": return [make(name, "string[]")];
+    case "jsonObject": return [make(name, "Record.<string, any>")];
+    case "jsonArray": return [make(name, "any[]")];
+    case "currencyConverted": return [make(name, "float", { notStorable: true, readOnly: true })];
     case "email": return [make(name, "string"), make(`${name}Data`, "{emailAddress: string, lower: string, primary: boolean, optOut: boolean, invalid: boolean}[]")];
     case "phone": return [make(name, "string"), make(`${name}Data`, "{phoneNumber: string, primary: boolean, optOut: boolean, invalid: boolean}[]")];
     case "varchar": case "text": case "wysiwyg": case "colorpicker": case "barcode": case "url": case "date": case "datetime": case "datetimeOptional": return [make(name, "string")];
