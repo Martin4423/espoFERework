@@ -98,7 +98,7 @@ const adminRouteTargets: Record<string, string> = {
 const adminTargetRoutes = Object.fromEntries(Object.entries(adminRouteTargets).map(([route, target]) => [target, route]));
 function decodeRoutePart(value?: string) { if (!value) return ""; try { return decodeURIComponent(value); } catch { return value; } }
 type ParsedWorkspaceRoute =
-  | { kind: "home" | "calendar" | "activity" | "globalstream" | "notifications" | "lastviewed" }
+  | { kind: "home" | "calendar" | "activity" | "globalstream" | "portalstream" | "notifications" | "lastviewed" }
   | { kind: "admin"; target?: string }
   | { kind: "account"; page: "preferences" | "security"; userId?: string }
   | { kind: "related"; entity: string; id: string; link: string }
@@ -110,6 +110,7 @@ function parseWorkspaceHash(hash: string): ParsedWorkspaceRoute {
   if (parts[0] === "Calendar") return { kind: "calendar" };
   if (parts[0] === "Activity") return { kind: "activity" };
   if (parts[0] === "GlobalStream") return { kind: "globalstream" };
+  if (parts[0] === "Stream") return { kind: "portalstream" };
   if (parts[0] === "Notifications") return { kind: "notifications" };
   if (parts[0] === "LastViewed") return { kind: "lastviewed" };
   if (parts[0] === "Account" && ["preferences", "security"].includes(parts[1])) return { kind: "account", page: parts[1] as "preferences" | "security" };
@@ -1038,7 +1039,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
     if (entity) return record?.id ? `#${encodeURIComponent(entity)}/view/${encodeURIComponent(record.id)}` : `#${encodeURIComponent(entity)}`;
     if (calendarOpen) return "#Calendar";
     if (activityOpen) return "#Activity";
-    if (globalStreamOpen) return "#GlobalStream";
+    if (globalStreamOpen) return isPortalUser ? "#Stream" : "#GlobalStream";
     if (notificationsOpen) return "#Notifications";
     if (lastViewedOpen) return "#LastViewed";
     return "#Home";
@@ -1056,6 +1057,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
     } else if (route.kind === "calendar") setCalendarOpen(true);
     else if (route.kind === "activity" && !isPortalUser) setActivityOpen(true);
     else if (route.kind === "globalstream" && !isPortalUser && canAccessEntity(metadata, "GlobalStream")) setGlobalStreamOpen(true);
+    else if (route.kind === "portalstream" && isPortalUser) setGlobalStreamOpen(true);
     else if (route.kind === "notifications") setNotificationsOpen(true);
     else if (route.kind === "lastviewed" && !isPortalUser) setLastViewedOpen(true);
     else if (route.kind === "account") {
