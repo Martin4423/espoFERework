@@ -20,7 +20,8 @@ Větev `dot-net`. Navazuje na `docs/BACKEND-MIGRATION-ANALYSIS.md` (co se mění
 | B0 | hotovo (`scripts/run.sh` v `viacrm-be`) |
 | S0 | hotovo (Docker stack bez EspoCRM, proxy `/v1`, vitest + Playwright) |
 | S1 | hotovo (přihlášení e-mailem, refresh s ochranou proti dvojímu použití tokenu, CZ/EN, dočasná domovská stránka) |
-| S2 a dál | čeká |
+| S2 | hotovo (adaptér metadat, oprávnění a layoutů; navigace z entit backendu; zamčené záložky starého systému s hláškou) |
+| B1, S3 a dál | čeká |
 
 ## Kroky
 

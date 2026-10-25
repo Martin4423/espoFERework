@@ -36,14 +36,15 @@ test.describe('English (the browser default of the test runner)', () => {
     const email = await newUser(request)
     await signIn(page, email)
 
-    await expect(page.getByTestId('session-home')).toContainText(`Signed in as E2E Tester`)
-    await expect(page.getByTestId('session-home')).toContainText(email)
+    await expect(page.locator('aside.sidebar')).toBeVisible()
+    await expect(page.locator('.user-menu')).toContainText('E2E Tester')
     expect((await stored(page)).user.email).toBe(email)
 
     await page.reload()
-    await expect(page.getByTestId('session-home')).toBeVisible()
+    await expect(page.locator('aside.sidebar')).toBeVisible()
 
-    await page.getByTestId('logout').click()
+    await page.locator('.user-menu').click()
+    await page.getByText('Odhlásit se').click()
     await expect(page.getByTestId('login-form')).toBeVisible()
     expect(await stored(page)).toBeNull()
     await page.reload()
@@ -76,7 +77,7 @@ test.describe('English (the browser default of the test runner)', () => {
   test('an expired access token is refreshed silently on reload', async ({ page, request }) => {
     const email = await newUser(request)
     await signIn(page, email)
-    await expect(page.getByTestId('session-home')).toBeVisible()
+    await expect(page.locator('aside.sidebar')).toBeVisible()
     const before = await stored(page)
     await page.evaluate(() => {
       const session = JSON.parse(localStorage.getItem('via-session')!)
@@ -86,7 +87,7 @@ test.describe('English (the browser default of the test runner)', () => {
 
     await page.reload()
 
-    await expect(page.getByTestId('session-home')).toBeVisible()
+    await expect(page.locator('aside.sidebar')).toBeVisible()
     const after = await stored(page)
     // the refresh token rotated (the JWT itself can be identical when both are issued within one second)
     expect(after.refreshToken).not.toBe(before.refreshToken)
@@ -96,7 +97,7 @@ test.describe('English (the browser default of the test runner)', () => {
   test('two tabs refreshing at the same moment both stay signed in', async ({ page, context, request }) => {
     const email = await newUser(request)
     await signIn(page, email)
-    await expect(page.getByTestId('session-home')).toBeVisible()
+    await expect(page.locator('aside.sidebar')).toBeVisible()
     await page.evaluate(() => {
       const session = JSON.parse(localStorage.getItem('via-session')!)
       session.accessExpiresAt = Date.now() - 1000
@@ -106,8 +107,8 @@ test.describe('English (the browser default of the test runner)', () => {
 
     await Promise.all([page.reload(), second.goto('/')])
 
-    await expect(page.getByTestId('session-home')).toBeVisible()
-    await expect(second.getByTestId('session-home')).toBeVisible()
+    await expect(page.locator('aside.sidebar')).toBeVisible()
+    await expect(second.locator('aside.sidebar')).toBeVisible()
     // the server did not treat a reused refresh token as theft: the session still works
     const token = (await stored(second)).accessToken
     expect((await request.get('/v1/me', { headers: { Authorization: `Bearer ${token}` } })).status()).toBe(200)
@@ -116,7 +117,7 @@ test.describe('English (the browser default of the test runner)', () => {
   test('a session revoked on the server ends with a notice', async ({ page, request }) => {
     const email = await newUser(request)
     await signIn(page, email)
-    await expect(page.getByTestId('session-home')).toBeVisible()
+    await expect(page.locator('aside.sidebar')).toBeVisible()
     const { accessToken } = await stored(page)
     const sessions = await (await request.get('/v1/me/sessions', { headers: { Authorization: `Bearer ${accessToken}` } })).json()
     const current = sessions.items.find((s: { current: boolean }) => s.current)

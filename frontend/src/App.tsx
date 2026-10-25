@@ -15,8 +15,10 @@ import { useDialogFocus } from "./useDialogFocus";
 import { portalEntities } from "./portalEntities";
 import { dateFilterBoundaryInTimeZone, espocrmDateTimeFromInput, formatEspoDateTime, formatEspoDateTimeInput, formatEspoDateTimeShort, useEspoTimeSettings, useEspoTimeZone, zonedWallTimeToUtc } from "./timeZone";
 import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, logout, request, restoreSession, uploadAttachment } from "./api";
+import { Lock } from "lucide-react";
 import { Login } from "./Login.tsx";
-import { SessionHome } from "./SessionHome.tsx";
+import { NotAvailable } from "./NotAvailable.tsx";
+import { isUnsupportedScope } from "./unsupported.ts";
 import { t, useLocale } from "./i18n/index.ts";
 import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, Session, User } from "./api";
 import AboutDialog from "./AboutDialog";
@@ -440,9 +442,6 @@ function renderImportDefaultField(metadata: Metadata, scope: string, name: strin
   return <FieldInput entity={scope} metadata={metadata} name={name} def={def} value={value} currencyValue={currencyValue} onCurrencyChange={onCurrencyChange} relatedContext={relatedContext} onChange={handleChange}/>;
 }
 
-// Until step S2 builds the metadata for the old screens, a signed-in user lands on SessionHome.
-const WORKSPACE_READY = false;
-
 function App() {
   useLocale();
   const [session, setSession] = useState(getSession());
@@ -468,7 +467,7 @@ function App() {
       const valid = await restoreSession();
       setSession(valid);
       if (!valid && hadSession) setExpired(true);
-      if (valid && WORKSPACE_READY) setMetadata(await fetchMetadata());
+      if (valid) setMetadata(await fetchMetadata());
       else setMetadata(null);
     } catch (error) {
       setFatal(error instanceof Error ? error.message : t("session.unavailable"));
@@ -482,7 +481,7 @@ function App() {
     setFatal("");
     setExpired(false);
     setSession(next);
-    if (WORKSPACE_READY) setMetadata(await fetchMetadata());
+    setMetadata(await fetchMetadata());
     return next;
   }
 
@@ -496,7 +495,7 @@ function App() {
   if (loading) return <div className="boot-screen"><div className="brand-mark">v</div><div className="boot-line"/><span>{t("common.loading")}</span></div>;
   if (fatal) return <div className="boot-screen"><div className="error-card"><b>{t("session.unavailable")}</b><p>{fatal}</p><button className="button primary" onClick={() => { setLoading(true); void loadApp(); }}>{t("common.retry")}</button></div></div>;
   if (!session) return <Login onLogin={onLogin} notice={expired ? t("session.expired") : ""} />;
-  if (!WORKSPACE_READY || !metadata) return <SessionHome user={session.user} onLogout={onLogout} />;
+  if (!metadata) return <div className="boot-screen"><div className="boot-line"/><span>{t("common.loading")}</span></div>;
   return <Workspace metadata={metadata} user={session.user} onLogout={onLogout} onRefreshMetadata={async () => setMetadata(await fetchMetadata())} />;
 }
 
@@ -858,7 +857,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         })}</> : nativeNavItems.map((item, index) => {
           if (typeof item === "string") {
             if (item === "Home" || item.startsWith("_delimiter")) return null;
-            return <button key={`${item}-${index}`} aria-label={nativeTabLabel(item)} title={sidebarCollapsed ? nativeTabLabel(item) : undefined} className={`nav-item ${(item === "Calendar" ? calendarOpen : entity === item) ? "active" : ""}`} onClick={() => openNativeTab(item)}><span className="nav-icon">{item === "Calendar" ? <CalendarDays size={16}/> : <EntityIcon name={item}/>}</span><span>{nativeTabLabel(item)}</span></button>;
+            return <button key={`${item}-${index}`} aria-label={nativeTabLabel(item)} title={sidebarCollapsed ? nativeTabLabel(item) : undefined} className={`nav-item ${(item === "Calendar" ? calendarOpen : entity === item) ? "active" : ""}`} onClick={() => openNativeTab(item)}><span className="nav-icon">{item === "Calendar" ? <CalendarDays size={16}/> : <EntityIcon name={item}/>}</span><span>{nativeTabLabel(item)}</span>{isUnsupportedScope(item) && <Lock size={12} className="nav-lock" aria-label={t("unsupported.title")}/>}</button>;
           }
           if (item?.type === "divider") return <div key={item.id || `divider-${index}`} className="nav-caption native-nav-divider">{nativeTabLabel(item)}</div>;
           if (item?.type === "url") return <a key={`url-${index}`} aria-label={nativeTabLabel(item)} title={sidebarCollapsed ? nativeTabLabel(item) : undefined} className="nav-item native-nav-url" href={item.url} target={item.targetBlank ? "_blank" : undefined} rel={item.targetBlank ? "noreferrer" : undefined} onClick={() => setMobileNav(false)}><span className="nav-icon"><Globe size={16}/></span><span>{nativeTabLabel(item)}</span></a>;
@@ -887,7 +886,10 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : globalStreamOpen
         ? isPortalUser ? <ActivityView user={user} metadata={metadata} portalMode onBack={() => setGlobalStreamOpen(false)} /> : <GlobalStreamView user={user} metadata={metadata} onBack={() => setGlobalStreamOpen(false)} onOpenRecord={(scope, id) => void openNotificationRecord(scope, id)} />
         : activityOpen
-        ? <ActivityView user={user} metadata={metadata} onBack={() => setActivityOpen(false)} />
+        ? <NotAvailable title="Aktivita" />
+        : entity && (entity.startsWith("__") || isUnsupportedScope(entity))
+        // Administration screens are connected one by one (step S8); the screens of the previous backend's entities have no counterpart.
+        ? <NotAvailable title={entity.startsWith("__") ? undefined : entityLabel(metadata, entity, true)} />
         : entity === "__settings__"
         ? <AdminSettings metadata={metadata} onBack={openAdmin} />
         : entity === "__extensions__"

@@ -35,6 +35,8 @@ services:
       Public__BaseUrl: http://localhost:5173
     volumes:
       - viacrm-files:/data
+    ports:
+      - "5080:8080"   # direct API access (curl, Vite dev server); the front end reaches it through its own /v1 proxy
     restart: unless-stopped
 
   db:

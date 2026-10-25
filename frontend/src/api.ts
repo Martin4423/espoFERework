@@ -1,6 +1,9 @@
-import { AuthClient, toUser } from "./auth/client.ts";
+import { toUser } from "./auth/client.ts";
+import { apiJson, auth } from "./http.ts";
+import { loadMetadata } from "./adapter/metadata.ts";
+import { clearLayoutCache, loadLayout } from "./adapter/layouts.ts";
 import type { MeResponse, Session } from "./auth/client.ts";
-import { ApiError, UnsupportedError, networkError, problemFromResponse } from "./problem.ts";
+import { ApiError, UnsupportedError } from "./problem.ts";
 
 export type { Session, User } from "./auth/client.ts";
 export { ApiError, UnsupportedError, isUnsupported } from "./problem.ts";
@@ -39,15 +42,6 @@ export type Metadata = {
 export type LayoutItem = { name?: string; label?: string; fullWidth?: boolean; width?: number; widthPx?: number; hidden?: boolean; link?: boolean; notSortable?: boolean; align?: "left" | "right" | "center" } | false;
 export type DetailLayoutPanel = { label?: string; rows?: LayoutItem[][]; tabBreak?: boolean; tabLabel?: string };
 
-// One client per page. The ViaCRM API has no CORS: every call goes to /v1 on this origin (Vite or nginx proxy).
-const auth = new AuthClient({
-  fetch: (path, init) => window.fetch(path, init),
-  storage: (() => { try { return window.localStorage; } catch { return { getItem: () => null, setItem: () => undefined, removeItem: () => undefined }; } })(),
-  now: () => Date.now(),
-  locks: typeof navigator !== "undefined" && "locks" in navigator ? { request: (name, callback) => navigator.locks.request(name, callback) as Promise<any> } : undefined,
-  onExpired: () => window.dispatchEvent(new Event("via-session-expired")),
-});
-
 export function getSession(): Session | null { return auth.getSession(); }
 
 export function login(email: string, password: string): Promise<Session> { return auth.login(email, password); }
@@ -67,16 +61,6 @@ export async function restoreSession(): Promise<Session | null> {
 
 export function logout() { void auth.logout(); }
 
-// JSON call to the ViaCRM API (path starts with /v1). 204 gives null; a failure is an ApiError built from problem+json.
-export async function apiJson<T = any>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers);
-  if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const response = await auth.authorizedFetch(path, { ...init, headers });
-  if (!response.ok) throw await problemFromResponse(response);
-  if (response.status === 204) return null as T;
-  try { return (await response.json()) as T; } catch (cause) { throw networkError(cause); }
-}
-
 // Legacy entry point of the screens written for the previous backend. Only /v1 paths are served; every other
 // path is a feature that is not migrated (or not offered by ViaCRM yet) and ends in the "not available" notice.
 export async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
@@ -91,8 +75,10 @@ export async function getAttachmentPreviewUrl(_id: string): Promise<string> { th
 
 export async function uploadAttachment(_file: File, _entity: string, _field: string, _multiple = false, _role = "Attachment"): Promise<{ id: string; name: string; type: string }> { throw new UnsupportedError("Attachment"); }
 
-// Step S2 builds the metadata from /v1/meta, /v1/me/permissions and the layouts.
-export async function fetchMetadata(): Promise<Metadata> { throw new UnsupportedError("Metadata"); }
+export async function fetchMetadata(): Promise<Metadata> {
+  clearLayoutCache();
+  return loadMetadata();
+}
 
 export function aclLevel(metadata: Metadata, entity: string, action: string): string | null {
   const table = metadata.userAcl?.table;
@@ -124,7 +110,7 @@ export function canUsePermission(metadata: Metadata, permission: "exportPermissi
 }
 
 export async function fetchLayout<T = LayoutItem[] | DetailLayoutPanel[]>(entity: string, name: string): Promise<T> {
-  return request<T>(`${encodeURIComponent(entity)}/layout/${encodeURIComponent(name)}`);
+  return (await loadLayout(entity, name)) as T;
 }
 
 export function humanize(value: string) {
@@ -143,7 +129,7 @@ export function fieldLabel(name: string, def?: FieldDef, entity?: string, metada
 }
 
 export function entityList(metadata: Metadata) {
-  const preferred = ["Account", "Contact", "Lead", "Opportunity", "Case", "Call", "Meeting", "Task", "Email", "Campaign"];
+  const preferred = ["Account", "Contact", "Lead", "Deal", "Quote", "Product", "Task", "Call", "Meeting", "Email", "Case", "Campaign"];
   const names = Object.entries(metadata.scopes || {})
     .filter(([name, scope]) => scope.entity && scope.tab && metadata.entityDefs?.[name]?.fields && canAccessEntity(metadata, name))
     .map(([name]) => name);
