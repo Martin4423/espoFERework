@@ -2782,6 +2782,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   const [offset, setOffset] = useState(0);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [filterPicker, setFilterPicker] = useState<{ index: number; category: boolean } | null>(null);
   const [draftFilters, setDraftFilters] = useState<FilterCondition[]>([]);
@@ -3555,8 +3556,37 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   }
   const exportWhere = [...savedPresetWhere, ...appliedFilters.flatMap(conditionToWhere), ...(userType ? [{ type: "equals", attribute: "type", value: userType }] : []), ...(categorySelection && "uncategorized" in categorySelection ? [categoryFieldType === "linkMultiple" ? { type: "isNotLinked", attribute: categoryField } : { type: "isNull", attribute: `${categoryField}Id` }] : categorySelection ? [{ type: "inCategory", attribute: categoryField, value: categorySelection.id }] : [])];
   const massSelectionParams = allResultsSelected ? { byWhere: true, where: [...fixedWhere, ...(search.trim() ? [{ type: "textFilter", value: search.trim() }] : []), ...(userType ? [{ type: "equals", attribute: "type", value: userType }] : []), ...savedPresetWhere, ...appliedFilters.flatMap(conditionToWhere), ...(categorySelection && "uncategorized" in categorySelection ? [categoryFieldType === "linkMultiple" ? { type: "isNotLinked", attribute: categoryField } : { type: "isNull", attribute: `${categoryField}Id` }] : categorySelection ? [{ type: "inCategory", attribute: categoryField, value: categorySelection.id }] : [])], searchParams: { ...(search.trim() ? { textFilter: search.trim() } : {}), ...(primaryFilter ? { primaryFilter } : {}), ...(activeBoolFilters.length ? { boolFilterList: activeBoolFilters } : {}), orderBy: activeOrderBy, order: activeOrder } } : { ids: selectedIds };
+  function handleListShortcut(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.repeat) return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || target.closest('[role="dialog"], [role="alertdialog"], .modal-backdrop')) return;
+    const editable = target.closest('input, textarea, select, [contenteditable="true"]');
+    const key = event.code;
+    if (key === "Slash" && !editable && !emailAccountSearchDisabled) {
+      event.preventDefault(); searchInputRef.current?.focus(); return;
+    }
+    if (editable) return;
+    if (key === "Space" && canCreate) {
+      event.preventDefault();
+      if (entity === "Email") setComposeEmail(true); else startNewRecord();
+      return;
+    }
+    if (key === "Comma" || key === "Period") {
+      if (!savedPresets.length) return;
+      const currentIndex = selectedPresetIndex + 1; // Index zero is the native “no preset” choice.
+      const nextIndex = currentIndex + (key === "Comma" ? -1 : 1);
+      if (nextIndex < 0 || nextIndex > savedPresets.length) return;
+      event.preventDefault(); selectSavedPreset(savedPresets[nextIndex - 1]?.id || ""); return;
+    }
+    if (key === "ArrowLeft" && viewMode === "list" && offset > 0 && !busy) {
+      event.preventDefault(); setOffset(Math.max(0, offset - pageSize)); return;
+    }
+    if (key === "ArrowRight" && viewMode === "list" && !busy && (total ? end < total : rows.length >= pageSize)) {
+      event.preventDefault(); setOffset(offset + pageSize);
+    }
+  }
 
-  return <div className="entity-view">
+  return <div className="entity-view" onKeyDown={handleListShortcut}>
     <div className="entity-heading"><div><div className="eyebrow">{emailFilterList ? "E-MAIL · PRAVIDLA DORUČOVÁNÍ" : "SPRÁVA ZÁZNAMŮ"}</div><h1>{title || entityLabel(metadata, entity, true)}<span className="title-count">{total || ""}</span></h1><p>{emailFilterList ? "Nastavte, jak se mají příchozí zprávy rozpoznat a roztřídit podle schránky a zvolených pravidel." : userType === "api" ? "Účty služby EspoCRM pro přístup přes API." : userType === "portal" ? "Uživatelské účty zákaznických a partnerských portálů." : "Všechny záznamy a jejich aktuální stav na jednom místě."}</p></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}>{entity === "Job" && (!metadata.appParams?.isRestrictedMode || getSession()?.user.type === "super-admin") && <button type="button" className="button subtle" onClick={() => onNavigateEntity?.("__jobs-settings__")}><Settings size={14}/>Nastavení úloh</button>}{(emailFilterList || emailFolderList) && canAccessEntity(metadata, "Email") && <button type="button" className="button subtle" onClick={() => onNavigateEntity?.("Email")}><InboxIcon size={14}/>Otevřít poštu</button>}{canCreate && (entity === "Email" ? <button className="button primary" onClick={() => setComposeEmail(true)}><Plus size={15}/> Napsat e-mail</button> : <button className="button primary" onClick={startNewRecord}><Plus size={15}/>{userType === "api" ? "Nový API uživatel" : userType === "portal" ? "Nový uživatel portálu" : "Nový záznam"}</button>)}</div></div>
     {entity === "ScheduledJob" && <ScheduledJobCronNotice onOpenJobs={() => onNavigateEntity?.("Job")}/>}
     <section className={`surface records-surface ${hasCategoryNavigation ? "has-category-navigation" : ""}`}>
@@ -3568,7 +3598,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
         {primaryFilterOptions.length > 0 && <select className="native-primary-filter" aria-label="Přednastavený filtr" value={primaryFilter} onChange={(event) => { setPrimaryFilter(event.target.value); setOffset(0); }}><option value="">Všechny záznamy</option>{primaryFilterOptions.map((item) => <option key={item.name} value={item.primary}>{item.label}</option>)}</select>}
         {viewMode === "list" && hasNativeListSettings && <div className="column-settings-anchor"><button type="button" className={`button subtle column-settings-toggle ${columnSettingsOpen ? "selected" : ""}`} onClick={() => setColumnSettingsOpen((open) => !open)} aria-expanded={columnSettingsOpen}><SlidersHorizontal size={14}/>Sloupce</button>{columnSettingsOpen && <div className="column-settings-popover" role="dialog" aria-label="Nastavení sloupců"><div className="column-settings-title"><span><strong>Sloupce seznamu</strong><small>{columns.length} z {baseColumns.length} viditelných</small></span><button type="button" className="icon-button" aria-label="Zavřít nastavení sloupců" onClick={() => setColumnSettingsOpen(false)}><X size={14}/></button></div><div className="column-settings-list">{orderedColumns.map((name, index) => { const hidden = name in hiddenColumnMap ? hiddenColumnMap[name] : Boolean(layoutHiddenDefaults[name]); return <div className={`column-settings-row ${hidden ? "hidden-column" : ""}`} key={name}><label><input type="checkbox" checked={!hidden} disabled={!hidden && columns.length <= 1} onChange={() => toggleColumnVisibility(name)}/><span>{fieldLabel(name, fieldDefs[name], entity, metadata)}</span></label><div><button type="button" className="icon-button" title="Posunout nahoru" aria-label={`Posunout ${fieldLabel(name, fieldDefs[name], entity, metadata)} nahoru`} disabled={index === 0} onClick={() => moveColumn(name, -1)}><ArrowUp size={13}/></button><button type="button" className="icon-button" title="Posunout dolů" aria-label={`Posunout ${fieldLabel(name, fieldDefs[name], entity, metadata)} dolů`} disabled={index === orderedColumns.length - 1} onClick={() => moveColumn(name, 1)}><ArrowDown size={13}/></button></div></div>; })}</div>{canResizeColumns && <label className="column-resize-toggle"><input type="checkbox" checked={columnResizeEnabled} onChange={toggleColumnResize}/><span><strong>Měnit šířku tažením</strong><small>Táhněte za pravý okraj hlavičky sloupce.</small></span></label>}<div className="column-settings-footer"><button type="button" className="button subtle" onClick={resetColumnSettings}>Obnovit výchozí</button><button type="button" className="button primary" onClick={() => setColumnSettingsOpen(false)}>Hotovo</button></div></div>}</div>}
         {!entityClientDefs.searchPanelDisabled && !emailAccountSearchDisabled && <button type="button" className={`button subtle filter-toggle ${filterPanelOpen || appliedFilters.length || activeBoolFilters.length ? "selected" : ""}`} onClick={() => { setDraftFilters(appliedFilters.length ? appliedFilters : [{ field: filterableFields[0]?.[0] || "", operator: filterOperators(filterableFields[0]?.[0] || "")[0]?.[0] || "equals", value: "" }]); setFilterPanelOpen((open) => !open); }}><Filter size={14}/>Filtry{appliedFilters.length > 0 && <b>{appliedFilters.length}</b>}</button>}
-        {!emailAccountSearchDisabled && <form className="record-search" onSubmit={doSearch}><Search size={15}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Hledat: ${entityLabel(metadata, entity, true).toLowerCase()}…`} /><button aria-label="Hledat"><ArrowRight size={13}/></button></form>}
+        {!emailAccountSearchDisabled && <form className="record-search" onSubmit={doSearch}><Search size={15}/><input ref={searchInputRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Hledat: ${entityLabel(metadata, entity, true).toLowerCase()}…`} /><button aria-label="Hledat"><ArrowRight size={13}/></button></form>}
       </div>
       {filterPanelOpen && <div className="advanced-filter-panel"><div className="advanced-filter-heading"><div><strong>Filtr podle polí</strong><small>Podmínky se kombinují a zpracovává je EspoCRM.</small></div><button type="button" className="button subtle" onClick={() => setDraftFilters((current) => [...current, { field: filterableFields[0]?.[0] || "", operator: filterOperators(filterableFields[0]?.[0] || "")[0]?.[0] || "equals", value: "" }])}><Plus size={13}/>Přidat podmínku</button></div>{nativeBoolFilters.length > 0 && <div className="native-bool-filters">{nativeBoolFilters.map((item) => <label key={item.name}><input type="checkbox" checked={activeBoolFilters.includes(item.name)} onChange={(event) => { setActiveBoolFilters((current) => event.target.checked ? [...current, item.name] : current.filter((name) => name !== item.name)); setOffset(0); }}/><span>{item.label}</span></label>)}</div>}{draftFilters.map((condition, index) => {
         const operators = filterOperators(condition.field);
