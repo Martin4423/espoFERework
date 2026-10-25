@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, Folder, FolderTree, Plus } from "./Icons";
-import { entityLabel, request } from "./api";
+import { ChevronDown, ChevronLeft, ChevronRight, Folder, FolderTree, Plus } from "./Icons";
+import { entityLabel, getSession, request } from "./api";
 import type { Metadata } from "./api";
 
 type Row = Record<string, any>;
@@ -43,6 +43,13 @@ function CategoryTreeNode({ row, entity, depth, selectedId, onlyNotEmpty, onSele
 }
 
 export default function CategoryNavigation({ entity, metadata, selection, onSelect, onManage, canManage, onlyNotEmpty = false, headerControl }: { entity: string; metadata: Metadata; selection: CategoryChoice; onSelect: (selection: CategoryChoice) => void; onManage: () => void; canManage: boolean; onlyNotEmpty?: boolean; headerControl?: ReactNode }) {
+  const storageKey = `via-category-navigation:${getSession()?.user.id || "anonymous"}:${entity}`;
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem(storageKey) === "true"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem(storageKey) === "true"); } catch { setCollapsed(false); }
+  }, [storageKey]);
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -75,5 +82,10 @@ export default function CategoryNavigation({ entity, metadata, selection, onSele
   }
   const selectedId = selection && "id" in selection ? selection.id : "";
   const selectedUncategorized = Boolean(selection && "uncategorized" in selection);
-  return <aside className="category-navigation"><div className="category-navigation-heading"><span>KATEGORIE</span>{headerControl}{canManage && <button type="button" className="icon-button" title={`Spravovat ${entityLabel(metadata, entity, true).toLowerCase()}`} aria-label={`Spravovat ${entityLabel(metadata, entity, true).toLowerCase()}`} onClick={onManage}><Plus size={14}/></button>}</div><button type="button" className={`category-nav-row category-nav-all ${!selection ? "selected" : ""}`} onClick={() => onSelect(null)}><FolderTree size={14}/><span>Všechny záznamy</span></button><button type="button" className={`category-nav-row category-nav-all ${selectedUncategorized ? "selected" : ""}`} onClick={() => onSelect({ uncategorized: true })}><Folder size={14}/><span>Bez kategorie</span></button>{error ? <div className="category-nav-error" role="alert">{error}<button type="button" onClick={() => { setError(""); setBusy(true); setReload((value) => value + 1); }}>Zkusit znovu</button></div> : busy ? <div className="category-nav-loading"><span className="spinner"/>Načítám…</div> : rows.length ? <>{rows.map((row) => <CategoryTreeNode key={row.id} row={row} entity={entity} depth={0} selectedId={selectedId} onlyNotEmpty={onlyNotEmpty} onSelect={(item) => onSelect({ id: item.id, name: String(item.name || item.id) })}/>)}{hasMore && <button type="button" className="category-nav-load-more" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? <><span className="spinner small"/>Načítám další…</> : `Načíst dalších ${categoryPageSize} kategorií`}</button>}{moreError && <div className="category-nav-error" role="alert">{moreError}<button type="button" onClick={() => void loadMore()}>Zkusit znovu</button></div>}</> : <small className="category-nav-empty">Zatím nejsou vytvořené kategorie.</small>}</aside>;
+  function toggleCollapsed() {
+    const next = !collapsed;
+    setCollapsed(next);
+    try { localStorage.setItem(storageKey, String(next)); } catch { /* Keep the panel state for this page session. */ }
+  }
+  return <aside className={`category-navigation ${collapsed ? "is-collapsed" : ""}`} aria-label={`Kategorie ${entityLabel(metadata, entity, true)}`}><div className="category-navigation-heading"><span>{collapsed ? "" : "KATEGORIE"}</span>{headerControl}<button type="button" className="icon-button category-navigation-toggle" aria-label={collapsed ? "Zobrazit kategorie" : "Skrýt kategorie"} aria-expanded={!collapsed} title={collapsed ? "Zobrazit kategorie" : "Skrýt kategorie"} onClick={toggleCollapsed}>{collapsed ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}</button>{canManage && <button type="button" className="icon-button" title={`Spravovat ${entityLabel(metadata, entity, true).toLowerCase()}`} aria-label={`Spravovat ${entityLabel(metadata, entity, true).toLowerCase()}`} onClick={onManage}><Plus size={14}/></button>}</div>{!collapsed && <><button type="button" className={`category-nav-row category-nav-all ${!selection ? "selected" : ""}`} onClick={() => onSelect(null)}><FolderTree size={14}/><span>Všechny záznamy</span></button><button type="button" className={`category-nav-row category-nav-all ${selectedUncategorized ? "selected" : ""}`} onClick={() => onSelect({ uncategorized: true })}><Folder size={14}/><span>Bez kategorie</span></button>{error ? <div className="category-nav-error" role="alert">{error}<button type="button" onClick={() => { setError(""); setBusy(true); setReload((value) => value + 1); }}>Zkusit znovu</button></div> : busy ? <div className="category-nav-loading"><span className="spinner"/>Načítám…</div> : rows.length ? <>{rows.map((row) => <CategoryTreeNode key={row.id} row={row} entity={entity} depth={0} selectedId={selectedId} onlyNotEmpty={onlyNotEmpty} onSelect={(item) => onSelect({ id: item.id, name: String(item.name || item.id) })}/>)}{hasMore && <button type="button" className="category-nav-load-more" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? <><span className="spinner small"/>Načítám další…</> : `Načíst dalších ${categoryPageSize} kategorií`}</button>}{moreError && <div className="category-nav-error" role="alert">{moreError}<button type="button" onClick={() => void loadMore()}>Zkusit znovu</button></div>}</> : <small className="category-nav-empty">Zatím nejsou vytvořené kategorie.</small>}</>}</aside>;
 }
