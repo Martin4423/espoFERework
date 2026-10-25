@@ -3,8 +3,10 @@ import type { FormEvent } from "react";
 import { ArrowLeft, Check, Network, Pencil, Plus, RefreshCw, Settings, Trash2, X } from "./Icons";
 import { entityLabel, fetchMetadata, fieldLabel, request } from "./api";
 import type { Metadata } from "./api";
+import { useDialogFocus } from "./useDialogFocus";
 
 type Data = Record<string, any>;
+type PendingLinkAction = { kind: "remove"; name: string } | { kind: "resetParams"; name: string };
 const relationshipTypes = [
   { id: "oneToMany", label: "Jeden k více", note: "Jedna položka zde může souviset s více položkami cílové entity." },
   { id: "manyToOne", label: "Více k jednomu", note: "Tato položka odkazuje na jednu položku cílové entity." },
@@ -73,6 +75,8 @@ export default function AdminLinkManager({ metadata, onBack }: { metadata: Metad
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pendingAction, setPendingAction] = useState<PendingLinkAction | null>(null);
+  const confirmDialogRef = useDialogFocus<HTMLElement>(() => { if (!busy) setPendingAction(null); }, !busy, Boolean(pendingAction));
   const entityList = useMemo(() => Object.keys(liveMetadata.scopes).filter((name) => liveMetadata.scopes[name].entity && liveMetadata.scopes[name].customizable && liveMetadata.scopes[name].entityManager?.relationships !== false).sort((a, b) => entityLabel(liveMetadata, a).localeCompare(entityLabel(liveMetadata, b), "cs")), [liveMetadata]);
   const links = liveMetadata.entityDefs[scope]?.links || {};
   const foreignEntityList = entityList;
@@ -172,7 +176,9 @@ export default function AdminLinkManager({ metadata, onBack }: { metadata: Metad
     finally { setBusy(false); }
   }
   async function removeLink(name: string) {
-    if (!window.confirm(`Odstranit vlastní vztah „${fieldLabel(name, undefined, scope, liveMetadata)}“?`)) return;
+    setPendingAction({ kind: "remove", name });
+  }
+  async function performRemoveLink(name: string) {
     setBusy(true); setError(""); setNotice("");
     try {
       await request("EntityManager/action/removeLink", { method: "POST", body: JSON.stringify({ entity: scope, link: name }) });
@@ -190,7 +196,11 @@ export default function AdminLinkManager({ metadata, onBack }: { metadata: Metad
     finally { setBusy(false); }
   }
   async function resetLinkParams() {
-    if (!paramsLink || !window.confirm("Obnovit výchozí parametry tohoto systémového vztahu?")) return;
+    if (!paramsLink) return;
+    setPendingAction({ kind: "resetParams", name: paramsLink.name });
+  }
+  async function performResetLinkParams(name: string) {
+    if (!paramsLink || paramsLink.name !== name) return;
     setBusy(true); setError(""); setNotice("");
     try {
       await request("EntityManager/action/resetLinkParamsToDefault", { method: "POST", body: JSON.stringify({ entityType: scope, link: paramsLink.name }) });
@@ -199,6 +209,13 @@ export default function AdminLinkManager({ metadata, onBack }: { metadata: Metad
       setNotice("Výchozí parametry vztahu byly obnoveny.");
     } catch (e) { setError(e instanceof Error ? e.message : "Výchozí parametry vztahu se nepodařilo obnovit."); }
     finally { setBusy(false); }
+  }
+  async function confirmPendingAction() {
+    const action = pendingAction;
+    if (!action || busy) return;
+    setPendingAction(null);
+    if (action.kind === "remove") await performRemoveLink(action.name);
+    else await performResetLinkParams(action.name);
   }
 
   return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">PŘIZPŮSOBENÍ CRM</div><h1>Správce vztahů</h1><p>Propojte entity a spravujte jejich vlastní relace.</p></div><div className="layout-heading-actions"><button className="button subtle" onClick={async () => setLiveMetadata(await fetchMetadata())} disabled={busy}><RefreshCw size={14}/> Obnovit</button><button className="button primary" onClick={startCreate} disabled={!scope || busy}><Plus size={15}/> Nový vztah</button></div></div>
@@ -225,5 +242,6 @@ export default function AdminLinkManager({ metadata, onBack }: { metadata: Metad
       <div className="modal-footer"><button type="button" className="button subtle" onClick={() => setEditingLinkName("")} disabled={busy}>Zrušit</button><button className="button primary" disabled={busy}>{busy ? "Ukládám…" : "Uložit vztah"}</button></div>
     </form></div>}
     {paramsLink && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && setParamsLink(null)}><section className="record-modal relationship-modal" role="dialog" aria-modal="true" aria-label={`Parametry vztahu ${paramsLink.name}`}><div className="modal-heading"><div><span className="eyebrow">PARAMETRY RELACE · {entityLabel(liveMetadata, scope).toUpperCase()}</span><h2>{fieldLabel(paramsLink.name, undefined, scope, liveMetadata)}</h2><p>{paramsLink.name} · {entityLabel(liveMetadata, paramsLink.defs.entity || "")}</p></div><button type="button" className="icon-button" onClick={() => setParamsLink(null)} disabled={busy} aria-label="Zavřít"><X size={16}/></button></div><label className="switch-row"><input type="checkbox" checked={paramsReadOnly} disabled={busy} onChange={(event) => setParamsReadOnly(event.target.checked)}/><span>Vztah pouze pro čtení</span></label><div className="modal-footer">{!paramsLink.defs.isCustom && <button type="button" className="button subtle" onClick={() => void resetLinkParams()} disabled={busy}>Obnovit výchozí</button>}<button type="button" className="button subtle" onClick={() => setParamsLink(null)} disabled={busy}>Zrušit</button><button type="button" className="button primary" onClick={() => void saveLinkParams()} disabled={busy}>{busy ? "Ukládám…" : "Uložit"}</button></div></section></div>}
+    {pendingAction && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && setPendingAction(null)}><section ref={confirmDialogRef} className="record-modal relationship-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="relationship-confirm-title" aria-describedby="relationship-confirm-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">SPRÁVCE VZTAHŮ · POTVRZENÍ</span><h2 id="relationship-confirm-title">{pendingAction.kind === "remove" ? "Odstranit vlastní vztah?" : "Obnovit výchozí parametry?"}</h2><p id="relationship-confirm-description">{pendingAction.kind === "remove" ? <>Vlastní vztah <strong>{fieldLabel(pendingAction.name, undefined, scope, liveMetadata)}</strong> (<code>{scope}.{pendingAction.name}</code>) bude odstraněn. Změní se dostupné vazby a panely pro tuto entitu.</> : <>Parametry systémového vztahu <strong>{fieldLabel(pendingAction.name, undefined, scope, liveMetadata)}</strong> budou vráceny na výchozí hodnoty EspoCRM.</>}</p></div><button type="button" className="icon-button" aria-label="Zrušit akci" onClick={() => setPendingAction(null)}><X size={16}/></button></div><div className="modal-footer"><button type="button" autoFocus className="button subtle" onClick={() => setPendingAction(null)}>Zrušit</button><button type="button" className={`button ${pendingAction.kind === "remove" ? "danger" : "primary"}`} onClick={() => void confirmPendingAction()}>{pendingAction.kind === "remove" ? <><Trash2 size={14}/> Odstranit vztah</> : <>Obnovit výchozí</>}</button></div></section></div>}
   </div>;
 }

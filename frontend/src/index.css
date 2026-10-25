@@ -543,6 +543,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .relationship-badge { padding: 4px 6px; border-radius: 5px; background: #f1f2f5; color: #949dac; font-size: 8px; white-space: nowrap; }
 .relationship-badge.custom { background: #f0efff; color: #7169d1; }
 .relationship-modal { width: min(650px, 100%); }
+.relationship-confirm-dialog { width: min(490px, calc(100vw - 32px)); }
+.relationship-confirm-dialog .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.relationship-confirm-dialog .modal-heading p strong { color: var(--ink); }
 .relationship-fields { margin-top: 13px; }
 .relationship-modal .field-hint { display: block; color: #929daf; font-size: 8px; line-height: 1.4; }
 .label-manager { overflow: hidden; }
