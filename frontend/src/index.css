@@ -922,6 +922,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .stream-status-change { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 4px 8px; border: 1px solid #e8eaf2; border-radius: 7px; background: #fafaff; color: #657188; font-size: 10px; }
 .stream-status-value { padding: 3px 8px; border-radius: 999px; background: #eef0f3; color: #596273; font-weight: 650; }
 .stream-status-value.warning { background: #fff3d8; color: #946200; }.stream-status-value.danger { background: #fde8e7; color: #ad3833; }.stream-status-value.success { background: #e5f5ed; color: #26734f; }.stream-status-value.info { background: #e5f0ff; color: #275d9a; }.stream-status-value.primary { background: #eceaff; color: #594eb2; }
+.stream-assignment-change, .stream-create-details { display: grid; gap: 7px; margin: 8px 0; }
+.stream-assignment-change > div, .stream-create-details > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.stream-assignment-change > div > strong, .stream-create-details > div > strong { color: #7d899e; font-size: 10px; font-weight: 600; }
+.stream-assignee-list { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.stream-assignee { display: inline-flex; align-items: center; gap: 5px; color: #45536a; font-size: 10px; font-weight: 550; }
+.stream-assignee .stream-avatar { width: 19px; height: 19px; flex-basis: 19px; font-size: 8px; }
 .stream-item-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .stream-reaction { min-width: 31px; height: 25px; padding: 0 6px; color: #7d879a; font-size: 9px; }
 .stream-reaction.is-active { border-color: #d8d5ff; background: #f2f1ff; color: #665fc2; }
