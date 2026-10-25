@@ -326,6 +326,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .field-attributes-table th { position: sticky; top: 0; background: #fff; color: #7d8796; font-size: 9px; font-weight: 600; }
 .field-attributes-table td code { color: #4e5c70; font-size: 10px; overflow-wrap: anywhere; }
 .field-attributes-empty { padding: 18px 0; color: #858fa0; font-size: 12px; }
+.field-action-confirm-dialog { width: min(490px, calc(100vw - 32px)); }
+.field-action-confirm-dialog .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.field-action-confirm-dialog .modal-heading p strong { color: var(--ink); }
+.field-action-confirm-dialog .modal-heading p code { color: #5c57a8; font: 11px ui-monospace, monospace; }
+.field-action-confirm-impact { display: flex; align-items: flex-start; gap: 10px; margin: 4px 22px 16px; padding: 11px 12px; border: 1px solid #ecebf8; border-radius: 9px; background: #faf9ff; }
+.field-action-confirm-impact > span { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border-radius: 8px; background: #efedff; color: #655bba; }
+.field-action-confirm-dialog:has(.button.danger) .field-action-confirm-impact { border-color: #f2dada; background: #fff8f8; }
+.field-action-confirm-dialog:has(.button.danger) .field-action-confirm-impact > span { background: #ffebeb; color: #b44650; }
+.field-action-confirm-impact > div { display: grid; gap: 3px; padding-top: 1px; }
+.field-action-confirm-impact strong { color: var(--ink); font-size: 11px; }
+.field-action-confirm-impact small { color: var(--muted); font-size: 10px; line-height: 1.5; }
 @media (max-width: 600px) { .field-manager-header-actions { align-items: flex-end; flex-direction: column; gap: 6px; } .field-attributes-summary { grid-template-columns: 1fr; } .field-attributes-table-wrap { padding-right: 12px; padding-left: 12px; } }
 .field-manager-unsaved { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid #f0dfb2; border-radius: 999px; background: #fff9e9; color: #856719; font-size: 12px; font-weight: 650; }
 .field-manager-unsaved > span { width: 6px; height: 6px; border-radius: 50%; background: #d39d29; }
