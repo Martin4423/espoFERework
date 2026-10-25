@@ -237,6 +237,10 @@ async function fetchPublicBranding(): Promise<PublicBranding | null> {
   } catch { return null; }
 }
 
+function personNameAttribute(name: string, part: "first" | "middle" | "last") {
+  return `${part}${name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1)}`;
+}
+
 function formFieldValueFromRecord(name: string, def: FieldDef, record: Row): unknown {
   if (def.type === "datetimeOptional") return record[`${name}Date`] || record[name] || "";
   if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) {
@@ -251,7 +255,7 @@ function formFieldValueFromRecord(name: string, def: FieldDef, record: Row): unk
   if (def.type === "link" || def.type === "linkOne") return record[`${name}Id`] || "";
   if (def.type === "linkMultiple") return record[`${name}Ids`] || [];
   if (def.type === "linkParent") return { type: record[`${name}Type`] || "", id: record[`${name}Id`] || "" };
-  if (def.type === "personName") return { firstName: record.firstName || "", middleName: record.middleName || "", lastName: record.lastName || "" };
+  if (def.type === "personName") return { firstName: record[personNameAttribute(name, "first")] || "", middleName: record[personNameAttribute(name, "middle")] || "", lastName: record[personNameAttribute(name, "last")] || "", salutationName: record[`salutation${name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1)}`] || "" };
   if (def.type === "address") return Object.fromEntries(["street", "city", "state", "postalCode", "country"].map((part) => [part, record[`${name}${part[0].toUpperCase()}${part.slice(1)}`] || ""]));
   if (def.type === "file" || def.type === "image") return record[`${name}Id`] ? { id: record[`${name}Id`], name: record[`${name}Name`] || "Soubor", type: record[`${name}Type`] || def.defaultType } : null;
   if (def.type === "attachmentMultiple") return (record[`${name}Ids`] || []).map((id: string) => ({ id, name: record[`${name}Names`]?.[id] || id, type: record[`${name}Types`]?.[id] || "" }));
@@ -297,7 +301,7 @@ function fieldAttributeList(entity: string, name: string, def: FieldDef): string
   if (["email", "phone"].includes(def.type || "")) return [name, `${name}Data`, `${name}IsOptedOut`, `${name}IsInvalid`];
   if (def.type === "currency") return [name, `${name}Currency`];
   if (def.type === "duration") return [String(def.start || ""), String(def.end || "")].filter(Boolean);
-  if (def.type === "personName") return ["firstName", "middleName", "lastName"];
+  if (def.type === "personName") return [`salutation${name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1)}`, ...(["first", "middle", "last"] as const).map((part) => personNameAttribute(name, part))];
   if (def.type === "address") return ["street", "city", "state", "postalCode", "country"].map((part) => `${name}${part[0].toUpperCase()}${part.slice(1)}`);
   if (def.type === "link" || def.type === "linkOne") return [`${name}Id`];
   if (def.type === "linkMultiple") { const primaryLink = primaryLinkForField(entity, name, def); return [`${name}Ids`, `${name}Columns`, ...(primaryLink ? [`${primaryLink}Id`, `${primaryLink}Name`] : [])]; }
@@ -318,7 +322,7 @@ function attributesFromFormField(entity: string, name: string, def: FieldDef, va
   if (["email", "phone"].includes(def.type || "")) return { [name]: value || null, [`${name}Data`]: values[`${name}Data`] || [], [`${name}IsOptedOut`]: values[`${name}IsOptedOut`] ?? false, [`${name}IsInvalid`]: values[`${name}IsInvalid`] ?? false };
   if (def.type === "currency") return { [name]: value == null || value === "" ? null : Number(value), [`${name}Currency`]: values[`${name}Currency`] || null };
   if (def.type === "duration") return { ...(def.start ? { [def.start]: values[def.start] ?? null } : {}), ...(def.end ? { [def.end]: values[def.end] ?? null } : {}) };
-  if (def.type === "personName") return { firstName: value?.firstName || "", middleName: value?.middleName || "", lastName: value?.lastName || "" };
+  if (def.type === "personName") return { [`salutation${name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1)}`]: value?.salutationName || "", [personNameAttribute(name, "first")]: value?.firstName || "", [personNameAttribute(name, "middle")]: value?.middleName || "", [personNameAttribute(name, "last")]: value?.lastName || "" };
   if (def.type === "address") return Object.fromEntries(["street", "city", "state", "postalCode", "country"].map((part) => [`${name}${part[0].toUpperCase()}${part.slice(1)}`, value?.[part] || ""]));
   if (def.type === "link" || def.type === "linkOne") return { [`${name}Id`]: value || null };
   if (def.type === "linkMultiple") { const primaryLink = primaryLinkForField(entity, name, def); return { [`${name}Ids`]: Array.isArray(value) ? value : [], [`${name}Columns`]: values[`${name}Columns`] || {}, ...(primaryLink ? { [`${primaryLink}Id`]: values[`${primaryLink}Id`] || null, [`${primaryLink}Name`]: values[`${primaryLink}Name`] || null } : {}) }; }
@@ -4627,7 +4631,7 @@ function LeadConversion({ metadata, lead, onClose, onOpenRecord, onConverted }: 
         for (const [name, def] of conversionFields(scope)) {
           if (["link", "linkOne"].includes(def.type || "")) initial[name] = initial[`${name}Id`] || "";
           if (def.type === "linkMultiple") initial[name] = initial[`${name}Ids`] || [];
-          if (def.type === "personName") initial[name] = { firstName: initial.firstName || "", middleName: initial.middleName || "", lastName: initial.lastName || "" };
+          if (def.type === "personName") initial[name] = { firstName: initial[personNameAttribute(name, "first")] || "", middleName: initial[personNameAttribute(name, "middle")] || "", lastName: initial[personNameAttribute(name, "last")] || "", salutationName: initial[`salutation${name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1)}`] || "" };
           if (["file", "image"].includes(def.type || "")) initial[name] = initial[`${name}Id`] ? { id: initial[`${name}Id`], name: initial[`${name}Name`] || "Soubor" } : null;
           if (def.type === "attachmentMultiple") initial[name] = (initial[`${name}Ids`] || []).map((id: string) => ({ id, name: initial[`${name}Names`]?.[id] || id, type: initial[`${name}Types`]?.[id] || "" }));
         }
@@ -4647,7 +4651,7 @@ function LeadConversion({ metadata, lead, onClose, onOpenRecord, onConverted }: 
       else if (def.type === "linkMultiple") payload[`${name}Ids`] = Array.isArray(value) ? value : [];
       else if (["link", "linkOne"].includes(def.type || "")) payload[`${name}Id`] = value || null;
       else if (def.type === "linkParent") { payload[`${name}Type`] = value?.type || null; payload[`${name}Id`] = value?.id || null; }
-      else if (def.type === "personName") { payload.firstName = value?.firstName || ""; payload.middleName = value?.middleName || ""; payload.lastName = value?.lastName || ""; }
+      else if (def.type === "personName") { const suffix = name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1); payload[`salutation${suffix}`] = value?.salutationName || ""; payload[personNameAttribute(name, "first")] = value?.firstName || ""; payload[personNameAttribute(name, "middle")] = value?.middleName || ""; payload[personNameAttribute(name, "last")] = value?.lastName || ""; }
       else if (def.type === "address") { for (const [part, suffix] of [["street", "Street"], ["city", "City"], ["state", "State"], ["postalCode", "PostalCode"], ["country", "Country"]]) payload[`${name}${suffix}`] = value?.[part] || ""; }
       else if (["file", "image"].includes(def.type || "")) { payload[`${name}Id`] = value?.id || null; payload[`${name}Name`] = value?.name || null; }
       else if (def.type === "attachmentMultiple") { const list = Array.isArray(value) ? value : []; payload[`${name}Ids`] = list.map((item: Row) => item.id); payload[`${name}Names`] = Object.fromEntries(list.map((item: Row) => [item.id, item.name])); payload[`${name}Types`] = Object.fromEntries(list.map((item: Row) => [item.id, item.type || ""])); }
@@ -4798,7 +4802,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     if (entity === "AppSecret" && record) initial.value = "";
     if (entity === "DashboardTemplate" && !record && !Array.isArray(initial.layout)) initial.layout = [{ name: "Přehled", layout: [] }];
     for (const [name, def] of fields) if (def.type === "datetimeOptional") initial[name] = record?.[`${name}Date`] || initial[`${name}Date`] || initial[name] || "";
-    for (const [name, def] of fields) if (def.type === "personName" && record) initial[name] = { firstName: record.firstName || "", middleName: record.middleName || "", lastName: record.lastName || "" };
+    for (const [name, def] of fields) if (def.type === "personName" && record) initial[name] = formFieldValueFromRecord(name, def, record);
     for (const [name, def] of fields) if (def.type === "address" && record) initial[name] = Object.fromEntries(["street", "city", "state", "postalCode", "country"].map((part) => [part, record[`${name}${part[0].toUpperCase()}${part.slice(1)}`] || ""]));
     for (const [name, def] of fields) {
       if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) {
@@ -5078,7 +5082,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       }
       else if (["link", "linkOne"].includes(def.type || "")) payload[`${name}Id`] = value || null;
       else if (def.type === "linkParent") { payload[`${name}Type`] = value?.type || null; payload[`${name}Id`] = value?.id || null; }
-      else if (def.type === "personName") { payload.firstName = value?.firstName || ""; payload.middleName = value?.middleName || ""; payload.lastName = value?.lastName || ""; }
+      else if (def.type === "personName") { const suffix = name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1); payload[`salutation${suffix}`] = value?.salutationName || ""; payload[personNameAttribute(name, "first")] = value?.firstName || ""; payload[personNameAttribute(name, "middle")] = value?.middleName || ""; payload[personNameAttribute(name, "last")] = value?.lastName || ""; }
       else if (def.type === "address") { for (const [part, suffix] of [["street", "Street"], ["city", "City"], ["state", "State"], ["postalCode", "PostalCode"], ["country", "Country"]]) payload[`${name}${suffix}`] = value?.[part] || ""; }
       else if (def.type === "file" || def.type === "image") { payload[`${name}Id`] = value?.id || null; payload[`${name}Name`] = value?.name || null; }
       else if (def.type === "attachmentMultiple") { const list = Array.isArray(value) ? value : []; payload[`${name}Ids`] = list.map((item: Row) => item.id); payload[`${name}Names`] = Object.fromEntries(list.map((item: Row) => [item.id, item.name])); payload[`${name}Types`] = Object.fromEntries(list.map((item: Row) => [item.id, item.type || ""])); }
@@ -6521,8 +6525,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     return <fieldset className="field-input address-input" disabled={fieldDisabled}><legend>{inputLabel}</legend><div className="address-input-grid">{parts.map(([key, caption]) => { const suggestions = suggestionsForAddressPart(key); const listId = `suggestions-${entity}-${name}-${key}`.replace(/[^a-zA-Z0-9_-]/g, "-"); return <label key={key} className={key === "street" ? "address-street" : ""}><span>{caption}</span><input value={current[key] || ""} list={suggestions.length ? listId : undefined} required={key === "street" && def.required} disabled={fieldDisabled} onChange={(event) => onChange({ ...current, [key]: event.target.value })}/>{suggestions.length > 0 && <datalist id={listId}>{suggestions.map((option) => <option key={option} value={option}/>)}</datalist>}</label>; })}</div>{canCopyBilling && <button type="button" className="button subtle address-copy-billing" onClick={() => onChange({ ...current, ...billingValues })}><Copy size={13}/>{copyBillingLabel}</button>}</fieldset>;
   }
   if (type === "personName") {
-    const current = value || {};
-    return <fieldset className="field-input person-name-field" disabled={fieldDisabled}><legend>{inputLabel}</legend><div className="person-name-controls">{[["firstName", "Jméno"], ["middleName", "Prostřední jméno"], ["lastName", "Příjmení"]].map(([key, caption]) => <label key={key}><span>{caption}</span><input value={current[key] || ""} disabled={fieldDisabled} onChange={(event) => onChange({ ...current, [key]: event.target.value })} required={key === "lastName" && def.required}/></label>)}</div></fieldset>;
+    return <PersonNameFieldInput entity={entity} name={name} label={inputLabel} value={value || {}} def={def} metadata={metadata} disabled={fieldDisabled} onChange={onChange}/>;
   }
   if (["link", "linkOne", "linkMultiple"].includes(type) && relationEntity) {
     const multi = type === "linkMultiple";
@@ -6900,6 +6903,7 @@ function RecordFieldDisplay({ entity, name, record, value, def, metadata, onOpen
     return items.length ? <span className="detail-value-chips">{items.map((item) => <span key={String(item)}>{optionLabels[String(item)] || (Array.isArray(options) ? options[Number(item)] : undefined) || String(item)}</span>)}</span> : <span className="muted-cell">—</span>;
   }
   if (type === "bool" || typeof value === "boolean") return <span className={`detail-bool-value ${value ? "is-yes" : "is-no"}`}><span aria-hidden="true">{value ? "✓" : "×"}</span>{value ? "Ano" : "Ne"}</span>;
+  if (type === "personName") return <PersonNameDisplay name={name} record={record} metadata={metadata}/>;
   if (["jsonObject", "jsonArray"].includes(type) || (typeof value === "object" && value !== null && !Array.isArray(value))) {
     let json = typeof value === "string" ? value : JSON.stringify(value, null, 2);
     try { json = JSON.stringify(typeof value === "string" ? JSON.parse(value) : value, null, 2); } catch { /* Preserve invalid legacy JSON as entered. */ }
@@ -6933,6 +6937,39 @@ function RecordFieldDisplay({ entity, name, record, value, def, metadata, onOpen
   if (type === "text") return <DetailTextValue value={value} cutHeight={Number(fieldDef?.cutHeight) || 200} seeMoreDisabled={Boolean(fieldDef?.seeMoreDisabled)}/>;
   if (type === "formula") return <pre className="detail-plain-text">{String(value || "")}</pre>;
   return <strong className={className}>{formatValue()}</strong>;
+}
+
+function PersonNameFieldInput({ entity, name, label, value, def, metadata, disabled, onChange }: { entity: string; name: string; label: ReactNode; value: Row; def: FieldDef; metadata: Metadata; disabled: boolean; onChange: (value: Row) => void }) {
+  const suffix = name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1);
+  const salutationField = `salutation${suffix}`;
+  const salutationDef = metadata.entityDefs?.[entity]?.fields?.[salutationField] || {};
+  const options: string[] = Array.isArray(salutationDef.options) ? salutationDef.options.map(String) : [];
+  const optionLabels = (metadata.labels as any)?.[entity]?.options?.[salutationField] || {};
+  const format = String(metadata.appSettings?.personNameFormat || "f l");
+  const orderedParts: Array<[string, string]> = [];
+  if (format.startsWith("l")) {
+    orderedParts.push(["lastName", "Příjmení"], ["firstName", "Jméno"]);
+    if (format.endsWith("m")) orderedParts.push(["middleName", "Prostřední jméno"]);
+  } else {
+    orderedParts.push(["firstName", "Jméno"]);
+    if (format.includes("m")) orderedParts.push(["middleName", "Prostřední jméno"]);
+    orderedParts.push(["lastName", "Příjmení"]);
+  }
+  return <fieldset className="field-input person-name-field" disabled={disabled}><legend>{label}</legend><div className="person-name-controls">{options.length > 0 && <label><span>{fieldLabel(salutationField, salutationDef, entity, metadata)}</span><select value={value.salutationName || ""} onChange={(event) => onChange({ ...value, salutationName: event.target.value })}>{options.map((option) => <option key={option} value={option}>{optionLabels[option] || option || "—"}</option>)}</select></label>}{orderedParts.map(([key, caption]) => <label key={key}><span>{fieldLabel(personNameAttribute(name, key === "firstName" ? "first" : key === "middleName" ? "middle" : "last"), undefined, entity, metadata) || caption}</span><input value={value[key] || ""} disabled={disabled} onChange={(event) => onChange({ ...value, [key]: event.target.value })} required={key === "lastName" && def.required}/></label>)}</div></fieldset>;
+}
+
+function PersonNameDisplay({ name, record, metadata }: { name: string; record: Row; metadata: Metadata }) {
+  const upperName = name.charAt(0).toUpperCase() + name.slice(1);
+  const first = String(record[`first${upperName}`] || "").trim();
+  const middle = String(record[`middle${upperName}`] || "").trim();
+  const last = String(record[`last${upperName}`] || "").trim();
+  const salutation = String(record[`salutation${upperName}`] || "").trim();
+  const salutationLabel = (metadata.labels as any)?.User?.options?.salutationName?.[salutation] || (metadata.labels as any)?.["Global"]?.options?.salutationName?.[salutation] || salutation;
+  const format = String(metadata.appSettings?.personNameFormat || "f l");
+  const nameParts = format === "l f" || format === "l, f" ? [last, first] : format === "f m l" ? [first, middle, last] : format === "l f m" ? [last, first, middle] : [first, last];
+  if (format === "l, f" && last && first) nameParts[0] = `${last},`;
+  const fullName = [salutationLabel, ...nameParts].filter(Boolean).join(" ").trim();
+  return fullName ? <strong className="detail-person-name">{fullName}</strong> : <span className="muted-cell">—</span>;
 }
 
 function formatCurrency(value: unknown, currency: unknown, metadata: Metadata): string {
