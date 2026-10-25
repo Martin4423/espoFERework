@@ -802,6 +802,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .followers-dialog header p { margin:0; color:var(--muted,#777f8c); font-size:12px; }
 .followers-list { min-height:140px; overflow:auto; padding:8px 14px; }
 .followers-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 4px; border-bottom:1px solid var(--border,#edf0f4); }
+.followers-row.confirming { align-items:flex-start; background:var(--surface-subtle,#f8f9fc); border-radius:8px; }
+.followers-remove-confirm { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:6px; color:var(--muted,#777f8c); font-size:11px; }
 .followers-user { display:flex; align-items:center; gap:11px; min-width:0; border:0; padding:4px; color:inherit; text-align:left; background:transparent; cursor:pointer; }
 .followers-user>span:last-child { display:grid; gap:3px; min-width:0; }
 .followers-user strong,.followers-user small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -812,7 +814,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .followers-dialog>footer { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px; border-top:1px solid var(--border,#e7eaf0); color:var(--muted,#777f8c); font-size:11px; }
 .followers-dialog>footer>div { display:flex; align-items:center; gap:6px; }
 .followers-backdrop { z-index:120; }
-@media(max-width:540px) { .followers-dialog>header { padding:18px 16px 13px; } .followers-header-actions { gap:5px; } .followers-header-actions .button { min-height:32px; padding:6px 8px; font-size:10px; } .followers-dialog>footer { padding:10px 12px; } }
+@media(max-width:540px) { .followers-dialog>header { padding:18px 16px 13px; } .followers-header-actions { gap:5px; } .followers-header-actions .button { min-height:32px; padding:6px 8px; font-size:10px; } .followers-row.confirming { flex-direction:column; } .followers-remove-confirm { justify-content:flex-start; padding-left:49px; } .followers-dialog>footer { padding:10px 12px; } }
 .modal-heading { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 22px 15px; border-bottom: 1px solid var(--line); }
 .modal-heading h2 { margin: 7px 0 0; font: 700 18px Manrope,sans-serif; }
 .about-dialog { width: min(460px,100%); }
