@@ -1178,7 +1178,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .mail-attachment-trigger { display: inline-grid; flex: 0 0 auto; place-items: center; padding: 2px; border: 0; border-radius: 4px; background: transparent; color: #8793a5; cursor: pointer; }
 .mail-attachment-trigger:hover { background: #efeffa; color: #5149a7; }
 .mail-subject svg { flex: 0 0 auto; color: #9ca7b7; }
-.mail-preview { overflow: hidden; color: #98a2b2; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.mail-preview { display: flex; min-width: 0; align-items: center; gap: 4px; overflow: hidden; color: #98a2b2; font-size: 9px; }
+.mail-preview-sender { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-replied-indicator { display: inline-grid; width: 14px; height: 14px; flex: 0 0 auto; place-items: center; border-radius: 4px; background: #f0efff; color: #6559be; }
 .mail-related { overflow: hidden; color: #79869b; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .mail-date-actions { display: flex; flex-wrap: wrap; grid-column: 5; justify-content: flex-end; align-items: center; gap: 2px; min-width: 0; }
 .mail-row-actions { display: inline-flex; align-items: center; gap: 1px; }
