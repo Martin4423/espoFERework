@@ -2036,6 +2036,11 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .auth-token-bulk { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid #edf0f4; background: #fbfbfe; }
 .auth-token-bulk > span { margin-right: auto; color: #626e83; font-size: 10px; font-weight: 650; }
 .auth-token-bulk .button { min-height: 29px; padding: 0 9px; font-size: 10px; }
+.auth-token-confirm { width: min(480px, 100%); }
+.auth-token-confirm-body { display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 24px; color: #586579; font-size: 13px; line-height: 1.6; }
+.auth-token-confirm-body > svg { flex: 0 0 auto; margin-top: 2px; color: #c48a35; }
+.auth-token-confirm-body p { margin: 0; }
+.auth-token-confirm .modal-footer { padding: 12px 20px; }
 .auth-token-row { min-height: 54px; border-top: 1px solid #edf0f4; color: #46536a; font-size: 11px; }
 .auth-token-row > strong, .auth-token-row > span, .auth-token-row > div { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .auth-token-row > strong { color: #2d3a50; }
