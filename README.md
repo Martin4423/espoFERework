@@ -1,34 +1,40 @@
-# ViaCRM Client — alternativa k EspoCRM 9.1.7
+# ViaCRM Client
 
-Tohle je React + TypeScript náhrada uživatelského rozhraní EspoCRM 9.1.7; EspoCRM zůstává backendem přes REST API. Nový klient běží na hlavním originu `8091` i vývojovém portu `5173`. Původní rozhraní EspoCRM je pro administraci a obnovu dostupné přímo na `8092`.
+React + TypeScript klient pro **ViaCRM** (.NET backend `viacrm-be`). UI vzniklo jako klient EspoCRM a postupně se přepisuje na kontrakt ViaCRM; co backend zatím neumí, ukazuje hlášku „Ve ViaCRM zatím není k dispozici“. Plán a stav: [docs/MIGRATION-PLAN.md](docs/MIGRATION-PLAN.md), co se mění a proč: [docs/BACKEND-MIGRATION-ANALYSIS.md](docs/BACKEND-MIGRATION-ANALYSIS.md).
 
-## Spuštění
+Větev `dot-net` (do `main` se zatím nemerguje).
+
+## Spuštění (všechno v Dockeru)
 
 ```sh
 docker compose up -d --build
 ```
 
-Otevři [http://localhost:8091](http://localhost:8091) a přihlas se účtem EspoCRM. Lokální demo účet je `admin` / `admin`. Stejný nový klient je také na [http://localhost:5173](http://localhost:5173). Nativní administrační rozhraní backendu zůstává na [http://localhost:8092](http://localhost:8092).
+- Klient: <http://localhost:5173> (nginx, `/v1` proxyuje na API)
+- Mailpit (všechny e-maily systému, např. reset hesla): <http://localhost:8025>
+- Přihlášení: `admin@example.com` / `admin-dev-password-1`
 
-## Aktuální rozsah klienta
-
-- Přihlášení přes EspoCRM token a serverovou API proxy.
-- Veřejná přihlašovací obrazovka přebírá název aplikace, logo a téma z nastavení EspoCRM; portálové přihlášení používá vlastní branding.
-- Navigace sestavená z metadat EspoCRM.
-- Globální vyhledávání přes EspoCRM API a oprávnění přihlášeného uživatele.
-- Dashboard se souhrnnými počty a nedávno změněnými záznamy.
-- Týdenní kalendář napojený na EspoCRM Activities API; lze otevřít i vytvořit schůzky, hovory a úkoly.
-- Generické seznamy, textové hledání a stránkování pro entity dostupné v metadatech.
-- Detail záznamu a formuláře pro vytvoření a úpravy; formuláře obsluhují základní typy polí, výběr vztahů, týmy a role; mazání z detailu.
-- E-mailová schránka se systémovými a vlastními složkami, hledáním, hvězdičkou, hromadnými akcemi, detailem, odpovědí a přeposláním.
-- CSV/TSV import s mapováním sloupců, historií a akcemi pro vrácení importu a odstranění duplicit.
-- Administrativní rozcestník s uživateli, týmy, rolemi, poštovními účty, importem a systémovými nastaveními (dostupnost položek závisí na API a oprávněních účtu).
-- Jednotná sada Font Awesome ikon v navigaci, administraci, seznamech, formulářích i dialozích; metadata EspoCRM se vykreslují jejich původními třídami.
-- Veřejný Lead Capture formulář, opt-in potvrzení, RSVP účasti a správa campaign unsubscribe; most obsluhuje i campaign open tracking pixel a je v balíčku `packages/ViaCRM-Frontend-Bridge-1.6.0.zip`.
-- Rozložení pro desktop i mobil.
-
-Jde stále o rozpracovanou náhradu klienta. Úplný seznam chybějících obrazovek a ověřitelných požadavků je v [COVERAGE.md](COVERAGE.md). Docker gateway nyní obsluhuje klienta na hlavním CRM originu a předává `/api` i potřebné nativní endpointy EspoCRM; samostatný PHP bridge ZIP zajišťuje serverovou logiku veřejných formulářů. Instalovatelný balíček reworku se sestaví příkazem `./scripts/package-frontend-extension.sh`; výsledný ZIP `packages/ViaCRM-Frontend-2.0.198.zip` obsahuje celý React build i API bridge a nainstaluje se přes Administrace → Rozšíření. V běžném EspoCRM běží na stejné doméně v `/client/custom/viacrm/`; nahrazení kořenové URL a nativních veřejných entrypointů vyžaduje směrování webserveru, popsané v balíčku.
+Backend se staví z `../viacrm-be` (musí ležet vedle tohoto repozitáře).
 
 ## Vývoj
 
-Zdroj je v `frontend/src`. Pro lokální Vite server použij `npm install && npm run dev`; vývojový server proxyuje `/api` na `http://localhost:8091`. Produkční statické sestavení vytvoří `npm run build` do `frontend/dist`; Docker Nginx klienta obsluhuje na portech `5173` a `8091`, zatímco `/api` a `/client` předává EspoCRM backendu, který je lokálně dostupný na portu `8092`.
+Backend spusť v `../viacrm-be` příkazem `scripts/run.sh` (API na `http://localhost:5080`, Mailpit na `:8025`), pak:
+
+```sh
+cd frontend
+npm install
+npm run dev        # Vite na http://localhost:5173, /v1 proxyuje na VITE_API_URL (výchozí http://localhost:5080)
+```
+
+Backend nemá CORS, proto klient vždy volá `/v1` na vlastním originu (Vite nebo nginx).
+
+## Testy
+
+```sh
+cd frontend
+npm run check      # tsc -b + vitest (jednotkové testy)
+npm run e2e        # Playwright proti běžícímu backendu a Vite (E2E_BASE_URL přepne cíl, např. na Docker stack)
+npm run lint       # oxlint (v App.tsx jsou zatím staré chyby pravidel hooků, řeší se při přepisu formulářů)
+```
+
+První spuštění E2E: `npx playwright install chromium`.

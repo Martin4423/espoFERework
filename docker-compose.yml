@@ -1,62 +1,63 @@
+# ViaCRM front end + backend + Postgres + Mailpit, all in Docker (no EspoCRM).
+#   docker compose up -d --build
+# Front end: http://localhost:5173   Mailpit (every e-mail the system sends): http://localhost:8025
+# Login: admin@example.com / admin-dev-password-1
+# The backend is built from ../viacrm-be (branch dot-net). For day-to-day development you can instead run the backend
+# with ../viacrm-be/scripts/run.sh and the front end with `npm run dev` (Vite proxies /v1 to localhost:5080).
 services:
-  espocrm-files-init:
-    image: espocrm/espocrm:9.1.7
-    entrypoint: ["/bin/sh"]
-    command: ["-c", "if [ ! -f /target/index.php ]; then cp -a /usr/src/espocrm/. /target/; fi"]
-    volumes:
-      - espocrm-files:/target
-
-  espocrm:
-    image: espocrm/espocrm:9.1.7
-    ports:
-      - "8092:80"
-    environment:
-      ESPOCRM_DATABASE_HOST: espocrm-db
-      ESPOCRM_DATABASE_NAME: espocrm
-      ESPOCRM_DATABASE_USER: espocrm
-      ESPOCRM_DATABASE_PASSWORD: local_espo_password
-      ESPOCRM_ADMIN_USERNAME: admin
-      ESPOCRM_ADMIN_PASSWORD: admin
-      ESPOCRM_SITE_URL: http://localhost:8091
-    volumes:
-      - espocrm-files:/var/www/html
-      - espocrm-data:/var/www/html/data
-      - espocrm-custom:/var/www/html/custom
-    depends_on:
-      espocrm-files-init:
-        condition: service_completed_successfully
-      espocrm-db:
-        condition: service_healthy
-    restart: unless-stopped
-
   frontend:
     build: ./frontend
+    depends_on:
+      - api
     ports:
       - "5173:80"
-      - "8091:80"
-    depends_on:
-      - espocrm
     restart: unless-stopped
 
-  espocrm-db:
-    image: mariadb:10.11
+  api:
+    build:
+      context: ../viacrm-be
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
-      MARIADB_DATABASE: espocrm
-      MARIADB_USER: espocrm
-      MARIADB_PASSWORD: local_espo_password
-      MARIADB_ROOT_PASSWORD: local_root_password
+      ConnectionStrings__Default: Host=db;Port=5432;Database=viacrm;Username=viacrm;Password=viacrm
+      # Development-only signing key (base64 of 32 bytes). Never use it outside local development.
+      Auth__SigningKey: AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=
+      Bootstrap__AdminEmail: admin@example.com
+      Bootstrap__AdminPassword: admin-dev-password-1
+      Mail__Smtp__Host: mailpit
+      Mail__Smtp__Port: "1025"
+      Mail__Smtp__From: viacrm@localhost
+      # Links in e-mails point at the front end.
+      Public__BaseUrl: http://localhost:5173
     volumes:
-      - espocrm-db:/var/lib/mysql
+      - viacrm-files:/data
+    restart: unless-stopped
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: viacrm
+      POSTGRES_USER: viacrm
+      POSTGRES_PASSWORD: viacrm
+    volumes:
+      - viacrm-db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
+      test: ["CMD-SHELL", "pg_isready -U viacrm -d viacrm"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
     restart: unless-stopped
 
 volumes:
-  espocrm-files:
-  espocrm-data:
-  espocrm-custom:
-  espocrm-db:
+  viacrm-db:
+  viacrm-files:

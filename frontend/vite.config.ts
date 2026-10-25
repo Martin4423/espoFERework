@@ -1,5 +1,8 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
+
+// The ViaCRM API has no CORS: the browser always talks to it through this same-origin proxy (dev) or nginx (docker).
+const api = process.env.VITE_API_URL || 'http://localhost:5080'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -9,14 +12,14 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     proxy: {
-      '/client': {
-        target: process.env.VITE_ESPO_URL || 'http://localhost:8091',
-        changeOrigin: true,
-      },
-      '/api': {
-        target: process.env.VITE_ESPO_URL || 'http://localhost:8091',
+      '/v1': {
+        target: api,
         changeOrigin: true,
       },
     },
+  },
+  test: {
+    include: ['src/**/*.test.ts'],
+    environment: 'node',
   },
 })
