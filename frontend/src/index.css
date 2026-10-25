@@ -974,6 +974,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .complex-expression-options small, .complex-expression-picker > .field-hint { color: var(--muted, #778198); font-size: 9px; }
 .complex-expression-code { width: 100%; min-height: 130px; margin-top: 2px; padding: 12px; resize: vertical; border: 1px solid #293448; border-radius: 8px; outline: 0; background: #171d29 !important; color: #e0e8f5 !important; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; tab-size: 4; }
 .complex-expression-code:focus { border-color: #7770e6; box-shadow: 0 0 0 3px #7770e622; }
+.formula-field-editor { position: relative; min-width: 0; grid-column: 1 / -1; }
+.formula-editor-toolbar { margin: 0 0 8px; }
+.formula-code-surface { min-height: 180px; overflow: hidden; border: 1px solid var(--line, #dfe4ed); border-radius: 9px; background: #fff; transition: border-color .16s ease, box-shadow .16s ease; }
+.formula-code-surface:focus-within { border-color: var(--primary, #675fce); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #675fce) 16%, transparent); }
+.formula-code-surface.is-disabled { opacity: .76; }
+.formula-code-editor { width: 100%; height: 100%; min-height: inherit; }
+.formula-code-surface .ace_editor { width: 100%; height: 100%; min-height: inherit; background: transparent; color: var(--ink, #29354a); }
+.formula-code-surface .ace_gutter { background: var(--surface-muted, #f5f6f9); color: var(--muted, #8993a5); }
+.formula-field-picker { top: 42px; }
+.formula-syntax-result { margin-top: 7px; padding: 8px 10px; border-radius: 7px; font-size: 11px; }
+.formula-syntax-result.is-success { color: var(--success-ink, #14704c); background: var(--success-soft, #e8f7f0); }
+.formula-syntax-result.is-error { color: var(--danger, #b83242); background: var(--danger-soft, #fff0f1); }
 .person-name-field legend { padding: 0 0 6px; color: #68748a; font-size: 10px; font-weight: 600; }
 .person-name-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .person-name-controls label { display: grid; gap: 5px; color: #8893a6; font-size: 9px; font-weight: 500; }

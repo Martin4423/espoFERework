@@ -48,6 +48,7 @@ const AdminTabListEditor = lazyWithFallback(() => import("./AdminTabListEditor")
 const AdminUserLoginHistory = lazyWithFallback(() => import("./AdminUserLoginHistory"));
 const MergeRecordsDialog = lazyWithFallback(() => import("./MergeRecordsDialog"));
 const CssCodeEditor = lazyWithFallback(() => import("./CssCodeEditor"));
+const FormulaFieldEditor = lazyWithFallback(() => import("./FormulaFieldEditor"));
 const BarcodeField = lazyWithFallback(() => import("./BarcodeField"));
 const PersonalDataDialog = lazyWithFallback(() => import("./PersonalDataDialog"));
 const FollowersDialog = lazyWithFallback(() => import("./FollowersDialog"));
@@ -6301,6 +6302,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   }
 
   if (entity === "OAuthProvider" && name === "authorizationParams") return <OAuthAuthorizationParams value={value} label={label} onChange={onChange}/>;
+  if (type === "formula") return <Suspense fallback={<div className="template-code-editor-loading" role="status"><span className="spinner"/>Načítám Formula editor…</div>}><FormulaFieldEditor entity={entity} metadata={metadata} name={name} label={label} value={value} def={def} disabled={fieldDisabled} onChange={onChange}/></Suspense>;
   if (type === "barcode") return <label className={`field-input barcode-field-input ${def.required ? "required" : ""}`} htmlFor={`field-${name}`}>{inputLabel}<Suspense fallback={<div className="barcode-loading" role="status"><span className="spinner"/> Načítám náhled kódu…</div>}><BarcodeField mode="input" inputId={`field-${name}`} value={value} codeType={def.codeType} lastChar={def.lastChar} maxLength={def.maxLength} required={def.required} disabled={fieldDisabled} label={label} onChange={onChange}/></Suspense></label>;
   if (entity === "Template" && name === "style") return <div className={`field-input template-style-input ${def.required ? "required" : ""}`}><span>{inputLabel}</span><Suspense fallback={<div className="template-code-editor-loading" role="status"><span className="spinner"/> Načítám CSS editor…</div>}><CssCodeEditor value={typeof value === "string" ? value : value == null ? "" : String(value)} onChange={onChange} disabled={fieldDisabled} label={label}/></Suspense><small id="template-css-editor-help">Vlastní CSS pro vykreslení PDF. Písmo a jeho velikost lze nastavit také samostatnými poli šablony.</small></div>;
   if (type === "text") return <><label className={`field-input text-field-input ${def.required ? "required" : ""}`} htmlFor={`field-${name}`}>{inputLabel}<textarea {...controlProps} rows={3} value={typeof value === "string" ? value : value == null ? "" : String(value)} onKeyDown={(event) => {
