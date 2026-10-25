@@ -901,6 +901,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .stream-avatar { display: grid; flex: 0 0 29px; width: 29px; height: 29px; place-items: center; border-radius: 50%; background: #e9e8fb; color: #635dc3; font-size: 11px; font-weight: 700; }
 .stream-avatar img { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 .stream-item-body { flex: 1; min-width: 0; }
+.stream-audience { display: flex; align-items: center; gap: 6px; width: fit-content; max-width: 100%; margin: 7px 0; padding: 4px 8px; border: 1px solid #e6e9f1; border-radius: 999px; background: #f8f9fc; color: #7d899e; font-size: 9px; }
+.stream-audience strong { max-width: min(440px, 56vw); overflow: hidden; color: #56637b; font-size: 9px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .stream-item-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 9px; }
 .stream-item-head > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; }
 .stream-item-head strong { color: #3d4960; font-size: 10px; }

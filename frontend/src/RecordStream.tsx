@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, ArrowDown, ArrowDownToLine, Check, ExternalLink, FileImage, FileText, MessageSquare, Paperclip, Pin, RefreshCw, Send, Shield, Star, Trash2, X } from "./Icons";
+import { Activity, ArrowDown, ArrowDownToLine, Check, ExternalLink, FileImage, FileText, MessageSquare, Paperclip, Pin, RefreshCw, Send, Shield, Star, Trash2, Users, X } from "./Icons";
 import { aclLevel, canAccessEntity, downloadAttachment, entityLabel, fieldLabel, getAttachmentPreviewUrl, getSession, request, uploadAttachment } from "./api";
 import type { Metadata } from "./api";
 import EspoIcon from "./EspoIcon";
@@ -378,6 +378,17 @@ export function StreamItem({ note, metadata, reactions, currentUserId, busy, onR
   const isAdmin = sessionUser?.type === "admin" || sessionUser?.type === "super-admin";
   const canEditPost = type === "Post" && (isAdmin || noteEditAcl === "all" || noteEditAcl === "yes" || Boolean(isOwnPost && noteEditAcl !== "no") || Boolean(noteEditAcl === "team" && userTeamIds.some((id) => noteTeamIds.includes(id))));
   const systemText: Record<string, string> = { Create: "vytvořil/a záznam", CreateRelated: "vytvořil/a související záznam", Update: "upravil/a záznam", Status: "změnil/a stav", Assign: "změnil/a přiřazení", Relate: "propojil/a záznam", Unrelate: "odpojil/a záznam", EmailReceived: "přijal/a e-mail", EmailSent: "odeslal/a e-mail" };
+  const streamAudience = (() => {
+    if (type !== "Post" || note.parentType !== "User" || !note.targetType) return null;
+    const target = String(note.isGlobal ? "all" : note.targetType);
+    const labels = (metadata.labels as any)?.Note?.options?.targetType || {};
+    const listName = target === "users" ? "users" : target === "teams" ? "teams" : target === "portals" ? "portals" : "";
+    const ids: string[] = listName && Array.isArray(note[`${listName}Ids`]) ? note[`${listName}Ids`] : [];
+    const names: Record<string, string> = listName ? note[`${listName}Names`] || {} : {};
+    const recipients = ids.map((id) => names[id]).filter(Boolean);
+    const description = recipients.length ? recipients.join(", ") : target === "self" ? "Autor příspěvku" : String(labels[target] || target);
+    return { label: String(labels[target] || (target === "all" ? "Všichni" : target)), description };
+  })();
   const relatedEntity = String(note.relatedType || note.data?.entityType || "");
   const relatedId = String(note.relatedId || note.data?.entityId || "");
   const relatedName = String(note.relatedName || note.data?.entityName || "");
@@ -394,6 +405,7 @@ export function StreamItem({ note, metadata, reactions, currentUserId, busy, onR
   const reactionLabels = (metadata.labels as any)?.Global?.reactions || {};
   return <article className={`stream-item ${pinned ? "is-pinned" : ""}`} data-note-id={note.id}>
     <StreamAvatar id={note.createdById} name={author} disabled={avatarsDisabled}/><div className="stream-item-body"><div className="stream-item-head"><div><strong>{author}</strong><span>{type === "Post" ? "přidal/a příspěvek" : systemText[type] || "provedl/a změnu"}</span><time>{relativeTime(note.createdAt)}</time></div>{note.isInternal && <span className="stream-internal">Interní</span>}</div>
+      {streamAudience && <div className="stream-audience"><Users size={13}/><span>{streamAudience.label}</span><strong title={streamAudience.description}>{streamAudience.description}</strong></div>}
       {editing ? <form className="stream-edit-form" onSubmit={(event) => { event.preventDefault(); setEditError(""); void onEdit(note, draft).then(() => setEditing(false)).catch((e) => setEditError(e instanceof Error ? e.message : "Uložení selhalo.")); }}><textarea value={draft} onChange={(event) => setDraft(event.target.value)}/>{editError && <small>{editError}</small>}<div><button type="button" className="stream-item-action" onClick={() => { setDraft(note.post || ""); setEditing(false); }}>Zrušit</button><button className="stream-item-action is-on" disabled={busy || !draft.trim()}>Uložit změny</button></div></form> : note.post ? <p className="stream-post-text">{note.post}</p> : note.data ? <SystemChange data={note.data} metadata={metadata} entity={String(note.parentType || note.entityType || "")} type={type} avatarsDisabled={avatarsDisabled}/> : null}
       {attachmentIds.length > 0 && <div className="stream-attachments">{attachmentIds.map((id) => { const imageAt = imageAttachments.findIndex((item) => item.id === id); const name = attachmentNames[id] || "Příloha"; return imageAt >= 0 ? <StreamImageAttachment key={id} id={id} name={name} onOpen={() => setImageIndex(imageAt)}/> : <button key={id} onClick={() => void downloadAttachment(id, name)}>{name}</button>; })}</div>}
       <div className="stream-item-footer">{type === "Post" && reactions.map((reaction) => { const definition = reactionDefinitions.find((item) => item.type === reaction); const count = Number(counts[reaction] || 0); const active = myReactions.includes(reaction); const label = reactionLabels[reaction] || reaction; return <button key={reaction} className={`stream-reaction ${active ? "is-active" : ""}`} onClick={() => onReact(note, reaction)} disabled={busy} title={label} aria-label={`${label}${count ? ` · ${count}` : ""}`} aria-pressed={active}><EspoIcon className={definition?.iconClass || "fas fa-face-smile"} size={13}/>{count > 0 ? count : ""}</button>; })}
