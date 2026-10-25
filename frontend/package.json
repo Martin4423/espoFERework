@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "check": "tsc -b && vitest run"
+    "check": "tsc -b && vitest run",
+    "seed": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",

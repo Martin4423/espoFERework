@@ -2,6 +2,8 @@ import { apiJson } from "../http.ts";
 import { getLocale } from "../i18n/index.ts";
 import { UNSUPPORTED_SCOPES } from "../unsupported.ts";
 import { keyOf, scopeOf, screenField } from "./names.ts";
+import { setSchema } from "./schema.ts";
+import { clearLookupCache } from "./lookup.ts";
 import type { FieldDef, Metadata, UserAcl } from "../api";
 
 // ---- ViaCRM wire shapes (docs/contract m1, m2) ----
@@ -158,6 +160,8 @@ export async function loadMetadata(): Promise<Metadata> {
     apiJson<ViaEntities>("/v1/meta/entities"),
     apiJson<ViaPermissions>("/v1/me/permissions"),
   ]);
+  setSchema(entities.entities);
+  clearLookupCache();
   return buildMetadata(entities, permissions);
 }
 

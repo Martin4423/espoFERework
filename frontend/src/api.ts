@@ -1,6 +1,7 @@
 import { toUser } from "./auth/client.ts";
 import { apiJson, auth } from "./http.ts";
 import { loadMetadata } from "./adapter/metadata.ts";
+import { legacyRequest } from "./adapter/router.ts";
 import { clearLayoutCache, loadLayout } from "./adapter/layouts.ts";
 import type { MeResponse, Session } from "./auth/client.ts";
 import { ApiError, UnsupportedError } from "./problem.ts";
@@ -61,12 +62,13 @@ export async function restoreSession(): Promise<Session | null> {
 
 export function logout() { void auth.logout(); }
 
-// Legacy entry point of the screens written for the previous backend. Only /v1 paths are served; every other
-// path is a feature that is not migrated (or not offered by ViaCRM yet) and ends in the "not available" notice.
+// Legacy entry point of the screens written for the previous backend. /v1 paths go straight to the API; the old REST
+// shape is answered by the adapter router; everything else is a feature that is not migrated (or not offered by
+// ViaCRM yet) and ends in the "not available" notice.
 export async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  if (!normalized.startsWith("/v1/")) throw new UnsupportedError(path);
-  return apiJson<T>(normalized, init);
+  if (normalized.startsWith("/v1/")) return apiJson<T>(normalized, init);
+  return legacyRequest(path, init) as Promise<T>;
 }
 
 export async function downloadAttachment(_id: string, _name: string): Promise<void> { throw new UnsupportedError("Attachment/file"); }
