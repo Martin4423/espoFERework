@@ -67,3 +67,14 @@ export async function problemFromResponse(response: Response): Promise<ApiError>
 export function networkError(cause?: unknown): ApiError {
   return new ApiError(t("error.network"), 0, { cause: String(cause ?? "") }, undefined, { code: "NETWORK" });
 }
+
+const FIELD_CODES: ReadonlySet<string> = new Set(["REQUIRED", "INVALID_VALUE", "INVALID_TYPE", "TOO_LONG", "UNKNOWN_ID", "DUPLICATE_OPTION", "FIELD_NOT_WRITABLE", "UNKNOWN_FIELD"]);
+
+// "Last name is required; Email has an invalid value": one sentence per refused field, for the banner of a form.
+export function fieldErrorsText(error: ApiError, label: (field: string) => string): string {
+  const parts = error.errors.map((problem) => {
+    const what = FIELD_CODES.has(problem.code) ? t(`fieldError.${problem.code}` as MessageKey) : t("fieldError.other", { code: problem.code });
+    return `${label(problem.field)} ${what}`;
+  });
+  return [...new Set(parts)].join("; ");
+}

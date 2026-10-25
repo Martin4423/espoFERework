@@ -68,6 +68,11 @@ export function toFilter(entityKey: string, where: WhereItem[]): { filter: Filte
   const nodes: FilterNode[] = [];
   let q: string | null = null;
   const walk = (item: WhereItem, top: boolean): FilterNode | null => {
+    // The display name of some entities is computed (first and last name, subject): searching "name" is the text search.
+    if (top && item.attribute === "name" && !fieldOf(entityKey, "name") && ["contains", "startsWith", "equals"].includes(String(item.type))) {
+      q = String(item.value ?? "").trim() || null;
+      return null;
+    }
     switch (item.type) {
       case "textFilter":
         if (!top) return unsupported("textFilter:nested");

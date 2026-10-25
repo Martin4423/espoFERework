@@ -173,3 +173,18 @@ describe("CursorPager", () => {
     expect(calls).toHaveLength(1);
   });
 });
+
+describe("bracketed where", () => {
+  it("parses where[i][type] style keys", async () => {
+    const { parseBrackets } = await import("./router.ts");
+    const params = new URLSearchParams("where[0][type]=contains&where[0][attribute]=name&where[0][value]=acme&where[1][type]=in&where[1][attribute]=stage&where[1][value][]=a&where[1][value][]=b");
+    expect(parseBrackets(params, "where")).toEqual([
+      { type: "contains", attribute: "name", value: "acme" },
+      { type: "in", attribute: "stage", value: ["a", "b"] },
+    ]);
+  });
+  it("turns a search of a computed display name into the text search", () => {
+    expect(toFilter("contact", [{ type: "contains", attribute: "name", value: "novák" }])).toEqual({ filter: null, q: "novák" });
+    expect(toFilter("deal", [{ type: "contains", attribute: "name", value: "x" }]).filter).toEqual({ field: "name", op: "contains", value: "x" });
+  });
+});

@@ -42,6 +42,16 @@ export const cs = {
   "error.PAYLOAD_TOO_LARGE": "Data jsou příliš velká.",
   "error.UNSUPPORTED_MEDIA_TYPE": "Nepodporovaný typ obsahu.",
   "error.INTERNAL": "Na serveru došlo k chybě. Zkuste to později.",
+
+  "fieldError.REQUIRED": "je povinné",
+  "fieldError.INVALID_VALUE": "má neplatnou hodnotu",
+  "fieldError.INVALID_TYPE": "má neplatný typ hodnoty",
+  "fieldError.TOO_LONG": "je příliš dlouhé",
+  "fieldError.UNKNOWN_ID": "odkazuje na neexistující záznam",
+  "fieldError.DUPLICATE_OPTION": "obsahuje duplicitní hodnotu",
+  "fieldError.FIELD_NOT_WRITABLE": "nelze měnit",
+  "fieldError.UNKNOWN_FIELD": "není známé pole",
+  "fieldError.other": "není v pořádku ({code})",
 } as const;
 
 export type MessageKey = keyof typeof cs;

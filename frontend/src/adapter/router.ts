@@ -21,14 +21,33 @@ function parseJson(text: string | null): any {
   try { return JSON.parse(text); } catch { return undefined; }
 }
 
+// Bracketed query keys (`where[0][type]=contains&where[0][value]=x`, `where[1][value][]=a`) -> the nested value they describe.
+export function parseBrackets(params: URLSearchParams, root: string): any[] {
+  const tree: any = [];
+  for (const [key, value] of params.entries()) {
+    if (!key.startsWith(`${root}[`)) continue;
+    const path = [...key.slice(root.length).matchAll(/\[([^\]]*)\]/g)].map((match) => match[1]);
+    let node = tree;
+    path.forEach((part, index) => {
+      const last = index === path.length - 1;
+      const next = path[index + 1];
+      const slot = part === "" ? node.length : part;
+      if (last) { if (part === "") node.push(value); else node[slot] = value; return; }
+      if (node[slot] === undefined) node[slot] = next === "" || /^\d+$/.test(next) ? [] : {};
+      node = node[slot];
+    });
+  }
+  return tree;
+}
+
 // Espo sends the same list of where items as `where`, `whereGroup` or as bracketed query keys.
 function whereItems(params: URLSearchParams): WhereItem[] {
   const items: WhereItem[] = [];
   for (const name of ["where", "whereGroup"]) {
     const parsed = parseJson(params.get(name));
     if (Array.isArray(parsed)) items.push(...parsed);
+    items.push(...parseBrackets(params, name).filter(Boolean));
   }
-  if ([...params.keys()].some((key) => key.startsWith("where["))) throw new UnsupportedError("where[]");
   return items;
 }
 
@@ -81,11 +100,16 @@ async function listRecords(scope: string, params: URLSearchParams): Promise<{ to
   return { total: page.total ?? offset + page.items.length, list: await toScreenRecords(entityKey, page.items) };
 }
 
+// A single record does not expand links (only lists do), so the names of the linked records are fetched one by one.
 async function getRecord(scope: string, id: string): Promise<Row> {
   const entityKey = keyOf(scope);
-  if (!schemaOf(entityKey)) throw new UnsupportedError(scope);
-  const expand = expandableLinks(entityKey);
-  const record = await apiJson<Row>(`/v1/records/${entityKey}/${id}${expand.length ? `?expand=${expand.join(",")}` : ""}`);
+  const entity = schemaOf(entityKey);
+  if (!entity) throw new UnsupportedError(scope);
+  const record = await apiJson<Row>(`/v1/records/${entityKey}/${id}`);
+  await Promise.all(entity.fields.filter((field) => field.type === "link" && field.key !== "ownerId" && record[`${field.key}Id`]).map(async (field) => {
+    try { record[field.key] = await apiJson<Row>(`/v1/records/${field.properties.target}/${record[`${field.key}Id`]}`); }
+    catch { /* the target may be unreadable for this user: the link then shows no name */ }
+  }));
   return toScreenRecord(entityKey, record);
 }
 
@@ -114,12 +138,35 @@ async function write(entityKey: string, run: () => Promise<any>): Promise<any> {
   }
 }
 
+// Users and teams are not records of the schema. For pickers and name displays they are answered from the lookups
+// (id and name only; the administration screens of step S8 use /v1/users and /v1/teams).
+async function lookupScope(scope: "User" | "Team", segments: string[], query: string): Promise<any> {
+  const kind = scope === "User" ? "users" : "teams";
+  const shape = (item: { id: string; name: string; isActive?: boolean }): Row => ({ id: item.id, name: item.name, ...(scope === "User" ? { userName: item.name, isActive: item.isActive ?? true } : {}) });
+  if (segments.length === 2 && UUID.test(segments[1])) {
+    const result = await apiJson<{ items: Array<{ id: string; name: string; isActive?: boolean }> }>(`/v1/lookup/${kind}?ids=${segments[1]}&limit=1`);
+    if (!result.items.length) throw new ApiError("", 404, null, undefined, { code: "NOT_FOUND" });
+    return shape(result.items[0]);
+  }
+  if (segments.length !== 1) throw new UnsupportedError(segments.join("/"));
+  const params = new URLSearchParams(query);
+  const { q } = toFilter("user", whereItems(params));
+  const text = params.get("textFilter")?.trim() || q;
+  const max = scope === "User" ? 50 : 200;
+  const limit = Math.min(max, Math.max(1, Number(params.get("maxSize")) || 20));
+  const request = new URLSearchParams({ limit: String(limit) });
+  if (text) request.set("q", text);
+  const result = await apiJson<{ items: Array<{ id: string; name: string; isActive?: boolean }> }>(`/v1/lookup/${kind}?${request.toString()}`);
+  return { total: result.items.length, list: result.items.map(shape) };
+}
+
 export async function legacyRequest(path: string, init: RequestInit = {}): Promise<any> {
   const method = (init.method ?? "GET").toUpperCase();
   const [pathname, query = ""] = path.replace(/^\//, "").split("?");
   const segments = pathname.split("/").map(decodeURIComponent);
   const scope = segments[0];
   const entityKey = keyOf(scope);
+  if ((scope === "User" || scope === "Team") && method === "GET") return lookupScope(scope, segments, query);
   if (!schemaOf(entityKey)) throw new UnsupportedError(path);
   const body = (): Row => { try { return JSON.parse(String(init.body ?? "{}")); } catch { return {}; } };
 

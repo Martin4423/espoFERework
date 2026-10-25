@@ -23,7 +23,8 @@ Větev `dot-net`. Navazuje na `docs/BACKEND-MIGRATION-ANALYSIS.md` (co se mění
 | S2 | hotovo (adaptér metadat, oprávnění a layoutů; navigace z entit backendu; zamčené záložky starého systému s hláškou) |
 | B1 | hotovo (`/v1/lookup/users`, `/v1/lookup/teams` v `viacrm-be`) |
 | S3 | hotovo (seznamy: layout, řazení, hledání, stránkování nad kurzory s čísly stránek, názvy vazeb a vlastníků) |
-| S4 a dál | čeká |
+| S4 | hotovo (detail, vytvoření, úprava, smazání; chyby polí, konflikt verzí přes If-Match, výběr vazeb a vlastníka; všechny entity lze vytvořit) |
+| S5 a dál | čeká |
 
 ## Kroky
 

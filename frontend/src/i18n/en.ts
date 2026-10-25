@@ -43,4 +43,14 @@ export const en: Record<MessageKey, string> = {
   "error.PAYLOAD_TOO_LARGE": "The data is too large.",
   "error.UNSUPPORTED_MEDIA_TYPE": "Unsupported content type.",
   "error.INTERNAL": "A server error occurred. Please try again later.",
+
+  "fieldError.REQUIRED": "is required",
+  "fieldError.INVALID_VALUE": "has an invalid value",
+  "fieldError.INVALID_TYPE": "has an invalid type of value",
+  "fieldError.TOO_LONG": "is too long",
+  "fieldError.UNKNOWN_ID": "refers to a record that does not exist",
+  "fieldError.DUPLICATE_OPTION": "contains a duplicate value",
+  "fieldError.FIELD_NOT_WRITABLE": "cannot be changed",
+  "fieldError.UNKNOWN_FIELD": "is not a known field",
+  "fieldError.other": "is not valid ({code})",
 };

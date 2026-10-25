@@ -3909,3 +3909,11 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .not-available p { margin: 0; font-size: 13px; }
 .nav-lock { margin-left: auto; opacity: .55; }
 .inline-error.notice-unsupported { background: #f3f4f8; border-color: #dfe2ec; color: #5b6478; }
+
+/* A wide control (a select with a long option) must not push the second column out of the dialog. */
+.modal-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.modal-fields > * { min-width: 0; }
+.modal-fields select, .modal-fields input, .modal-fields textarea { max-width: 100%; }
+/* The record picker dialog and the picker field share a class: the dialog's fixed width must not apply to the field. */
+.field-input.relationship-picker { width: auto; max-height: none; display: grid; flex-direction: initial; }
+.modal-fields { align-items: start; }

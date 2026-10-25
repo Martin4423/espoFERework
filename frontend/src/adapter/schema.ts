@@ -22,7 +22,7 @@ export function expandableLinks(entityKey: string): string[] {
 
 // The name shown for a record: `name`, else `subject`, else first and last name.
 export function displayName(record: Record<string, any>): string {
-  for (const key of ["name", "subject", "title"]) {
+  for (const key of ["name", "subject"]) {
     if (typeof record[key] === "string" && record[key].trim()) return record[key];
   }
   const person = [record.firstName, record.lastName].filter((part) => typeof part === "string" && part.trim()).join(" ").trim();

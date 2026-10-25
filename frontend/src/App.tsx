@@ -16,6 +16,7 @@ import { portalEntities } from "./portalEntities";
 import { dateFilterBoundaryInTimeZone, espocrmDateTimeFromInput, formatEspoDateTime, formatEspoDateTimeInput, formatEspoDateTimeShort, useEspoTimeSettings, useEspoTimeZone, zonedWallTimeToUtc } from "./timeZone";
 import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, logout, request, restoreSession, uploadAttachment } from "./api";
 import { Lock } from "lucide-react";
+import { fieldErrorsText } from "./problem.ts";
 import { Login } from "./Login.tsx";
 import { NotAvailable } from "./NotAvailable.tsx";
 import { isUnsupportedScope } from "./unsupported.ts";
@@ -4751,7 +4752,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
           if (conflictFields.length) { setSaveConflict({ fields: conflictFields, latest }); setError(""); }
           else setError("CRM hlásí konflikt, který editor nedokáže bezpečně přiřadit k poli. Záznam nebyl uložen; zavřete a znovu otevřete záznam a změny zopakujte.");
         } catch (refreshError) { setError(refreshError instanceof Error ? refreshError.message : "Záznam se mezitím změnil a jeho aktuální stav se nepodařilo načíst."); }
-      } else setError(e instanceof Error ? e.message : "Záznam se nepodařilo uložit.");
+      } else setError(e instanceof ApiError && e.errors.length ? fieldErrorsText(e, (name) => fieldLabel(name, metadata.entityDefs?.[entity]?.fields?.[name], entity, metadata)) : e instanceof Error ? e.message : "Záznam se nepodařilo uložit.");
     }
     finally { setBusy(false); }
   }
@@ -5009,7 +5010,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     if (activeRecord && def.readOnlyAfterCreate) def = { ...def, readOnly: true };
     if (entity === "AuthenticationProvider" && name === "method") { const methods = (metadata as any).authenticationMethods || {}; const available = Object.entries(methods).filter(([, value]: [string, any]) => Boolean(value?.provider?.isAvailable)).map(([method]) => method); const currentMethod = String(values.method || ""); def = { ...def, options: [...new Set([...available, ...(currentMethod && !available.includes(currentMethod) ? [currentMethod] : [])])] }; }
     if (entity === "KnowledgeBaseArticle" && name === "language") { const languages = Array.isArray(metadata.app?.language?.list) ? metadata.app.language.list.map(String) : []; const currentLanguage = String(values.language || ""); def = { ...def, options: [...new Set([...languages, ...(currentLanguage && !languages.includes(currentLanguage) ? [currentLanguage] : [])])] }; }
-    if (entity === "Contact" && name === "title") {
+    if (entity === "Contact" && name === "title" && metadata.entityDefs?.Account?.fields?.contactRole) {
       const roles = ((metadata.entityDefs?.Account?.fields?.contactRole as any)?.options || []).map(String);
       const currentRole = String(values.title || "");
       def = { ...def, type: "enum", optionsReference: "Account.contactRole", translation: "Account.options.contactRole", options: [...new Set([...roles, ...(currentRole && !roles.includes(currentRole) ? [currentRole] : [])])] };
