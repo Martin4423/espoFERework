@@ -751,6 +751,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .record-page .detail-field { min-width: 0; min-height: 75px; align-content: start; gap: 7px; padding: 14px 3px 13px; border-bottom-color: var(--line, #e9ecf2); }
 .record-page .detail-field > span:first-child, .record-page .drawer-meta > span { color: var(--muted, #7e899d); font-size: 10px; font-weight: 550; }
 .record-page .detail-field > strong, .record-page .detail-field > b, .record-page .drawer-meta b { color: var(--ink, #35415a); font-size: 13px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.record-page .detail-field-numeric > strong, .record-page .detail-field-numeric > b, .record-page .detail-field-numeric .range-value-bound strong { font-variant-numeric: tabular-nums lining-nums; letter-spacing: .01em; }
+.record-page .detail-field-numeric .muted-cell { color: var(--muted, #9aa3b2); font-variant-numeric: tabular-nums; }
 .record-page .detail-related-link { display: inline-flex; max-width: 100%; align-items: center; gap: 7px; padding: 0; border: 0; background: transparent; color: var(--primary, #625bc4); font: inherit; font-size: 13px; font-weight: 620; text-align: left; cursor: pointer; }
 .record-page .detail-related-link span { overflow-wrap: anywhere; }
 .record-page .detail-related-link:hover { color: color-mix(in srgb, var(--primary, #625bc4) 75%, #17223b); text-decoration: underline; }
