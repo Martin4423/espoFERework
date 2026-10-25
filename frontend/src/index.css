@@ -3188,6 +3188,9 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .admin-tab-edit-modal { display: grid; gap: 13px; }
 .admin-tab-edit-modal > label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .admin-tab-edit-modal > label input, .admin-tab-edit-modal > label select { width: 100%; }
+.admin-tab-color-field > span { display: flex; align-items: center; gap: 9px; }
+.admin-tab-edit-modal .admin-tab-color-field input[type="color"] { width: 44px; height: 36px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; }
+.admin-tab-color-field code { color: var(--muted); font-size: 11px; font-weight: 500; }
 .admin-tab-edit-modal > .switch-row { display: flex; align-items: center; }
 .admin-tab-edit-modal > .switch-row span { color: var(--ink); }
 .admin-tab-group-items { display: grid; gap: 7px; color: var(--muted); font-size: 11px; }
