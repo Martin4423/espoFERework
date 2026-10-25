@@ -3,15 +3,17 @@ import type { FieldDef, Metadata } from "./api";
 
 type Row = Record<string, any>;
 
-export default function LinkMultipleDisplay({ entity, name, record, def, metadata, onOpen }: {
+export default function LinkMultipleDisplay({ entity, name, record, def, metadata, onOpen, onOpenCategory }: {
   entity: string;
   name: string;
   record: Row;
   def: FieldDef;
   metadata: Metadata;
   onOpen?: (entity: string, id: string) => void;
+  onOpenCategory?: (entity: string, id: string) => void;
 }) {
   const relatedEntity = metadata.entityDefs?.[entity]?.links?.[name]?.entity || (def as any).entity || "";
+  const isCategoryTree = String(def.view || "").includes("link-multiple-category-tree");
   const ids: string[] = Array.isArray(record[`${name}Ids`]) ? record[`${name}Ids`] : Array.isArray(record[name]) ? record[name] : [];
   if (!ids.length) return <span className="muted-cell">—</span>;
 
@@ -50,7 +52,9 @@ export default function LinkMultipleDisplay({ entity, name, record, def, metadat
     const inactive = entity === "Contact" && name === "accounts" && Boolean(rowColumns.isInactive);
     const phoneNumber = entity === "Call" && name === "contacts" ? String(record.phoneNumbersMap?.[`${relatedEntity}_${id}`] || "") : "";
     const dialNumber = phoneNumber.replace(/[^\d+*#,;]/g, "");
-    const link = onOpen && relatedEntity
+    const link = isCategoryTree && onOpenCategory && relatedEntity
+      ? <button type="button" className="link-multiple-name" onClick={(event) => { event.stopPropagation(); onOpenCategory(relatedEntity, id); }}>{label}</button>
+      : onOpen && relatedEntity
       ? <button type="button" className={`link-multiple-name${inactive ? " inactive-account-reference" : ""}`} onClick={(event) => { event.stopPropagation(); onOpen(relatedEntity, id); }}>{label}</button>
       : <span className={`link-multiple-name${inactive ? " inactive-account-reference" : ""}`}>{label}</span>;
     return <span className="link-multiple-display-item" key={id}>
