@@ -5095,6 +5095,12 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       formRef.current?.requestSubmit();
       return;
     }
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key === "Enter") {
+      event.preventDefault();
+      if (busy || uploading) return;
+      formRef.current?.requestSubmit();
+      return;
+    }
     if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "s") return;
     event.preventDefault();
     if (busy || uploading) return;
