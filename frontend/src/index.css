@@ -2352,6 +2352,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .relationship-column-values { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding-top: 7px; border-top: 1px solid #e8edf4; }
 .link-multiple-display { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; }
 .link-multiple-display-item { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.link-multiple-related-icon { flex: 0 0 auto; opacity: .82; }
 .link-multiple-name { padding: 0; border: 0; background: none; color: #5148c8; font: inherit; text-align: left; cursor: pointer; }
 span.link-multiple-name { color: inherit; cursor: inherit; }
 button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
