@@ -1135,6 +1135,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .admin-settings-search:focus-within { border-color: #aaa6e8; box-shadow: 0 0 0 3px #716bcf12; }
 .admin-settings-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #354159; font: inherit; font-size: 12px; }
 .admin-settings-search > span { color: #929bad; font-size: 10px; white-space: nowrap; }
+.admin-search-empty { display: flex; align-items: center; gap: 13px; min-height: 94px; padding: 18px; border: 1px dashed #dfe2eb; border-radius: 11px; background: linear-gradient(135deg,#fff 0%,#f8f9fc 100%); }
+.admin-search-empty > span { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 10px; background: #efeffb; color: #706ac2; }
+.admin-search-empty > div { flex: 1; min-width: 0; }
+.admin-search-empty strong { color: #424b60; font: 700 12px Manrope,sans-serif; }
+.admin-search-empty p { margin: 4px 0 0; color: #8790a1; font-size: 10px; }
+@media (max-width: 560px) { .admin-search-empty { align-items: flex-start; flex-wrap: wrap; } .admin-search-empty > div { flex: 1 1 calc(100% - 52px); } .admin-search-empty > .button { margin-left: 49px; } }
 .admin-card-copy { display: grid; gap: 5px; min-width: 0; }
 .admin-card-copy strong { color: #39455e; font-size: 11px; }
 .admin-card-copy small { color: #929daf; font-size: 9px; line-height: 1.4; }
