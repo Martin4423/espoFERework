@@ -1139,7 +1139,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : notificationsOpen
         ? <NotificationCenter metadata={metadata} onBack={() => { setNotificationsOpen(false); refreshNotificationCount(); }} onOpenRecord={(scope, id) => void openNotificationRecord(scope, id)} onUnreadChange={refreshNotificationCount} />
         : globalStreamOpen
-        ? <GlobalStreamView user={user} metadata={metadata} portalMode={isPortalUser} onBack={() => setGlobalStreamOpen(false)} onOpenRecord={(scope, id) => void openNotificationRecord(scope, id)} />
+        ? isPortalUser ? <ActivityView user={user} metadata={metadata} portalMode onBack={() => setGlobalStreamOpen(false)} /> : <GlobalStreamView user={user} metadata={metadata} onBack={() => setGlobalStreamOpen(false)} onOpenRecord={(scope, id) => void openNotificationRecord(scope, id)} />
         : activityOpen
         ? <ActivityView user={user} metadata={metadata} onBack={() => setActivityOpen(false)} />
         : entity === "__settings__"
