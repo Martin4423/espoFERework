@@ -358,6 +358,79 @@ function appPublicPath(path: string) {
   return `${base}${path.replace(/^\//, "")}`;
 }
 
+function serializeImportDefaultValues(metadata: Metadata, scope: string, names: string[], values: Row): Row {
+  const result: Row = {};
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  for (const name of names) {
+    const def = metadata.entityDefs?.[scope]?.fields?.[name] || {};
+    Object.assign(result, attributesFromFormField(scope, name, def, values));
+    if (def.type === "datetimeOptional") {
+      const date = String(values[name] || "");
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        const boundary = new Date(`${date}T00:00:00Z`);
+        if (def.isEnd) boundary.setUTCDate(boundary.getUTCDate() + 1);
+        const boundaryDate = `${boundary.getUTCFullYear()}-${String(boundary.getUTCMonth() + 1).padStart(2, "0")}-${String(boundary.getUTCDate()).padStart(2, "0")}`;
+        result[name] = dateFilterBoundaryInTimeZone(boundaryDate, timeZone);
+        result[`${name}Date`] = date;
+      } else {
+        result[name] = date || null;
+        result[`${name}Date`] = null;
+      }
+    }
+    if (def.type === "duration" && def.start && def.end && values.isAllDay) {
+      result[`${def.start}Date`] = values[`${def.start}Date`] || null;
+      result[`${def.end}Date`] = values[`${def.end}Date`] || null;
+    }
+  }
+  return result;
+}
+
+function renderImportDefaultField(metadata: Metadata, scope: string, name: string, def: FieldDef, value: any, currencyValue: string | undefined, onChange: (value: any) => void, onCurrencyChange: (currency: string) => void, onPatch: (patch: Row) => void, relatedContext: Row) {
+  if (["email", "phone"].includes(def.type || "")) {
+    const email = def.type === "email";
+    const valueKey = email ? "emailAddress" : "phoneNumber";
+    const existingRows = relatedContext[`${name}Data`];
+    const rows: Row[] = Array.isArray(existingRows) && existingRows.length
+      ? existingRows
+      : value ? [{ [valueKey]: value, primary: true, optOut: Boolean(relatedContext[`${name}IsOptedOut`]), invalid: Boolean(relatedContext[`${name}IsInvalid`]), ...(email ? { lower: String(value).toLowerCase() } : { type: def.defaultType || "Other" }) }] : [];
+    const scopeName = email ? "EmailAddress" : "PhoneNumber";
+    const optionDef = metadata.entityDefs?.[scopeName]?.fields?.type;
+    const maxCount = Number(def.maxCount || metadata.appParams?.[email ? "emailAddressMaxCount" : "phoneNumberMaxCount"] || 0);
+    const maxLength = Number(metadata.entityDefs?.[scopeName]?.fields?.name?.maxLength || 255);
+    return <MultipleContactField label={fieldLabel(name, def, scope, metadata)} email={email} rows={rows} options={(optionDef?.options || []).map(String).filter(Boolean)} phonePattern={getPhoneValidationPattern(metadata)} disabled={false} required={Boolean(def.required)} onlyPrimary={Boolean(def.onlyPrimary)} maxCount={maxCount} maxLength={maxLength} defaultOptOut={Boolean(metadata.appParams?.[email ? "emailAddressIsOptedOutByDefault" : "phoneNumberIsOptedOutByDefault"])} onChange={(nextRows) => {
+      const normalized: Row[] = nextRows.map((item): Row => ({ ...item, [valueKey]: String(item[valueKey] || "").trim(), ...(email ? { lower: String(item[valueKey] || "").trim().toLowerCase() } : {}) })).filter((item) => item[valueKey]);
+      let primaryIndex = normalized.findIndex((item) => item.primary);
+      if (primaryIndex < 0 && normalized.length) primaryIndex = 0;
+      const ordered: Row[] = normalized.map((item, index): Row => ({ ...item, primary: index === primaryIndex }));
+      if (primaryIndex > 0) { const [primary] = ordered.splice(primaryIndex, 1); ordered.unshift(primary); }
+      const primary = ordered[0];
+      onPatch({ [name]: primary?.[valueKey] || "", [`${name}Data`]: ordered, [`${name}IsOptedOut`]: primary ? Boolean(primary.optOut) : null, [`${name}IsInvalid`]: primary ? Boolean(primary.invalid) : null });
+    }}/>;
+  }
+  if (def.type === "duration") {
+    const startField = String(def.start || "");
+    const endField = String(def.end || "");
+    const isAllDay = Boolean(relatedContext.isAllDay);
+    const start = relatedContext[isAllDay ? `${startField}Date` : startField];
+    return <DurationFieldInput label={fieldLabel(name, def, scope, metadata)} value={Number(value) || Number(def.default) || 0} def={def} disabled={false} onChange={(seconds) => {
+      onChange(seconds);
+      if (start && endField) onPatch({ [isAllDay ? `${endField}Date` : endField]: dateAfterDuration(start, seconds, isAllDay) });
+    }}/>;
+  }
+  const handleChange = (next: any) => {
+    onChange(next);
+    const duration = Object.entries(metadata.entityDefs?.[scope]?.fields || {}).find(([, fieldDef]) => fieldDef.type === "duration" && (fieldDef as any).start === name);
+    if (duration) {
+      const [durationName, durationDef] = duration;
+      const endField = String((durationDef as any).end || "");
+      const isAllDay = Boolean(relatedContext.isAllDay);
+      const seconds = Number(relatedContext[durationName]);
+      if (endField && Number.isFinite(seconds)) onPatch({ [isAllDay ? `${endField}Date` : endField]: dateAfterDuration(next, seconds, isAllDay) });
+    }
+  };
+  return <FieldInput entity={scope} metadata={metadata} name={name} def={def} value={value} currencyValue={currencyValue} onCurrencyChange={onCurrencyChange} relatedContext={relatedContext} onChange={handleChange}/>;
+}
+
 function App() {
   const currentPath = appPathname();
   const publicCaptureId = currentPath.match(/^\/lead-capture\/([^/]+)\/?$/)?.[1];
@@ -1222,7 +1295,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : entity === "__label-manager__"
         ? <AdminLabelManager metadata={metadata} onBack={openAdmin} onRefreshMetadata={onRefreshMetadata} />
         : entity === "Import" || entity === "__import__"
-        ? <ImportCenter metadata={metadata} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} />
+        ? <ImportCenter metadata={metadata} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} renderDefaultField={(scope, name, def, value, currencyValue, onChange, onCurrencyChange, onPatch, relatedContext) => renderImportDefaultField(metadata, scope, name, def, value, currencyValue, onChange, onCurrencyChange, onPatch, relatedContext)} serializeDefaultValues={(scope, names, values) => serializeImportDefaultValues(metadata, scope, names, values)} hydrateDefaultValues={(scope, names, values) => names.reduce<Row>((result, name) => ({ ...result, [name]: formFieldValueFromRecord(name, metadata.entityDefs?.[scope]?.fields?.[name] || {}, values) }), { ...values })} />
         : entity === "Attachment"
         ? <AttachmentCenter metadata={metadata} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} />
         : entity === "ActionHistoryRecord"

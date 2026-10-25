@@ -1375,6 +1375,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .import-preview th { background: #fafbfc; color: #4f5b72; }
 .import-step-content > .modal-footer { margin: 22px -24px 0; justify-content: space-between; }
 .import-step-content > .modal-footer > span { color: #9ba5b4; font-size: 8px; }
+.import-default-fields { display: grid; gap: 10px; margin: 0 0 16px; padding: 12px; border: 1px solid #e8eaf1; border-radius: 9px; background: linear-gradient(145deg, #fcfcff, #f8f9fc); }
+.import-default-fields-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.import-default-fields-heading h3 { margin: 0; color: #49566d; font-size: 11px; font-weight: 700; }
+.import-default-fields-heading p { margin: 3px 0 0; color: #929daf; font-size: 9px; }
+.import-default-fields-heading > span { flex: 0 0 auto; padding: 3px 7px; border-radius: 20px; background: #efeffb; color: #6d67bf; font-size: 8px; font-weight: 650; }
+.import-default-field-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.import-default-field-add .setting-field { margin: 0; }
+.import-default-field-add .button { min-height: 32px; }
+.import-default-field-list { display: grid; gap: 8px; }
+.import-default-field-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 10px; border: 1px solid #e9ebf1; border-radius: 8px; background: #fff; }
+.import-default-field-row > .icon-button { margin-top: 1px; }
+.import-default-field-control { min-width: 0; }
+.import-default-field-control > .field-input { grid-column: auto; }
 .import-map-table { border: 1px solid #edf0f4; border-radius: 8px; overflow: hidden; }
 .import-map-head,.import-map-row { display: grid; grid-template-columns: minmax(130px,1fr) minmax(120px,1fr) minmax(210px,1.5fr) 80px; align-items: center; gap: 10px; padding: 8px 11px; }
 .import-map-head { background: #f8f9fb; color: #8f9bad; font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
@@ -1555,6 +1568,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .import-step-content > .modal-footer { margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; }
   .import-map-head,.import-map-row { grid-template-columns: minmax(100px,.8fr) minmax(130px,1.2fr) 75px; }
   .import-map-head > :nth-child(2),.import-map-row > :nth-child(2) { display: none; }
+  .import-default-fields { padding: 10px; }
+  .import-default-field-row { padding: 8px; }
   .import-steps > b { width: 15px; }
 }
 @media (max-width: 460px) {

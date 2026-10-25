@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
+import type { ReactNode } from "react";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleAlert, Clock3, Copy, ExternalLink, FileInput, FileSpreadsheet, Pencil, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, X } from "./Icons";
+import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleAlert, Clock3, Copy, ExternalLink, FileInput, FileSpreadsheet, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, Upload, X } from "./Icons";
 import { canChangeEntity, canCreateEntity, downloadAttachment, entityLabel, fieldLabel, fetchLayout, getListFields, getSession, request } from "./api";
-import type { LayoutItem, Metadata } from "./api";
+import type { FieldDef, LayoutItem, Metadata } from "./api";
 import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
 import { useDialogFocus } from "./useDialogFocus";
 
 type Row = Record<string, any>;
 type HistoryResult = { list: Row[]; total: number };
+type DefaultFieldRenderer = (entity: string, name: string, def: FieldDef, value: any, currencyValue: string | undefined, onChange: (value: any) => void, onCurrencyChange: (currency: string) => void, onPatch: (patch: Row) => void, relatedContext: Row) => ReactNode;
+type DefaultValuesSerializer = (entity: string, names: string[], values: Row) => Row;
+type DefaultValuesHydrator = (entity: string, names: string[], values: Row) => Row;
 type ImportParams = { entityType: string; action: "create" | "update" | "createAndUpdate"; headerRow: boolean; delimiter: string; decimalMark: string; dateFormat: string; timeFormat: string; timezone: string; currency?: string; phoneNumberCountry?: string; silentMode: boolean; manualMode: boolean; idleMode: boolean; skipDuplicateChecking: boolean; textQualifier: string; personNameFormat: string };
 const countryCodes = "AW AF AO AI AX AL AD AE AR AM AS AQ TF AG AU AT AZ BI BE BJ BQ BF BD BG BH BS BA BL BY BZ BM BO BR BB BN BT BV BW CF CA CC CH CL CN CI CM CD CG CK CO KM CV CR CU CW CX KY CY CZ DE DJ DM DO DZ EC EG ER EH ES EE ET FI FJ FK FR FO FM GA GB GE GG GI GN GP GM GW GQ GR GD GL GT GF GU GY HK HM HN HR HT HU ID IM IN IO IE IR IQ IS IL JM JE JO JP KZ KE KG KH KI KN KR KW LA LB LR LY LC LI LK LS LT LU LV MO MF MA MC MD MG MV MX MH MK ML MT MM ME MN MP MZ MR MS MQ MU MW MY YT NA NC NE NF NG NI NU NL NO NP NR NZ OM PK PA PN PE PH PW PG PL KP PT PY PS PF QA RE RO RU RW SA SD SN SG GS SH SJ SB SL SV SM SO PM RS SS ST SR SK SI SZ SX SC SY TC TD TG TJ TK TM TL TO TT TN TR TV TW TZ UG UA UM UY US UZ VA VC VE VG VI VN VU WF WS YE ZA ZM ZW XK".toLowerCase().split(" ");
 
@@ -132,7 +136,7 @@ function formatExample(format: string) {
   return `${format} · ${format.replace(/YYYY|DD|MM|HH|hh|mm|ss|A|a/g, (part) => examples[part] || part)}`;
 }
 
-export default function ImportCenter({ metadata, onOpenRecord }: { metadata: Metadata; onOpenRecord?: (entity: string, row: Row) => void }) {
+export default function ImportCenter({ metadata, onOpenRecord, renderDefaultField, serializeDefaultValues, hydrateDefaultValues }: { metadata: Metadata; onOpenRecord?: (entity: string, row: Row) => void; renderDefaultField: DefaultFieldRenderer; serializeDefaultValues: DefaultValuesSerializer; hydrateDefaultValues: DefaultValuesHydrator }) {
   const timeZone = useEspoTimeZone();
   const [history, setHistory] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
@@ -155,6 +159,9 @@ export default function ImportCenter({ metadata, onOpenRecord }: { metadata: Met
   const [mode, setMode] = useState<ImportParams["action"]>("create");
   const [mapping, setMapping] = useState<string[]>([]);
   const [updateBy, setUpdateBy] = useState<number[]>([]);
+  const [defaultFieldList, setDefaultFieldList] = useState<string[]>([]);
+  const [defaultValues, setDefaultValues] = useState<Row>({});
+  const [defaultFieldToAdd, setDefaultFieldToAdd] = useState("");
   const [dateFormat, setDateFormat] = useState("YYYY-MM-DD");
   const [timeFormat, setTimeFormat] = useState("HH:mm:ss");
   const [decimalMark, setDecimalMark] = useState(".");
@@ -226,6 +233,14 @@ export default function ImportCenter({ metadata, onOpenRecord }: { metadata: Met
     const sorted = [...options].map(([name, label]) => ({ name, label })).sort((a, b) => a.label.localeCompare(b.label, "cs-CZ"));
     return [{ name: "", label: "— Přeskočit sloupec —" }, ...sorted];
   }, [fields, entity, metadata]);
+  const defaultFieldOptions = useMemo(() => {
+    const allowedFieldList = new Set(["createdAt", "createdBy"]);
+    const fieldAcl = metadata.userAcl?.fieldTable?.[entity] || {};
+    return Object.entries(fields)
+      .filter(([name, def]) => fieldAcl[name]?.edit !== "no" && (allowedFieldList.has(name) || !def.disabled && !def.importDisabled))
+      .map(([name, def]) => ({ name, def, label: fieldLabel(name, def, entity, metadata) }))
+      .sort((a, b) => a.label.localeCompare(b.label, "cs-CZ"));
+  }, [fields, entity, metadata]);
   const loadHistory = useCallback(async () => {
     setBusy(true); setError("");
     try { const params = new URLSearchParams({ maxSize: "20", offset: String(historyOffset), orderBy: "createdAt", order: "desc" }); if (historySearch) params.set("textFilter", historySearch); const result = await request<HistoryResult>(`Import?${params}`); setHistory(result.list || []); setTotal(Math.max(0, result.total || 0)); }
@@ -268,8 +283,37 @@ export default function ImportCenter({ metadata, onOpenRecord }: { metadata: Met
   function resetWizard(initial: Row = {}) {
     const defaults = preferenceRecord.importParams?.default || {};
     setStage(1); setEntity(initial.entityType && importable.includes(initial.entityType) ? initial.entityType : importable[0] || ""); setFileName(""); setFileContents(""); setHeaderRow(initial.headerRow ?? defaults.headerRow ?? true); setDelimiter(initial.delimiter || defaults.delimiter || ","); setMode(initial.action || "create"); setMapping(Array.isArray(initial.attributeList) ? initial.attributeList : []); setUpdateBy(Array.isArray(initial.updateBy) ? initial.updateBy : []);
+    const initialDefaultFieldList = Array.isArray(initial.defaultFieldList) ? initial.defaultFieldList : [];
+    setDefaultFieldList(initialDefaultFieldList); setDefaultValues(initial.defaultValues && typeof initial.defaultValues === "object" ? hydrateDefaultValues(initial.entityType || entity, initialDefaultFieldList, initial.defaultValues) : {}); setDefaultFieldToAdd("");
     setDateFormat(initial.dateFormat || defaults.dateFormat || "YYYY-MM-DD"); setTimeFormat(initial.timeFormat || defaults.timeFormat || "HH:mm:ss"); setDecimalMark(initial.decimalMark || defaults.decimalMark || "."); setTimezone(initial.timezone || defaults.timezone || "UTC"); setCurrency(initial.currency ?? defaults.currency ?? ""); setPhoneNumberCountry(initial.phoneNumberCountry ?? defaults.phoneNumberCountry ?? ""); setTextQualifier(initial.textQualifier ?? defaults.textQualifier ?? '"'); setPersonNameFormat(initial.personNameFormat || defaults.personNameFormat || "f l"); setSilentMode(initial.silentMode ?? defaults.silentMode ?? true); setIdleMode(Boolean(initial.idleMode ?? defaults.idleMode)); setManualMode(Boolean(initial.manualMode ?? defaults.manualMode)); setSkipDuplicateChecking(Boolean(initial.skipDuplicateChecking ?? defaults.skipDuplicateChecking));
     setError(""); setNotice(""); setManualCommand(""); setSelectedId(""); setResultRelation(""); setImportErrorOffset(0);
+  }
+  function addDefaultField() {
+    if (!defaultFieldToAdd || defaultFieldList.includes(defaultFieldToAdd)) return;
+    const field = defaultFieldOptions.find((item) => item.name === defaultFieldToAdd);
+    if (!field) return;
+    setDefaultFieldList((current) => [...current, field.name]);
+    setDefaultValues((current) => ({ ...current, [field.name]: field.def.default ?? (field.def.type === "bool" ? false : "") }));
+    setDefaultFieldToAdd("");
+  }
+  function removeDefaultField(name: string) {
+    setDefaultFieldList((current) => current.filter((item) => item !== name));
+    setDefaultValues((current) => {
+      const next = { ...current };
+      const attributes = new Set([name, `${name}Currency`, `${name}Columns`, `${name}Data`, `${name}IsOptedOut`, `${name}IsInvalid`, `${name}Ids`, `${name}Names`, `${name}Types`, `${name}Type`, `${name}Id`, `${name}Name`]);
+      const def = fields[name];
+      if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def?.type || "")) {
+        const upperName = `${name[0]?.toUpperCase() || ""}${name.slice(1)}`;
+        for (const prefix of ["from", "to"]) { attributes.add(`${prefix}${upperName}`); if (def.type === "rangeCurrency") attributes.add(`${prefix}${upperName}Currency`); }
+      }
+      if (def?.type === "address") for (const suffix of ["Street", "City", "State", "PostalCode", "Country"]) attributes.add(`${name}${suffix}`);
+      if (def?.type === "personName") for (const part of ["firstName", "middleName", "lastName"]) attributes.add(part);
+      for (const key of attributes) delete next[key];
+      return next;
+    });
+  }
+  function handleEntityChange(nextEntity: string) {
+    setEntity(nextEntity); setMapping([]); setUpdateBy([]); setDefaultFieldList([]); setDefaultValues({}); setDefaultFieldToAdd("");
   }
   async function saveDefaults() {
     const user = getSession()?.user;
@@ -308,11 +352,43 @@ export default function ImportCenter({ metadata, onOpenRecord }: { metadata: Met
   async function runImport() {
     if (!mapping.some(Boolean)) { setError("Přiřaďte alespoň jeden sloupec k poli."); return; }
     if (mode !== "create" && updateBy.length === 0) { setError("Pro aktualizaci vyberte pole, podle kterého se záznamy najdou."); return; }
+    for (const name of defaultFieldList) {
+      const def = fields[name];
+      const value = defaultValues[name];
+      const label = fieldLabel(name, def, entity, metadata);
+      const empty = value == null || value === "" || Array.isArray(value) && value.length === 0;
+      if (def?.required && empty) { setError(`Doplňte povinné výchozí pole „${label}“.`); return; }
+      if (def?.type === "address") {
+        const parts = [["Street", "street"], ["City", "city"], ["State", "state"], ["PostalCode", "postalCode"], ["Country", "country"]] as const;
+        for (const [suffix, part] of parts) {
+          if (fields[`${name}${suffix}`]?.required && !String(value?.[part] || "").trim()) { setError(`Doplňte povinnou část „${fieldLabel(`${name}${suffix}`, fields[`${name}${suffix}`], entity, metadata)}“.`); return; }
+        }
+      }
+      if (["email", "phone"].includes(def?.type || "")) {
+        const email = def?.type === "email";
+        const valueKey = email ? "emailAddress" : "phoneNumber";
+        const sourceRows = Array.isArray(defaultValues[`${name}Data`]) ? defaultValues[`${name}Data`] as Row[] : value ? [{ [valueKey]: value, invalid: defaultValues[`${name}IsInvalid`] }] : [];
+        const seen = new Set<string>();
+        const phonePatternText = String((metadata.app as any)?.regExpPatterns?.phoneNumberLoose?.pattern || "");
+        let phonePattern: RegExp;
+        try { phonePattern = phonePatternText ? new RegExp(`^(?:${phonePatternText})$`) : /^[+\d][\d\s().,/;*#-]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i; }
+        catch { phonePattern = /^[+\d][\d\s().,/;*#-]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i; }
+        for (const item of sourceRows) {
+          const text = String(item[valueKey] || "").trim();
+          if (!text) continue;
+          const normalized = email ? text.toLowerCase() : text.replace(/[\s+]/g, "");
+          if (seen.has(normalized)) { setError(`${label}: stejná hodnota je uvedena vícekrát.`); return; }
+          seen.add(normalized);
+          const valid = email ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) : phonePattern.test(text);
+          if (!valid && !item.invalid) { setError(`${label}: ${email ? "zadejte platnou e-mailovou adresu nebo ji označte jako neplatnou" : "zkontrolujte formát telefonního čísla"}.`); return; }
+        }
+      }
+    }
     setBusy(true); setError(""); setNotice("");
     try {
       const upload = await request<{ attachmentId: string }>("Import/file", { method: "POST", headers: { "Content-Type": "text/csv; charset=utf-8" }, body: fileContents });
       if (!upload.attachmentId) throw new Error("EspoCRM nevrátilo ID nahraného souboru.");
-      const params: ImportParams & Row = { entityType: entity, action: mode, attributeList: mapping, updateBy, attachmentId: upload.attachmentId, headerRow, delimiter, decimalMark, dateFormat, timeFormat, timezone, currency: currency || undefined, phoneNumberCountry: phoneNumberCountry || undefined, personNameFormat, textQualifier, silentMode, idleMode: manualMode ? false : idleMode, manualMode, skipDuplicateChecking };
+      const params: ImportParams & Row = { entityType: entity, action: mode, attributeList: mapping, updateBy, defaultFieldList, defaultValues: serializeDefaultValues(entity, defaultFieldList, defaultValues), attachmentId: upload.attachmentId, headerRow, delimiter, decimalMark, dateFormat, timeFormat, timezone, currency: currency || undefined, phoneNumberCountry: phoneNumberCountry || undefined, personNameFormat, textQualifier, silentMode, idleMode: manualMode ? false : idleMode, manualMode, skipDuplicateChecking };
       const result = await request<Row>("Import", { method: "POST", body: JSON.stringify(params) });
       if (!result.id) throw new Error("Import byl přijat, ale API nevrátilo jeho ID.");
       setSelectedId(result.id); setResultRelation(""); setImportErrorOffset(0); setStage(0);
@@ -351,12 +427,14 @@ export default function ImportCenter({ metadata, onOpenRecord }: { metadata: Met
     {error && <div className="inline-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
     {stage > 0 ? <section className="surface import-wizard">
       <div className="import-wizard-header"><button className="back-link" onClick={() => stage === 1 ? setStage(0) : setStage(1)}><ArrowLeft size={14}/>Zpět</button><div className="import-steps"><span className={stage === 1 ? "active" : "done"}><i>1</i>Soubor a akce</span><b/><span className={stage === 2 ? "active" : ""}><i>2</i>Mapování sloupců</span></div><button className="icon-button" onClick={() => setStage(0)} aria-label="Zavřít import"><X size={17}/></button></div>
-      {stage === 1 ? <div className="import-step-content"><h2>Vyberte data k importu</h2><p>Zvolte typ záznamů a nahrajte CSV soubor.</p><div className="import-config-grid"><label className="setting-field">Typ záznamu<select value={entity} onChange={(e) => setEntity(e.target.value)}>{importable.map((name) => <option key={name} value={name}>{entityLabel(metadata, name, true)}</option>)}</select></label><label className="setting-field">Co provést<select value={mode} onChange={(e) => setMode(e.target.value as ImportParams["action"])}><option value="create">Pouze vytvořit nové záznamy</option><option value="createAndUpdate">Vytvořit i aktualizovat existující</option><option value="update">Pouze aktualizovat existující</option></select></label><label className="setting-field">Oddělovač<select value={delimiter} onChange={(e) => setDelimiter(e.target.value)}><option value=",">Čárka ,</option><option value=";">Středník ;</option><option value="\t">Tabulátor</option><option value="|">Svislítko |</option></select></label><label className="setting-check"><input type="checkbox" checked={headerRow} onChange={(e) => setHeaderRow(e.target.checked)}/>První řádek obsahuje názvy sloupců</label></div>
+      {stage === 1 ? <div className="import-step-content"><h2>Vyberte data k importu</h2><p>Zvolte typ záznamů a nahrajte CSV soubor.</p><div className="import-config-grid"><label className="setting-field">Typ záznamu<select value={entity} onChange={(e) => handleEntityChange(e.target.value)}>{importable.map((name) => <option key={name} value={name}>{entityLabel(metadata, name, true)}</option>)}</select></label><label className="setting-field">Co provést<select value={mode} onChange={(e) => { setMode(e.target.value as ImportParams["action"]); setUpdateBy([]); }}><option value="create">Pouze vytvořit nové záznamy</option><option value="createAndUpdate">Vytvořit i aktualizovat existující</option><option value="update">Pouze aktualizovat existující</option></select></label><label className="setting-field">Oddělovač<select value={delimiter} onChange={(e) => setDelimiter(e.target.value)}><option value=",">Čárka ,</option><option value=";">Středník ;</option><option value="\t">Tabulátor</option><option value="|">Svislítko |</option></select></label><label className="setting-check"><input type="checkbox" checked={headerRow} onChange={(e) => setHeaderRow(e.target.checked)}/>První řádek obsahuje názvy sloupců</label></div>
         <details className="import-advanced-settings"><summary>Formát a zpracování importu</summary><div className="import-advanced-grid"><label className="setting-field">Formát data<select value={dateFormat} onChange={(e) => setDateFormat(e.target.value)}>{dateFormatOptions.map((format) => <option key={format} value={format}>{formatExample(format)}</option>)}</select></label><label className="setting-field">Formát času<select value={timeFormat} onChange={(e) => setTimeFormat(e.target.value)}>{timeFormatOptions.map((format) => <option key={format} value={format}>{formatExample(format)}</option>)}</select></label><label className="setting-field">Desetinný oddělovač<select value={decimalMark} onChange={(e) => setDecimalMark(e.target.value)}><option value=".">Tečka (.)</option><option value=",">Čárka (,)</option></select></label><label className="setting-field">Časové pásmo<select value={timezone} onChange={(e) => setTimezone(e.target.value)}>{Array.from(new Set([timezone, ...timezoneOptions])).map((zone) => <option key={zone} value={zone}>{zone}</option>)}</select></label>{currencyOptions.length > 0 && <label className="setting-field">Výchozí měna<select value={currency} onChange={(e) => setCurrency(e.target.value)}><option value="">Měna z nastavení CRM</option>{currencyOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>}<label className="setting-field">Výchozí země telefonních čísel<select value={phoneNumberCountry} onChange={(e) => setPhoneNumberCountry(e.target.value)}><option value="">Bez výchozí země</option>{countryCodes.map((code) => <option key={code} value={code}>{countryNames.of(code.toUpperCase()) || code.toUpperCase()} ({code.toUpperCase()})</option>)}</select><small>Pomáhá rozpoznat čísla bez mezinárodní předvolby.</small></label><label className="setting-field">Uvozovací znak<select value={textQualifier} onChange={(e) => setTextQualifier(e.target.value)}><option value='"'>Dvojité uvozovky</option><option value="'">Apostrof</option><option value="">Bez uvozovacího znaku</option></select></label><label className="setting-field">Pořadí jména<select value={personNameFormat} onChange={(e) => setPersonNameFormat(e.target.value)}>{["f l", "l f", "l, f", "f m l", "l f m"].map((format) => <option key={format} value={format}>{format === "f l" ? "Jméno Příjmení" : format === "l f" ? "Příjmení Jméno" : format === "l, f" ? "Příjmení, Jméno" : format === "f m l" ? "Jméno Prostřední Příjmení" : "Příjmení Jméno Prostřední"}</option>)}</select></label></div><div className="import-mode-options"><label className="setting-check"><input type="checkbox" checked={silentMode} onChange={(e) => setSilentMode(e.target.checked)}/>Tichý import — přeskočit většinu after-save skriptů a poznámky streamu</label><label className="setting-check"><input type="checkbox" checked={skipDuplicateChecking} onChange={(e) => setSkipDuplicateChecking(e.target.checked)}/>Přeskočit kontrolu duplicit</label><label className="setting-check"><input type="checkbox" checked={idleMode} disabled={manualMode} onChange={(e) => setIdleMode(e.target.checked)}/>Zpracovat import na pozadí</label><label className="setting-check"><input type="checkbox" checked={manualMode} disabled={idleMode} onChange={(e) => setManualMode(e.target.checked)}/>Připravit import pro ruční spuštění přes CLI</label></div><div className="import-defaults-actions"><span>Výchozí volby se ukládají do vašich preferencí.</span><button type="button" className="button subtle" onClick={() => void saveDefaults()} disabled={savingDefaults}><Save size={13}/>{savingDefaults ? "Ukládám…" : "Uložit jako výchozí"}</button></div></details>
         <label className="import-upload"><input type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" onChange={(e) => void onFileChange(e)}/><span><Upload size={21}/></span><strong>{fileName || "Vyberte soubor CSV"}</strong><small>{fileName ? `${csvRows.length} řádků · ${headers.length} sloupců` : "Klikněte nebo přetáhněte CSV soubor"}</small></label>
         {csvRows.length > 0 && <div className="import-preview"><div><FileSpreadsheet size={15}/>Náhled dat</div><table><tbody>{csvRows.slice(0, 5).map((row, i) => <tr key={i}>{row.slice(0, 8).map((value, j) => i === 0 && headerRow ? <th key={j}>{value || `Sloupec ${j + 1}`}</th> : <td key={j}>{value || "—"}</td>)}</tr>)}</tbody></table></div>}
         <div className="modal-footer"><span>{fileName ? `${fileName} · ${csvRows.length} řádků` : "CSV nebo TSV · první řádek může obsahovat záhlaví"}</span><button className="button primary" onClick={nextToMapping}>Mapovat sloupce <ArrowRight size={14}/></button></div>
-      </div> : <div className="import-step-content"><h2>Přiřaďte sloupce k polím</h2><p>Prověřte automatický návrh. Nepřiřazené sloupce se přeskočí.</p><div className="import-map-table"><div className="import-map-head"><span>Sloupec v souboru</span><span>Ukázková hodnota</span><span>Pole v CRM</span>{mode !== "create" && <span>Najít podle</span>}</div>{headers.map((header, index) => <div className="import-map-row" key={index}><strong>{header || `Sloupec ${index + 1}`}</strong><span>{previewRow[index] || "—"}</span><select value={mapping[index] || ""} onChange={(e) => setMapping((old) => old.map((value, i) => i === index ? e.target.value : value))}>{attributeOptions.map((item) => <option key={`${index}-${item.name}`} value={item.name}>{item.label}</option>)}</select>{mode !== "create" && <label><input type="checkbox" checked={updateBy.includes(index)} disabled={!mapping[index]} onChange={(e) => setUpdateBy((old) => e.target.checked ? [...old, index] : old.filter((item) => item !== index))}/></label>}</div>)}</div>
+      </div> : <div className="import-step-content"><h2>Přiřaďte sloupce k polím</h2><p>Prověřte automatický návrh. Nepřiřazené sloupce se přeskočí.</p>
+        <section className="import-default-fields" aria-labelledby="import-default-fields-title"><div className="import-default-fields-heading"><div><h3 id="import-default-fields-title">Další výchozí hodnoty</h3><p>Hodnoty, které se mají použít u každého řádku importu.</p></div><span>{defaultFieldList.length} polí</span></div><div className="import-default-field-add"><label className="setting-field"><span>Přidat pole</span><select value={defaultFieldToAdd} onChange={(event) => setDefaultFieldToAdd(event.target.value)}><option value="">Vyberte pole…</option>{defaultFieldOptions.filter((item) => !defaultFieldList.includes(item.name)).map((item) => <option key={item.name} value={item.name}>{item.label}</option>)}</select></label><button type="button" className="button subtle" disabled={!defaultFieldToAdd} onClick={addDefaultField}><Plus size={14}/>Přidat</button></div>{defaultFieldList.length > 0 && <div className="import-default-field-list">{defaultFieldList.map((name) => { const def = fields[name]; if (!def) return null; return <div className="import-default-field-row" key={name}><div className="import-default-field-control">{renderDefaultField(entity, name, { ...def, readOnly: false, disabled: false }, defaultValues[name], defaultValues[`${name}Currency`], (value) => setDefaultValues((current) => ({ ...current, [name]: value })), (currency) => setDefaultValues((current) => ({ ...current, [`${name}Currency`]: currency })), (patch) => setDefaultValues((current) => ({ ...current, ...patch })), defaultValues)}</div><button type="button" className="icon-button" aria-label={`Odebrat výchozí hodnotu ${fieldLabel(name, def, entity, metadata)}`} title="Odebrat výchozí hodnotu" onClick={() => removeDefaultField(name)}><X size={15}/></button></div>; })}</div>}</section>
+        <div className="import-map-table"><div className="import-map-head"><span>Sloupec v souboru</span><span>Ukázková hodnota</span><span>Pole v CRM</span>{mode !== "create" && <span>Najít podle</span>}</div>{headers.map((header, index) => <div className="import-map-row" key={index}><strong>{header || `Sloupec ${index + 1}`}</strong><span>{previewRow[index] || "—"}</span><select value={mapping[index] || ""} onChange={(e) => setMapping((old) => old.map((value, i) => i === index ? e.target.value : value))}>{attributeOptions.map((item) => <option key={`${index}-${item.name}`} value={item.name}>{item.label}</option>)}</select>{mode !== "create" && <label><input type="checkbox" checked={updateBy.includes(index)} disabled={!mapping[index]} onChange={(e) => setUpdateBy((old) => e.target.checked ? [...old, index] : old.filter((item) => item !== index))}/></label>}</div>)}</div>
         <div className="import-mapping-summary"><CircleAlert size={15}/><span>Vybráno {mapping.filter(Boolean).length} sloupců z {headers.length}. {mode !== "create" && `Vyhledání podle ${updateBy.length} polí.`}</span></div>
         <div className="modal-footer"><button className="button subtle" onClick={() => setStage(1)}>Zpět</button><button className="button primary" disabled={busy} onClick={() => void runImport()}>{busy ? "Nahrávám a importuji…" : "Spustit import"}<ArrowRight size={14}/></button></div>
       </div>}
