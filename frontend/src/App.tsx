@@ -2017,7 +2017,7 @@ function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: 
       if (key === "q") {
         event.preventDefault(); event.stopPropagation();
         if (hasSelection && canBulkMarkRead) void bulkAction("read");
-        else if (!selected.length && !allResultsSelected) void markAllAsRead();
+        else if (!selected.length || allResultsSelected) void markAllAsRead();
         return;
       }
       if (!hasSelection) return;
