@@ -2045,6 +2045,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media(max-width:560px) { .personal-data-list { padding: 0 10px; } .personal-data-list-head, .personal-data-row { grid-template-columns: minmax(130px,.8fr) minmax(0,1.2fr); gap: 8px; } .personal-data-row strong, .personal-data-row > span { font-size: 9px; } }
 
 .template-manager-layout { display: grid; grid-template-columns: minmax(245px, 330px) minmax(0, 1fr); gap: 15px; align-items: start; }
+.template-confirm-dialog { width: min(500px, calc(100vw - 32px)); }
+.template-confirm-dialog .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.template-confirm-dialog .modal-heading p strong { color: var(--ink); }
 .template-list { overflow: hidden; }
 .template-list .admin-settings-search { margin: 12px; width: auto; }
 .template-list-items { max-height: calc(100vh - 300px); overflow: auto; padding: 0 8px 8px; }
