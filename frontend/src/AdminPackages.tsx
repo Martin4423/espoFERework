@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DragEvent } from "react";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Package, RefreshCw, ShieldAlert, Trash2, Upload, X } from "./Icons";
+import { AlertTriangle, ArrowLeft, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Package, RefreshCw, ShieldAlert, Trash2, Upload, X } from "./Icons";
 import { request } from "./api";
 import type { Metadata } from "./api";
+import { useDialogFocus } from "./useDialogFocus";
 
 type Extension = { id: string; name: string; version?: string; description?: string; isInstalled?: boolean; [key: string]: any };
 type UploadResult = { id: string; name: string; version: string; description?: string };
+
+function PackageActionConfirmation({ title, description, confirmLabel, danger = false, busy, onCancel, onConfirm }: { title: string; description: string; confirmLabel: string; danger?: boolean; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
+  const dialogRef = useDialogFocus<HTMLElement>(onCancel, !busy);
+  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && onCancel()}><section ref={dialogRef} className="record-modal package-action-confirm" role="alertdialog" aria-modal="true" aria-labelledby="package-action-confirm-title" aria-describedby="package-action-confirm-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">SPRÁVA ROZŠÍŘENÍ</span><h2 id="package-action-confirm-title">{title}</h2></div><button type="button" className="icon-button" onClick={onCancel} disabled={busy} aria-label="Zavřít"><X size={16}/></button></div><div className="package-action-confirm-body"><AlertTriangle size={18}/><p id="package-action-confirm-description">{description}</p></div><div className="modal-footer"><button type="button" className="button subtle" autoFocus onClick={onCancel} disabled={busy}>Zrušit</button><button type="button" className={`button ${danger ? "danger" : "primary"}`} onClick={onConfirm} disabled={busy}>{danger ? <Trash2 size={14}/> : <Download size={14}/>} {confirmLabel}</button></div></section></div>;
+}
 
 function readPackage(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -53,6 +59,7 @@ export function AdminExtensions({ metadata, onBack, onInstalled }: { metadata: M
   const [offset, setOffset] = useState(0);
   const pageSize = Math.max(1, Number(metadata.appSettings?.recordsPerPage) || 20);
   const [pending, setPending] = useState<UploadResult | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ kind: "install" | "uninstall" | "remove"; item: UploadResult | Extension } | null>(null);
   const [busy, setBusy] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [actionId, setActionId] = useState("");
@@ -78,26 +85,34 @@ export function AdminExtensions({ metadata, onBack, onInstalled }: { metadata: M
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Balíček se nepodařilo nahrát nebo ověřit."); }
     finally { setUploading(false); }
   }
-  async function install(item: UploadResult | Extension) {
-    if (!window.confirm(`Nainstalovat rozšíření ${item.name} ${item.version || ""}? Instalace může změnit data a konfiguraci CRM.`)) return;
+  async function install(item: UploadResult | Extension, confirmed = false) {
+    if (!confirmed) { setConfirmAction({ kind: "install", item }); return; }
     setActionId(item.id); setError(""); setNotice("");
     try { await request("Extension/action/install", { method: "POST", body: JSON.stringify({ id: item.id }) }); setPending(null); setNotice(`Rozšíření ${item.name} bylo nainstalováno.`); await load(); onInstalled(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Instalace se nepodařila."); }
     finally { setActionId(""); }
   }
-  async function uninstall(item: Extension) {
-    if (!window.confirm(`Opravdu odinstalovat rozšíření ${item.name}?`)) return;
+  async function uninstall(item: Extension, confirmed = false) {
+    if (!confirmed) { setConfirmAction({ kind: "uninstall", item }); return; }
     setActionId(item.id); setError(""); setNotice("");
     try { await request("Extension/action/uninstall", { method: "POST", body: JSON.stringify({ id: item.id }) }); setNotice(`Rozšíření ${item.name} bylo odinstalováno.`); await load(); onInstalled(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Odinstalace se nepodařila."); }
     finally { setActionId(""); }
   }
-  async function remove(item: Extension) {
-    if (!window.confirm(`Trvale odstranit neinstalované rozšíření ${item.name}?`)) return;
+  async function remove(item: Extension, confirmed = false) {
+    if (!confirmed) { setConfirmAction({ kind: "remove", item }); return; }
     setActionId(item.id); setError(""); setNotice("");
     try { await request(`Extension/${encodeURIComponent(item.id)}`, { method: "DELETE" }); setNotice(`Balíček ${item.name} byl odstraněn.`); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Balíček se nepodařilo odstranit."); }
     finally { setActionId(""); }
+  }
+  function confirmPackageAction() {
+    const confirmation = confirmAction;
+    if (!confirmation || actionId) return;
+    setConfirmAction(null);
+    if (confirmation.kind === "install") void install(confirmation.item, true);
+    else if (confirmation.kind === "uninstall") void uninstall(confirmation.item, true);
+    else if ("isInstalled" in confirmation.item && !confirmation.item.isInstalled) void remove(confirmation.item, true);
   }
   return <div className="admin-view package-admin-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">DOPLŇKY A ROZŠÍŘENÍ</div><h1>Rozšíření</h1><p>Nahrávejte, instalujte a spravujte balíčky rozšíření EspoCRM.</p></div><button className="button subtle" onClick={() => void load()} disabled={busy}><RefreshCw size={14}/>Obnovit</button></div>
     {error && <div className="table-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
@@ -105,6 +120,7 @@ export function AdminExtensions({ metadata, onBack, onInstalled }: { metadata: M
     {pending && <section className="surface package-ready"><div className="package-ready-icon"><Package size={18}/></div><div className="package-ready-copy"><span className="eyebrow">BALÍČEK OVĚŘEN</span><strong>{pending.name} <small>v{pending.version}</small></strong><p>{pending.description || "Balíček prošel kontrolou EspoCRM a je připravený k instalaci."}</p></div><button className="button primary" onClick={() => void install(pending)} disabled={Boolean(actionId)}><Download size={14}/>{actionId ? "Instaluji…" : "Nainstalovat"}</button><button className="icon-button" onClick={() => setPending(null)} aria-label="Zavřít"><X size={15}/></button></section>}
     <section className="surface package-list"><div className="settings-card-head"><div><h2>Nahrané rozšíření</h2><p>{total} balíčků v instalaci EspoCRM</p></div></div>{busy ? <div className="table-loading"><span className="spinner"/>Načítám seznam rozšíření…</div> : items.length ? <><div className="package-items">{items.map((item) => <article className="package-row" key={item.id}><span className={`package-item-icon ${item.isInstalled ? "installed" : ""}`}><Package size={18}/></span><span className="package-item-info"><strong>{item.name}<small>v{item.version || "?"}</small></strong><span>{item.description || "Bez popisu"}</span></span><span className={`package-status ${item.isInstalled ? "installed" : "pending"}`}>{item.isInstalled ? "Nainstalováno" : "Nenainstalováno"}</span><div className="package-actions">{item.isInstalled ? <button className="button subtle danger-text" onClick={() => void uninstall(item)} disabled={Boolean(actionId)}>{actionId === item.id ? "Odebírám…" : "Odinstalovat"}</button> : <><button className="button primary" onClick={() => void install(item)} disabled={Boolean(actionId)}>{actionId === item.id ? "Instaluji…" : "Nainstalovat"}</button><button className="icon-button danger-ghost" title="Odstranit balíček" onClick={() => void remove(item)} disabled={Boolean(actionId)}><Trash2 size={14}/></button></>}</div></article>)}</div>{total > pageSize && <div className="package-pagination"><span>{offset + 1}–{Math.min(offset + items.length, total)} z {total}</span><button className="icon-button" aria-label="Předchozí rozšíření" disabled={!offset || busy} onClick={() => setOffset((current) => Math.max(0, current - pageSize))}><ChevronLeft size={15}/></button><button className="icon-button" aria-label="Další rozšíření" disabled={offset + items.length >= total || busy} onClick={() => setOffset((current) => current + pageSize)}><ChevronRight size={15}/></button></div>}</> : <div className="package-empty"><Package size={23}/><strong>Žádná rozšíření</strong><span>Nahrané balíčky se zobrazí v tomto seznamu.</span></div>}</section>
     <div className="package-security-note"><ShieldAlert size={15}/><span>Instalujte pouze balíčky z důvěryhodného zdroje. Rozšíření může přidat kód a měnit chování CRM.</span></div>
+    {confirmAction && <PackageActionConfirmation title={confirmAction.kind === "install" ? `Nainstalovat ${confirmAction.item.name}?` : confirmAction.kind === "uninstall" ? `Odinstalovat ${confirmAction.item.name}?` : `Odstranit ${confirmAction.item.name}?`} description={confirmAction.kind === "install" ? `Balíček ${confirmAction.item.name} ${confirmAction.item.version ? `v${confirmAction.item.version} ` : ""}může změnit data, konfiguraci i chování CRM.` : confirmAction.kind === "uninstall" ? `Rozšíření ${confirmAction.item.name} se odebere z instalace. Může to ovlivnit funkce nebo data, které rozšíření poskytuje.` : `Nenainstalovaný balíček ${confirmAction.item.name} bude trvale odstraněn ze seznamu rozšíření.`} confirmLabel={confirmAction.kind === "install" ? "Nainstalovat" : confirmAction.kind === "uninstall" ? "Odinstalovat" : "Odstranit balíček"} danger={confirmAction.kind !== "install"} busy={Boolean(actionId)} onCancel={() => setConfirmAction(null)} onConfirm={confirmPackageAction}/>}
   </div>;
 }
 
