@@ -79,9 +79,18 @@ export default function AdminFieldManager({ metadata, onBack }: { metadata: Meta
   const listedParams = nativeFieldDefs.fieldManagerParamList || field?.fieldManagerParamList;
   const globalRestrictions = (liveMetadata as any).entityAcl?.[scope]?.fields?.[fieldName] || {};
   const effectiveType = creating ? createType : field?.type || "";
-  const baseParamDefs = rawParamDefs.filter((param) => (!listedParams || listedParams.includes(param.name)) && !nativeFieldDefs[`customization${param.name.charAt(0).toUpperCase()}${param.name.slice(1)}Disabled`] && !(globalRestrictions.readOnly && param.name === "required") && !(param.name === "createButton" && ["assignedUser", "assignedUsers", "teams", "collaborators"].includes(fieldName)) && !(param.name === "autocompleteOnEmpty" && fieldName === "assignedUser"));
-  const extraParamDefs = (nativeFieldDefs.fieldManagerAdditionalParamList || field?.fieldManagerAdditionalParamList || []).map((item: Data) => ({ ...item, type: item.view === "views/admin/field-manager/fields/not-actual-options" ? "multiEnum" : item.view === "crm:views/opportunity/admin/field-manager/fields/probability-map" ? "jsonObject" : item.type || effectiveType || "varchar" }));
-  if (effectiveType && !["foreign", "autoincrement"].includes(effectiveType) && !nativeFieldDefs.customizationInlineEditDisabledDisabled && !nativeFieldDefs.customizationDisabled) extraParamDefs.push({ name: "inlineEditDisabled", type: "bool" });
+  const baseParamDefs = rawParamDefs.map((param) => {
+    const suffix = param.name.charAt(0).toUpperCase() + param.name.slice(1);
+    const customView = nativeFieldDefs[`customization${suffix}View`];
+    return customView ? { ...param, view: customView } : param;
+  }).filter((param) => (!listedParams || listedParams.includes(param.name)) && !nativeFieldDefs[`customization${param.name.charAt(0).toUpperCase()}${param.name.slice(1)}Disabled`] && !(globalRestrictions.readOnly && ["required", "readOnly"].includes(param.name)) && !(param.name === "createButton" && ["assignedUser", "assignedUsers", "teams", "collaborators"].includes(fieldName)) && !(param.name === "autocompleteOnEmpty" && fieldName === "assignedUser"));
+  const extraParamDefs = (nativeFieldDefs.fieldManagerAdditionalParamList || field?.fieldManagerAdditionalParamList || []).map((item: Data) => {
+    const suffix = item.name.charAt(0).toUpperCase() + item.name.slice(1);
+    const customView = nativeFieldDefs[`customization${suffix}View`];
+    const view = customView || item.view;
+    return { ...item, ...(view ? { view } : {}), type: view === "views/admin/field-manager/fields/not-actual-options" ? "multiEnum" : view === "crm:views/opportunity/admin/field-manager/fields/probability-map" ? "jsonObject" : item.type || effectiveType || "varchar" };
+  });
+  if (effectiveType && !["foreign", "autoincrement"].includes(effectiveType) && !globalRestrictions.readOnly && !nativeFieldDefs.customizationInlineEditDisabledDisabled && !nativeFieldDefs.customizationDisabled) extraParamDefs.push({ name: "inlineEditDisabled", type: "bool" });
   const hasPersonalData = Boolean((liveMetadata.scopes[scope] as any)?.hasPersonalData && (liveMetadata.fields?.[effectiveType] as any)?.personalData);
   if (hasPersonalData) extraParamDefs.push({ name: "isPersonalData", type: "bool" });
   const hasTooltip = !nativeFieldDefs.customizationTooltipTextDisabled && !nativeFieldDefs.customizationDisabled;
