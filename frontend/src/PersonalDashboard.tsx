@@ -162,7 +162,7 @@ function DashletChart({ name, rows, currency }: { name: string; rows: Data[]; cu
 
   if (name === "SalesByMonth") return <div className="dashlet-month-chart">{rows.map((row, index) => {
     const parsed = /^\d{4}-\d{2}/.test(String(row.name)) ? new Date(`${String(row.name).slice(0, 7)}-01T00:00:00`) : null;
-    const label = parsed && !Number.isNaN(parsed.getTime()) ? new Intl.DateTimeFormat("cs-CZ", { month: "short" }).format(parsed) : String(row.name || "");
+    const label = parsed && !Number.isNaN(parsed.getTime()) ? new Intl.DateTimeFormat("cs-CZ", { month: "short", year: "numeric" }).format(parsed) : String(row.name || "");
     const value = Number(row.value) || 0;
     return <div className="dashlet-month-column" key={`${row.name}-${index}`} title={`${row.name}: ${formatValue(value)}`} role="img" aria-label={`${label}: ${formatValue(value)}`} tabIndex={0}><strong>{formatValue(value)}</strong><i><b style={{ height: `${Math.max(2, value / maxValue * 100)}%`, background: chartColors[index % chartColors.length] }}/></i><small>{label}</small></div>;
   })}</div>;
@@ -262,7 +262,9 @@ function DashletCard({ item, user, metadata, options, appSettings, timeZone, ref
           const data = await request<Data>(`Opportunity/action/${action}?${params}`);
           const chartRows = item.name === "SalesPipeline" && Array.isArray(data?.dataList)
             ? data.dataList.map((row: Data) => ({ name: (metadata.labels as any)?.Opportunity?.options?.stage?.[row.stage] || row.stageTranslated || row.stage || "", value: row.value }))
-            : Object.entries(data || {}).map(([name, value]) => ({ name: (metadata.labels as any)?.Opportunity?.options?.stage?.[name] || name, value }));
+            : item.name === "SalesByMonth" && Array.isArray(data?.keyList)
+              ? data.keyList.map((month: string) => ({ name: month, value: data.dataMap?.[month] ?? 0 }))
+              : Object.entries(data || {}).map(([name, value]) => ({ name: item.name === "OpportunitiesByLeadSource" ? (metadata.labels as any)?.Lead?.options?.source?.[name] || name : (metadata.labels as any)?.Opportunity?.options?.stage?.[name] || name, value }));
           if (live) setRows(chartRows);
         } else if (live) setRows([]);
       } catch (cause) { if (live) setError(cause instanceof Error ? cause.message : "Obsah panelu nelze načíst."); }
