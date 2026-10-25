@@ -2352,6 +2352,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .relationship-selected-row { display: grid; gap: 7px; padding: 8px 9px; border: 1px solid #dfe6f0; border-radius: 8px; background: #f7f9fc; }
 .relationship-selected-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #45536a; font-size: 10px; }
 .relationship-selected-head > div { display: flex; align-items: center; gap: 5px; }
+.relationship-selected-head > .user-avatar-value { min-width: 0; gap: 7px; color: #45536a; font-size: 10px; font-weight: 600; }
+.relationship-selected-head > .user-avatar-value img, .relationship-selected-head > .user-avatar-value .user-avatar-fallback { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 50%; }
 .relationship-selected-head button { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #738096; font-size: 15px; cursor: pointer; }
 .relationship-selected-head .relationship-primary-toggle { display: inline-flex; width: auto; min-width: 26px; align-items: center; justify-content: center; gap: 5px; padding: 0 7px; border: 1px solid #e2e7ef; border-radius: 999px; font-size: 10px; font-weight: 650; transition: color .15s ease, background .15s ease, border-color .15s ease; }
 .relationship-selected-head .relationship-primary-toggle:hover { color: #9a741d; border-color: #eddaa4; background: #fffaf0; }
