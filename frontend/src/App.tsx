@@ -73,6 +73,7 @@ const NotificationPanel = lazy(() => import("./SocialViews").then((module) => ({
 const UserPreferencesView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserPreferencesView })));
 const UserSecurityView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserSecurityView })));
 const RequiredTwoFactorGate = lazy(() => import("./UserAccount").then((module) => ({ default: module.RequiredTwoFactorGate })));
+const ExtensionLicenseDialog = lazy(() => import("./ExtensionLicenseDialog"));
 const PersonalDashboard = lazy(() => import("./PersonalDashboard"));
 const DashboardLayoutEditor = lazy(() => import("./DashboardLayoutEditor"));
 const AdminExtensions = lazy(() => import("./AdminPackages").then((module) => ({ default: module.AdminExtensions })));
@@ -927,6 +928,8 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   metadataEntityIcons = Object.fromEntries(Object.entries(metadata.clientDefs || {}).map(([scope, defs]) => [scope, String(defs.iconClass || "")]).filter(([, icon]) => Boolean(icon))) as Record<string, string>;
   const isPortalUser = user.type === "portal" || user.type === "portal-user";
   const [requiredTwoFactor, setRequiredTwoFactor] = useState(() => Boolean(metadata.appParams?.auth2FARequired && user.auth2FA !== true && (!isPortalUser || metadata.appSettings?.auth2FAInPortal)));
+  const extensionList = Array.isArray(metadata.appParams?.extensions) ? metadata.appParams.extensions : [];
+  const [extensionLicenseOpen, setExtensionLicenseOpen] = useState(() => extensionList.some((item: Row) => item?.notify));
   const portalSettings = isPortalUser ? metadata.appSettings || {} : {};
   const portalName = String(portalSettings.applicationName || "Klientský portál");
   const portalTheme = String(portalSettings.theme || "Espo");
@@ -1329,7 +1332,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
       <Suspense fallback={null}><PopupReminderToasts metadata={metadata} isPortalUser={isPortalUser} onOpenRecord={(scope, id) => void openNotificationRecord(scope, id)}/></Suspense>
       <footer className="app-footer"><span>ViaCRM</span><span>Vaše vztahy. Váš přehled.</span></footer>
     </section>
-  </div>{requiredTwoFactor && <Suspense fallback={<div className="required-two-factor-backdrop"><div className="required-two-factor-loading" role="status"><span className="spinner"/>Připravuji nastavení zabezpečení…</div></div>}><RequiredTwoFactorGate metadata={metadata} user={user} onLogout={onLogout} onComplete={() => setRequiredTwoFactor(false)}/></Suspense>}</>;
+  </div>{requiredTwoFactor && <Suspense fallback={<div className="required-two-factor-backdrop"><div className="required-two-factor-loading" role="status"><span className="spinner"/>Připravuji nastavení zabezpečení…</div></div>}><RequiredTwoFactorGate metadata={metadata} user={user} onLogout={onLogout} onComplete={() => setRequiredTwoFactor(false)}/></Suspense>}{!requiredTwoFactor && extensionLicenseOpen && <Suspense fallback={null}><ExtensionLicenseDialog extensions={extensionList} messages={(metadata.labels as any)?.Global?.messages || {}} onClose={() => setExtensionLicenseOpen(false)}/></Suspense>}</>;
 }
 
 const adminGroups = [

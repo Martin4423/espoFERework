@@ -979,6 +979,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .required-two-factor-setup .entity-heading h1 { font-size: 23px; }
 .required-two-factor-setup .security-grid { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 520px) { .required-two-factor-intro { padding: 18px; } .required-two-factor-icon { width: 36px; height: 36px; flex-basis: 36px; } .required-two-factor-actions { flex-direction: column-reverse; } .required-two-factor-actions > .button { width: 100%; justify-content: center; } }
+.extension-license-backdrop { background: rgba(28, 25, 22, .56); }
+.extension-license-dialog { width: min(580px, 100%); }
+.extension-license-heading { display: flex; gap: 13px; padding: 22px 23px 17px; border-bottom: 1px solid #edf0f4; }
+.extension-license-heading > span { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: 10px; background: #fff4e5; color: #b97724; }
+.extension-license-heading .eyebrow { color: #a77a42; }
+.extension-license-heading h2 { margin: 5px 0 0; color: #30394c; font: 700 17px Manrope,sans-serif; }
+.extension-license-heading p { margin: 6px 0 0; color: #818a9a; font-size: 11px; line-height: 1.5; }
+.extension-license-list { display: grid; gap: 11px; overflow-y: auto; padding: 17px 23px; }
+.extension-license-list article { padding: 12px 13px; border: 1px solid #ece7df; border-radius: 9px; background: #fffdfa; }
+.extension-license-list article > strong { color: #4c5360; font-size: 11px; }
+.extension-license-list .complex-text { margin-top: 6px; color: #6d7480; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.extension-license-list .complex-text > :first-child { margin-top: 0; }
+.extension-license-list .complex-text > :last-child { margin-bottom: 0; }
+.extension-license-list .complex-text a { color: #605bb4; text-underline-offset: 2px; }
+.extension-license-dialog > .modal-footer { justify-content: flex-end; }
 .security-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .user-api-credentials { display: grid; gap: 8px; }
 .user-api-credentials > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid #e6e9f0; border-radius: 8px; background: #fbfcfe; }
