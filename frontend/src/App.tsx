@@ -3808,7 +3808,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     const onRealtime = (event: Event) => {
       const detail = (event as CustomEvent).detail;
       if (detail?.event !== "record" || detail.data?.id !== recordId || detail.data?.action !== "update") return;
-      void request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(recordId)}`).then((fresh) => setRecord((old: Row) => ({ ...old, ...fresh }))).catch(() => {});
+      void request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(recordId)}?_peek=1`).then((fresh) => setRecord((old: Row) => ({ ...old, ...fresh }))).catch(() => {});
     };
     window.addEventListener("via-realtime", onRealtime);
     return () => window.removeEventListener("via-realtime", onRealtime);

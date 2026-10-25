@@ -25,7 +25,7 @@ test('the detail shows the fields, the linked record and the owner', async ({ pa
 
   await expect(page.getByRole('heading', { level: 2, name: `Eva Detail ${tag}` })).toBeVisible()
   await expect(page.locator('article').getByText(`Acme ${tag}`).first()).toBeVisible()
-  await expect(page.locator('article').getByText('CFO')).toBeVisible()
+  await expect(page.locator('article').getByText('CFO').first()).toBeVisible()
   await expect(page.locator('article').getByText(`eva-${tag}@example.com`)).toBeVisible()
   await expect(page.locator('article').getByText('Admin').first()).toBeVisible()
 })

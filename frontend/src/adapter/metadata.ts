@@ -2,7 +2,7 @@ import { apiJson } from "../http.ts";
 import { getLocale } from "../i18n/index.ts";
 import { UNSUPPORTED_SCOPES } from "../unsupported.ts";
 import { keyOf, scopeOf, screenField } from "./names.ts";
-import { optionLabel, screenOptions } from "./enums.ts";
+import { optionLabel, screenOptions, toScreenEnum } from "./enums.ts";
 import { reverseLinks, setSchema } from "./schema.ts";
 import { clearLookupCache } from "./lookup.ts";
 import type { FieldDef, Metadata, UserAcl } from "../api";
@@ -40,7 +40,8 @@ function enumDef(base: FieldDef, entityKey: string, fieldKey: string, options: s
   const via = options ?? [];
   const translatedOptions = Object.fromEntries(shown.map((value, index) => [value, optionLabel(via[index] ?? value)]));
   const style = Object.fromEntries(via.flatMap((value, index) => (STYLES[value] ? [[shown[index], STYLES[value]]] : [])));
-  return { ...base, options: shown, translatedOptions, ...(Object.keys(style).length ? { style } : {}) };
+  const mappedDefault = typeof base.default === "string" ? toScreenEnum(entityKey, fieldKey, base.default) : base.default;
+  return { ...base, ...(base.default !== undefined ? { default: mappedDefault } : {}), options: shown, translatedOptions, ...(Object.keys(style).length ? { style } : {}) };
 }
 
 // One ViaCRM field -> the definition the screens expect. Returns the screen field name too (ownerId -> assignedUser ...).

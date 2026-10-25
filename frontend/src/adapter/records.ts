@@ -27,14 +27,15 @@ export function etagOf(updatedAt: string): string | null {
   return `"${ms * 1000 + Number(match[7])}"`;
 }
 
-// The version of every record the screens have seen, so a save can send If-Match without the screens knowing about it.
+// The version of every record the screens have seen (a background refresh passes remember = false: it must not move
+// the version an open edit form was based on, or a save would overwrite somebody else's change), so a save can send If-Match without the screens knowing about it.
 const seen = new Map<string, string>();
 export const seenVersion = (entityKey: string, id: string) => seen.get(`${entityKey}:${id}`);
 export const forgetVersion = (entityKey: string, id: string) => seen.delete(`${entityKey}:${id}`);
 
 type Names = { users: Map<string, string>; teams: Map<string, string> };
 
-function convert(entityKey: string, via: Row, names: Names): Row {
+function convert(entityKey: string, via: Row, names: Names, remember = true): Row {
   const row: Row = {};
   const fields = schemaOf(entityKey)?.fields ?? [];
   const types = new Map(fields.map((field) => [field.key, field.type]));
@@ -73,21 +74,21 @@ function convert(entityKey: string, via: Row, names: Names): Row {
   row.name = displayName(via);
   if (typeof via.updatedAt === "string") {
     const etag = etagOf(via.updatedAt);
-    if (etag && typeof via.id === "string") seen.set(`${entityKey}:${via.id}`, etag);
+    if (remember && etag && typeof via.id === "string") seen.set(`${entityKey}:${via.id}`, etag);
   }
   return row;
 }
 
 // Converts records of one entity and resolves the names of owners, creators and teams in two batched lookups.
-export async function toScreenRecords(entityKey: string, items: Row[]): Promise<Row[]> {
+export async function toScreenRecords(entityKey: string, items: Row[], remember = true): Promise<Row[]> {
   const userIds = items.flatMap((item) => [item.ownerId, item.createdById].filter((id): id is string => typeof id === "string"));
   const teamIds = items.flatMap((item) => (Array.isArray(item.teamIds) ? item.teamIds : []));
   const [users, teams] = await Promise.all([userNames(userIds), teamNames(teamIds)]);
-  return items.map((item) => convert(entityKey, item, { users, teams }));
+  return items.map((item) => convert(entityKey, item, { users, teams }, remember));
 }
 
-export async function toScreenRecord(entityKey: string, item: Row): Promise<Row> {
-  return (await toScreenRecords(entityKey, [item]))[0];
+export async function toScreenRecord(entityKey: string, item: Row, remember = true): Promise<Row> {
+  return (await toScreenRecords(entityKey, [item], remember))[0];
 }
 
 // ---- writes: screen attributes -> ViaCRM properties ----

@@ -109,7 +109,7 @@ async function listRecords(scope: string, params: URLSearchParams, extra: Filter
 }
 
 // A single record does not expand links (only lists do), so the names of the linked records are fetched one by one.
-async function getRecord(scope: string, id: string): Promise<Row> {
+async function getRecord(scope: string, id: string, remember = true): Promise<Row> {
   const entityKey = keyOf(scope);
   const entity = schemaOf(entityKey);
   if (!entity) throw new UnsupportedError(scope);
@@ -118,7 +118,7 @@ async function getRecord(scope: string, id: string): Promise<Row> {
     try { record[field.key] = await apiJson<Row>(`/v1/records/${field.properties.target}/${record[`${field.key}Id`]}`); }
     catch { /* the target may be unreadable for this user: the link then shows no name */ }
   }));
-  const row = await toScreenRecord(entityKey, record);
+  const row = await toScreenRecord(entityKey, record, remember);
   try {
     const me = auth.getSession()?.user.id;
     row.isFollowed = Boolean(me) && (await followersOf(scope, id)).list.some((follower) => follower.id === me);
@@ -340,7 +340,7 @@ export async function legacyRequest(path: string, init: RequestInit = {}): Promi
   }
   if (segments.length === 2 && UUID.test(segments[1])) {
     const id = segments[1];
-    if (method === "GET") return getRecord(scope, id);
+    if (method === "GET") return getRecord(scope, id, new URLSearchParams(query).get("_peek") !== "1");
     if (method === "PUT" || method === "PATCH") {
       return write(entityKey, async () => {
         const headers: Record<string, string> = {};
