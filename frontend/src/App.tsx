@@ -891,6 +891,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   const routeLoadSequence = useRef(0);
   const routePendingRecord = useRef(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const notificationCountRequest = useRef(false);
   const [record, setRecord] = useState<Row | null>(null);
   const [routeAction, setRouteAction] = useState<"create" | "edit" | null>(null);
   const [routeActionId, setRouteActionId] = useState<string | null>(null);
@@ -1004,8 +1005,23 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
     return (metadata.labels as any)?.Global?.navbarTabs?.[key] || (metadata.labels as any)?.Global?.labels?.[key] || key;
   }
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setGlobalSearchOpen(true); } }; window.addEventListener("keydown", handler); return () => window.removeEventListener("keydown", handler); }, []);
-  const refreshNotificationCount = useCallback(() => { void request<number>("Notification/action/notReadCount").then((count) => setUnreadNotifications(Number(count) || 0)).catch(() => {}); }, []);
-  useEffect(() => { refreshNotificationCount(); const timer = window.setInterval(refreshNotificationCount, 60_000); return () => window.clearInterval(timer); }, [refreshNotificationCount]);
+  const refreshNotificationCount = useCallback(() => {
+    if (notificationCountRequest.current || document.visibilityState === "hidden") return;
+    notificationCountRequest.current = true;
+    void request<number>("Notification/action/notReadCount")
+      .then((count) => setUnreadNotifications(Math.max(0, Number(count) || 0)))
+      .catch(() => {})
+      .finally(() => { notificationCountRequest.current = false; });
+  }, []);
+  const notificationCheckInterval = Math.min(300, Math.max(1, Number(metadata.appSettings?.notificationsCheckInterval) || 10)) * 1000;
+  useEffect(() => {
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") refreshNotificationCount(); };
+    refreshNotificationCount();
+    const timer = window.setInterval(refreshNotificationCount, notificationCheckInterval);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshNotificationCount);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refreshWhenVisible); window.removeEventListener("focus", refreshNotificationCount); };
+  }, [refreshNotificationCount, notificationCheckInterval]);
   const [mobileNav, setMobileNav] = useState(false);
   const sidebarStorageKey = `via-sidebar-collapsed:${user.id}`;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
