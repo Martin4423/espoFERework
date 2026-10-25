@@ -3493,3 +3493,9 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .dashlet-stage-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 5px; }
 .dashlet-month-column > i > b { background: var(--success) !important; }
 @media (max-width: 420px) { .dashlet-stage-row { grid-template-columns: minmax(62px, .9fr) minmax(32px, 1.4fr) auto; gap: 7px; } .dashlet-stage-row > strong { min-width: 60px; font-size: 9px; } }
+.personal-dashlet-expanded-fields { gap: 6px; padding-right: 10px; }
+.personal-dashlet-expanded-row { display: grid; grid-template-columns: repeat(var(--dashlet-field-count, 1), minmax(0, 1fr)); gap: 8px 12px; }
+.personal-dashlet-expanded-field { min-width: 0; }
+.personal-dashlet-expanded-field > span:first-child { color: var(--muted); }
+.personal-dashlet-expanded-field > :not(span:first-child) { overflow-wrap: anywhere; }
+@media (max-width: 520px) { .personal-dashlet-expanded-row { grid-template-columns: 1fr; gap: 4px; } }
