@@ -2664,6 +2664,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .attachment-tabs button:hover, .attachment-tabs button.active { border-color: #d9d8f3; background: #f7f6ff; color: #5d58c8; }
 .attachment-tabs button b { min-width: 18px; padding: 2px 4px; border-radius: 10px; background: #f0f2f6; color: #7d889a; font-size: 9px; text-align: center; }
 .attachment-tabs button.active b { background: #e9e8fb; color: #5d58c8; }
+.attachment-tabs button:focus-visible, #attachment-tab-panel:focus-visible { outline: 2px solid var(--primary, #625bc4); outline-offset: 2px; }
 .attachment-search { display: flex; align-items: center; width: min(280px, 42%); min-height: 34px; padding: 0 6px 0 10px; border: 1px solid #e4e8ef; border-radius: 7px; color: #95a0af; }
 .attachment-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #405168; font: inherit; font-size: 10px; }
 .attachment-search button { display: grid; place-items: center; width: 25px; height: 25px; border: 0; border-radius: 5px; background: #f4f5f8; color: #717e91; cursor: pointer; }
