@@ -510,6 +510,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .manager-extra-multienum label { display: inline-flex; align-items: center; gap: 5px; color: #8290a4; font-size: 8px; }
 .manager-extra-multienum input { accent-color: var(--primary); }
 .entity-export-modal { max-width: 560px; }
+.entity-action-confirm { width: min(520px, calc(100vw - 32px)); }
+.entity-action-confirm .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.entity-action-confirm .modal-heading p strong { color: var(--ink); }
 .entity-export-modal .modal-heading { align-items: flex-start; }
 .entity-export-modal .modal-heading p { max-width: 390px; margin: 5px 0 0; color: #909aac; font-size: 9px; line-height: 1.5; }
 .entity-export-fields { grid-template-columns: 1fr 1fr; padding: 15px 20px; }

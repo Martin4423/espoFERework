@@ -6,8 +6,10 @@ import AdminEntityFormula from "./AdminEntityFormula";
 import { espoIconClasses } from "./espoIconClasses";
 import { featuredIconClasses } from "./featuredIcons";
 import type { Metadata } from "./api";
+import { useDialogFocus } from "./useDialogFocus";
 
 type Data = Record<string, any>;
+type PendingEntityAction = { kind: "create" } | { kind: "leave" } | { kind: "remove" } | { kind: "reset" } | { kind: "select"; scope: string };
 export default function AdminEntityManager({ metadata, onBack }: { metadata: Metadata; onBack: () => void }) {
   const [liveMetadata, setLiveMetadata] = useState(metadata);
   const [scope, setScope] = useState("");
@@ -24,13 +26,14 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
   const [exporting, setExporting] = useState(false);
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [rebuildOpen, setRebuildOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingEntityAction | null>(null);
   const [labelSingularEdited, setLabelSingularEdited] = useState(false);
   const [labelPluralEdited, setLabelPluralEdited] = useState(false);
   const [exportData, setExportData] = useState<Data>(() => { try { return JSON.parse(localStorage.getItem("espo-custom-export-manifest") || "{}"); } catch { return {}; } });
   const scopes = useMemo(() => Object.keys(liveMetadata.scopes || {}).filter((name) => liveMetadata.scopes[name].entity).sort((a, b) => entityLabel(liveMetadata, a, true).localeCompare(entityLabel(liveMetadata, b, true), "cs")), [liveMetadata]);
   const templates = liveMetadata.app?.entityTemplateList || [];
   const hasUnsavedChanges = JSON.stringify(data) !== JSON.stringify(originalData);
-  function confirmDiscardChanges() { return !hasUnsavedChanges || window.confirm("Máte neuložené změny nastavení entity. Opravdu je chcete zahodit?"); }
+  const confirmDialogRef = useDialogFocus<HTMLElement>(() => { if (!busy) setPendingAction(null); }, !busy, Boolean(pendingAction));
   useEffect(() => {
     if (!hasUnsavedChanges) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -106,7 +109,18 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
     }
   }, [scope, creating, liveMetadata, currentTextFilterFields, hasColorField]);
 
-  function startCreate() { if (!confirmDiscardChanges()) return; setScope(""); setCreating(true); setLabelSingularEdited(false); setLabelPluralEdited(false); setError(""); setNotice(""); const initial = { name: "", labelSingular: "", labelPlural: "", type: templates[0] || "Base", stream: false, disabled: false }; setData(initial); setOriginalData(initial); }
+  function enterCreate() { setScope(""); setCreating(true); setLabelSingularEdited(false); setLabelPluralEdited(false); setError(""); setNotice(""); const initial = { name: "", labelSingular: "", labelPlural: "", type: templates[0] || "Base", stream: false, disabled: false }; setData(initial); setOriginalData(initial); }
+  function requestManagerAction(action: PendingEntityAction) {
+    if (busy) return;
+    const needsConfirmation = hasUnsavedChanges || action.kind === "remove" || action.kind === "reset";
+    if (needsConfirmation) setPendingAction(action);
+    else executeNavigationAction(action);
+  }
+  function executeNavigationAction(action: PendingEntityAction) {
+    if (action.kind === "create") enterCreate();
+    else if (action.kind === "select") { setCreating(false); setScope(action.scope); setError(""); setNotice(""); }
+    else if (action.kind === "leave") onBack();
+  }
   function updateEntityName(rawValue: string) {
     const suggestedSingular = rawValue.charAt(0).toLocaleUpperCase("cs") + rawValue.slice(1);
     let technicalName = suggestedSingular.replace(/[-_]/g, " ").replace(/[^\w\s]/g, "").replace(/ (.)/g, (_match, char: string) => char.toLocaleUpperCase("cs")).replace(" ", "");
@@ -168,7 +182,10 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
     finally { setBusy(false); }
   }
   async function remove() {
-    if (!confirmDiscardChanges() || !scope || !window.confirm(`Odstranit vlastní entitu ${entityLabel(liveMetadata, scope)}? Tato akce odstraní konfiguraci entity.`)) return;
+    if (!scope) return;
+    requestManagerAction({ kind: "remove" });
+  }
+  async function performRemove() {
     setBusy(true); setError(""); setNotice("");
     try {
       await request("EntityManager/action/removeEntity", { method: "POST", body: JSON.stringify({ name: scope }) });
@@ -177,11 +194,22 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
     finally { setBusy(false); }
   }
   async function resetDefaults() {
-    if (!confirmDiscardChanges() || !scope || !window.confirm(`Obnovit výchozí nastavení entity ${entityLabel(liveMetadata, scope)}? Přijdete o její vlastní nastavení řazení, ikon, kanbanu a dalších voleb.`)) return;
+    if (!scope) return;
+    requestManagerAction({ kind: "reset" });
+  }
+  async function performResetDefaults() {
     setBusy(true); setError(""); setNotice("");
     try { await request("EntityManager/action/resetToDefault", { method: "POST", body: JSON.stringify({ scope }) }); setLiveMetadata(await fetchMetadata()); setNotice("Výchozí nastavení entity bylo obnoveno."); }
     catch (e) { setError(e instanceof Error ? e.message : "Výchozí nastavení se nepodařilo obnovit."); }
     finally { setBusy(false); }
+  }
+  async function confirmPendingAction() {
+    const action = pendingAction;
+    if (!action || busy) return;
+    setPendingAction(null);
+    if (action.kind === "remove") await performRemove();
+    else if (action.kind === "reset") await performResetDefaults();
+    else executeNavigationAction(action);
   }
   async function exportCustomizations() {
     setExporting(true); setError(""); setNotice("");
@@ -195,7 +223,7 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
     finally { setExporting(false); }
   }
   function renderList(names: string[], title: string) {
-    return <><div className="entity-manager-list-heading">{title}<span>{names.length}</span></div>{names.map((name) => <button key={name} className={`entity-manager-scope ${scope === name && !creating ? "active" : ""}`} onClick={() => { if (!confirmDiscardChanges()) return; setCreating(false); setScope(name); setError(""); setNotice(""); }}><span><strong>{entityLabel(liveMetadata, name, true)}</strong><small>{name} · {liveMetadata.scopes[name].type || "Base"}</small></span><i className={liveMetadata.scopes[name].isCustom ? "custom" : ""}>{liveMetadata.scopes[name].isCustom ? "Vlastní" : "Systém"}</i></button>)}</>;
+    return <><div className="entity-manager-list-heading">{title}<span>{names.length}</span></div>{names.map((name) => <button key={name} className={`entity-manager-scope ${scope === name && !creating ? "active" : ""}`} onClick={() => requestManagerAction({ kind: "select", scope: name })}><span><strong>{entityLabel(liveMetadata, name, true)}</strong><small>{name} · {liveMetadata.scopes[name].type || "Base"}</small></span><i className={liveMetadata.scopes[name].isCustom ? "custom" : ""}>{liveMetadata.scopes[name].isCustom ? "Vlastní" : "Systém"}</i></button>)}</>;
   }
 
   function parameterChoices(name: string, definition: Data): Array<{ value: string; label: string }> {
@@ -236,7 +264,7 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
 
   const statusOptions = data.statusField ? (entityFields[data.statusField]?.options || []).map(String) : [];
 
-  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={() => { if (confirmDiscardChanges()) onBack(); }}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">PŘIZPŮSOBENÍ CRM</div><h1>Správce entit</h1><p>Upravujte vlastnosti modulů, jejich chování a rozšíření.</p></div><div className="entity-manager-heading-actions"><button className="button subtle" onClick={() => setExportOpen(true)} disabled={busy}><FileInput size={14}/> Exportovat úpravy</button><button className="button primary" onClick={startCreate} disabled={busy || !templates.length}><Plus size={15}/> Nová entita</button></div></div>
+  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={() => requestManagerAction({ kind: "leave" })}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">PŘIZPŮSOBENÍ CRM</div><h1>Správce entit</h1><p>Upravujte vlastnosti modulů, jejich chování a rozšíření.</p></div><div className="entity-manager-heading-actions"><button className="button subtle" onClick={() => setExportOpen(true)} disabled={busy}><FileInput size={14}/> Exportovat úpravy</button><button className="button primary" onClick={() => requestManagerAction({ kind: "create" })} disabled={busy || !templates.length}><Plus size={15}/> Nová entita</button></div></div>
     {error && <div className="table-error">{error}<button onClick={() => setError("")}>Zavřít</button></div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
     <div className="entity-manager-layout"><aside className="surface entity-manager-sidebar"><div className="entity-manager-search"><Search size={14} aria-hidden="true"/><input type="search" value={scopeSearch} onChange={(event) => setScopeSearch(event.target.value)} placeholder="Hledat entity…" aria-label="Hledat entity podle názvu"/>{scopeSearch && <button type="button" className="icon-button" onClick={() => setScopeSearch("")} aria-label="Vymazat hledání entit"><X size={13}/></button>}</div>{renderList(visibleCustomScopes, "VLASTNÍ ENTITY")}{renderList(visibleStandardScopes, "SYSTÉMOVÉ ENTITY")}{normalizedScopeSearch && !visibleCustomScopes.length && !visibleStandardScopes.length && <div className="entity-manager-search-empty">Žádná entita neodpovídá „{scopeSearch.trim()}“.</div>}</aside>
       <section className="surface entity-manager-editor">{creating || scope ? <><div className="settings-card-head"><h2>{creating ? "Vytvořit vlastní entitu" : data.labelSingular || entityLabel(liveMetadata, scope)}</h2><p>{creating ? "Zvolte šablonu a vlastnosti nového modulu." : `${scope} · ${selectedScope.isCustom ? "vlastní entita" : "systémová entita"}${editable ? "" : " · pouze pro čtení"}`}</p></div>
@@ -259,5 +287,6 @@ export default function AdminEntityManager({ metadata, onBack }: { metadata: Met
     {exportOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !exporting && setExportOpen(false)}><section className="record-modal entity-export-modal"><div className="modal-heading"><div><span className="eyebrow">DISTRIBUCE VLASTNÍCH ÚPRAV</span><h2>Exportovat rozšíření EspoCRM</h2><p>Vytvořte instalovatelný ZIP balíček vlastních polí, entit, rozložení a dalších změn.</p></div><button className="icon-button" onClick={() => setExportOpen(false)} disabled={exporting} aria-label="Zavřít"><X size={16}/></button></div><div className="settings-fields entity-export-fields"><label className="setting-field"><span>Název balíčku</span><input value={exportData.name || ""} onChange={(event) => setExportData((old: Data) => ({ ...old, name: event.target.value }))} required pattern="[A-Za-z0-9 ]+"/></label><label className="setting-field"><span>Název modulu</span><input value={exportData.module || ""} onChange={(event) => setExportData((old: Data) => ({ ...old, module: event.target.value }))} required pattern="[A-Z][a-z][A-Za-z]+" placeholder="AcmeCrm"/></label><label className="setting-field"><span>Verze</span><input value={exportData.version || "0.0.1"} onChange={(event) => setExportData((old: Data) => ({ ...old, version: event.target.value }))} required pattern="[0-9]+\.[0-9]+\.[0-9]+"/></label><label className="setting-field"><span>Autor</span><input value={exportData.author || ""} onChange={(event) => setExportData((old: Data) => ({ ...old, author: event.target.value }))} required/></label><label className="setting-field entity-export-description"><span>Popis</span><textarea rows={3} value={exportData.description || ""} onChange={(event) => setExportData((old: Data) => ({ ...old, description: event.target.value }))}/></label></div><div className="modal-footer"><button className="button subtle" onClick={() => setExportOpen(false)} disabled={exporting}>Zrušit</button><button className="button primary" onClick={() => void exportCustomizations()} disabled={exporting || !String(exportData.name || "").trim() || !/^[A-Z][a-z][A-Za-z]+$/.test(String(exportData.module || "")) || !/^\d+\.\d+\.\d+$/.test(String(exportData.version || "")) || !String(exportData.author || "").trim()}>{exporting ? "Vytvářím balíček…" : <><FileInput size={14}/> Vytvořit a stáhnout ZIP</>}</button></div></section></div>}
     {rebuildOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setRebuildOpen(false)}><section className="record-modal entity-export-modal" role="dialog" aria-modal="true" aria-labelledby="entity-rebuild-title"><div className="modal-heading"><div><span className="eyebrow">DOKONČENÍ NASTAVENÍ</span><h2 id="entity-rebuild-title">Je potřeba obnovit fulltextový index</h2><p>Plnotextové vyhledávání se začne používat po přegenerování metadat a indexů EspoCRM.</p></div><button className="icon-button" onClick={() => setRebuildOpen(false)} aria-label="Zavřít"><X size={16}/></button></div><div className="settings-fields"><div className="setting-field"><span>V terminálu na serveru spusťte</span><code>php rebuild.php</code><small>Spusťte příkaz z kořenové složky instalace EspoCRM. Do dokončení obnovy nemusí být nové vyhledávání dostupné.</small></div></div><div className="modal-footer"><button className="button subtle" onClick={() => { void navigator.clipboard?.writeText("php rebuild.php").then(() => setNotice("Příkaz php rebuild.php byl zkopírován.")); }}><Copy size={14}/> Kopírovat příkaz</button><button className="button primary" onClick={() => setRebuildOpen(false)}>Rozumím</button></div></section></div>}
     {formulaOpen && <AdminEntityFormula metadata={liveMetadata} entity={scope} onClose={() => setFormulaOpen(false)}/>}
+    {pendingAction && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && setPendingAction(null)}><section ref={confirmDialogRef} className="record-modal entity-action-confirm" role="alertdialog" aria-modal="true" aria-labelledby="entity-action-confirm-title" aria-describedby="entity-action-confirm-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">SPRÁVCE ENTIT · POTVRZENÍ</span><h2 id="entity-action-confirm-title">{pendingAction.kind === "remove" ? "Odstranit vlastní entitu?" : pendingAction.kind === "reset" ? "Obnovit výchozí nastavení?" : pendingAction.kind === "leave" ? "Odejít bez uložení?" : pendingAction.kind === "create" ? "Zahodit změny a vytvořit entitu?" : "Přepnout entitu?"}</h2><p id="entity-action-confirm-description">{pendingAction.kind === "remove" ? <>Vlastní entita <strong>{entityLabel(liveMetadata, scope)}</strong> bude odstraněna z konfigurace EspoCRM. Neuložená nastavení této entity budou také zahozena.</> : pendingAction.kind === "reset" ? <>Nastavení entity <strong>{entityLabel(liveMetadata, scope)}</strong> se vrátí na výchozí hodnoty. Vlastní řazení, ikona, Kanban a další nastavení budou nahrazena; neuložené změny budou zahozena.</> : pendingAction.kind === "leave" ? <>Neuložené nastavení entity <strong>{creating ? "nové entity" : entityLabel(liveMetadata, scope)}</strong> bude zahozeno.</> : pendingAction.kind === "create" ? <>Neuložené nastavení entity <strong>{creating ? "nové entity" : entityLabel(liveMetadata, scope)}</strong> bude zahozeno a otevře se formulář nové entity.</> : <>Neuložené nastavení entity <strong>{creating ? "nové entity" : entityLabel(liveMetadata, scope)}</strong> bude zahozeno a otevře se <strong>{entityLabel(liveMetadata, pendingAction.scope, true)}</strong>.</>}</p></div><button type="button" className="icon-button" aria-label="Pokračovat v úpravách" onClick={() => setPendingAction(null)}><X size={16}/></button></div><div className="modal-footer"><button type="button" autoFocus className="button subtle" onClick={() => setPendingAction(null)}>Pokračovat v úpravách</button><button type="button" className={`button ${pendingAction.kind === "remove" ? "danger" : "primary"}`} onClick={() => void confirmPendingAction()}>{pendingAction.kind === "remove" ? <><Trash2 size={14}/> Odstranit entitu</> : pendingAction.kind === "reset" ? "Obnovit výchozí" : pendingAction.kind === "leave" ? "Zahodit a odejít" : pendingAction.kind === "create" ? "Zahodit a pokračovat" : "Zahodit a přepnout"}</button></div></section></div>}
   </div>;
 }
