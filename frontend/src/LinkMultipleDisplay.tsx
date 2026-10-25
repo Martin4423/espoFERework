@@ -61,7 +61,16 @@ export default function LinkMultipleDisplay({ entity, name, record, def, metadat
         const value = rowColumns[column.key];
         if (value == null || value === "") return null;
         const translation = (metadata.labels as any)?.[column.scope]?.options?.[column.field]?.[String(value)];
-        return <span className="link-multiple-column-value" key={column.key}><i aria-hidden="true">·</i>{translation || String(value)}</span>;
+        const fieldDef = column.def as any;
+        let styleMap = fieldDef.style || {};
+        if (!Object.keys(styleMap).length && fieldDef.optionsReference) {
+          const [referenceEntity, referenceField] = String(fieldDef.optionsReference).split(".");
+          styleMap = metadata.entityDefs?.[referenceEntity]?.fields?.[referenceField]?.style || {};
+        }
+        const configuredStyle = String(styleMap[String(value)] || "default");
+        const isStyledLabel = Boolean(fieldDef.displayAsLabel) && configuredStyle !== "default";
+        const allowedStyle = ["warning", "danger", "success", "info", "primary"].includes(configuredStyle) ? configuredStyle : "default";
+        return <span className="link-multiple-column-value" key={column.key}><i aria-hidden="true">·</i>{isStyledLabel ? <span className={`enum-value-label ${allowedStyle}`}>{translation || String(value)}</span> : translation || String(value)}</span>;
       })}
     </span>;
   })}</span>;
