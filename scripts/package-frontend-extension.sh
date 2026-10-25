@@ -19,7 +19,6 @@ cp -R "$ROOT/frontend/dist/." "$STAGE/files/client/custom/viacrm/"
 cp "$MANIFEST" "$STAGE/manifest.json"
 cp "$ROOT/packages/viacrm-frontend/README.md" "$STAGE/README.md"
 cp "$ROOT/packages/viacrm-frontend/files/client/custom/viacrm/.htaccess" "$STAGE/files/client/custom/viacrm/.htaccess"
-cp -R "$ROOT/packages/viacrm-frontend-bridge/files/." "$STAGE/files/"
 
 rm -f "$OUTPUT"
 (cd "$STAGE" && zip -qr "$OUTPUT" .)
