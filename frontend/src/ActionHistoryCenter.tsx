@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, ArrowRight, Clock3, ExternalLink, FileInput, FileSearch, Filter, Search, Trash2, X } from "./Icons";
+import { AlertTriangle, ArrowLeft, ArrowRight, Clock3, ExternalLink, FileInput, FileSearch, Filter, Search, Trash2, X } from "./Icons";
 import { canAccessEntity, canChangeEntity, canUsePermission, entityLabel, getSession, request } from "./api";
 import type { Metadata } from "./api";
 import { dateFilterBoundaryInTimeZone, formatEspoDateTime, useEspoTimeZone } from "./timeZone";
+import { useDialogFocus } from "./useDialogFocus";
 const ExportDialog = lazy(() => import("./ExportDialog"));
 
 type HistoryRow = Record<string, any> & { id: string; targetType?: string; targetId?: string; targetName?: string; action?: string; createdAt?: string; userName?: string; userId?: string; ipAddress?: string; data?: Record<string, unknown> };
@@ -27,7 +28,9 @@ export default function ActionHistoryCenter({ metadata, onBack, onOpenRecord }: 
   const [exportOpen, setExportOpen] = useState(false);
   const [busy, setBusy] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<{ kind: "one"; row: HistoryRow } | { kind: "selection" } | null>(null);
   const [error, setError] = useState("");
+  const removalDialogRef = useDialogFocus<HTMLElement>(() => { if (!deleting) setPendingRemoval(null); }, !deleting, Boolean(pendingRemoval));
   const selectionQueryKey = JSON.stringify([targetType, action, from, to, search]);
   const previousSelectionQueryKey = useRef(selectionQueryKey);
   const canDelete = canChangeEntity(metadata, "ActionHistoryRecord", "delete");
@@ -82,8 +85,9 @@ export default function ActionHistoryCenter({ metadata, onBack, onOpenRecord }: 
     if (allResultsSelected) { setAllResultsSelected(false); setSelected(rows.filter((item) => item.id !== id).map((item) => item.id)); return; }
     setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
-  async function removeSelected() {
-    if (!canDelete || (!selected.length && !allResultsSelected) || !window.confirm(allResultsSelected ? `Trvale smazat všechny záznamy odpovídající aktuálním filtrům${total >= 0 ? ` (${total})` : ""}?` : `Trvale smazat ${selected.length} záznamů z historie?`)) return;
+  async function removeSelected(confirmed = false) {
+    if (!canDelete || (!selected.length && !allResultsSelected)) return;
+    if (!confirmed) { setPendingRemoval({ kind: "selection" }); return; }
     setDeleting(true); setError("");
     try {
       const deletedFilteredResults = allResultsSelected;
@@ -95,12 +99,20 @@ export default function ActionHistoryCenter({ metadata, onBack, onOpenRecord }: 
     catch (cause) { setError(cause instanceof Error ? cause.message : "Historii se nepodařilo smazat."); }
     finally { setDeleting(false); }
   }
-  async function removeOne(row: HistoryRow) {
-    if (!canDelete || !window.confirm(`Trvale smazat auditní záznam „${row.targetName || row.id}“?`)) return;
+  async function removeOne(row: HistoryRow, confirmed = false) {
+    if (!canDelete) return;
+    if (!confirmed) { setPendingRemoval({ kind: "one", row }); return; }
     setDeleting(true); setError("");
     try { await request(`ActionHistoryRecord/${encodeURIComponent(row.id)}`, { method: "DELETE" }); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Auditní záznam se nepodařilo smazat."); }
     finally { setDeleting(false); }
+  }
+  async function confirmRemoval() {
+    const pending = pendingRemoval;
+    if (!pending || deleting) return;
+    setPendingRemoval(null);
+    if (pending.kind === "one") await removeOne(pending.row, true);
+    else await removeSelected(true);
   }
   async function openTarget(row: HistoryRow) {
     if (!row.targetType || !row.targetId || !canAccessEntity(metadata, row.targetType)) return;
@@ -119,5 +131,6 @@ export default function ActionHistoryCenter({ metadata, onBack, onOpenRecord }: 
     </section>
     {exportOpen && <Suspense fallback={<div className="modal-backdrop"><section className="record-modal table-loading"><span className="spinner"/>Načítám exportní nástroje…</section></div>}><ExportDialog entity="ActionHistoryRecord" metadata={metadata} selectedIds={allResultsSelected ? [] : selected} total={total} search="" primaryFilter="" boolFilters={[]} where={[...buildWhere(), ...(search.trim() ? [{ type: "or", value: ["userName", "ipAddress", "targetName"].map((attribute) => ({ type: "contains", attribute, value: search.trim() })) }] : [])]} orderBy="number" order="desc" onClose={() => setExportOpen(false)}/></Suspense>}
     {detail && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setDetail(null)}><section className="record-modal action-history-detail" role="dialog" aria-modal="true" aria-label="Detail auditní události"><div className="modal-heading"><div><span className="eyebrow">AUDITNÍ UDÁLOST</span><h2>{actionLabel(detail.action)}</h2><p>{detail.targetName || "Záznam bez názvu"} · {entityLabel(metadata, detail.targetType || "")}</p></div><button className="icon-button" onClick={() => setDetail(null)} aria-label="Zavřít"><X size={16}/></button></div><div className="history-detail-meta"><span>Uživatel<b>{detail.userName || "—"}</b></span><span>Datum<b>{detail.createdAt ? formatEspoDateTime(detail.createdAt, timeZone) : "—"}</b></span><span>IP adresa<b>{detail.ipAddress || "—"}</b></span></div><section className="history-detail-data"><h3>Data události</h3><pre>{JSON.stringify(detail.data || {}, null, 2)}</pre></section><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setDetail(null)}>Zavřít</button>{detail.targetId && detail.targetType && canAccessEntity(metadata, detail.targetType) && <button type="button" className="button primary" onClick={() => void openTarget(detail)}><ExternalLink size={14}/>Otevřít záznam</button>}</div></section></div>}
+    {pendingRemoval && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !deleting && setPendingRemoval(null)}><section ref={removalDialogRef} className="record-modal action-history-confirm" role="alertdialog" aria-modal="true" aria-labelledby="history-remove-title" aria-describedby="history-remove-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">AUDIT CRM · NEVRATNÁ AKCE</span><h2 id="history-remove-title">Trvale smazat auditní záznamy?</h2></div><button type="button" className="icon-button" onClick={() => setPendingRemoval(null)} disabled={deleting} aria-label="Zavřít"><X size={16}/></button></div><div className="action-history-confirm-body"><AlertTriangle size={18}/><p id="history-remove-description">{pendingRemoval.kind === "one" ? <>Záznam „{pendingRemoval.row.targetName || pendingRemoval.row.id}“ bude trvale odstraněn z historie. Tuto akci nelze vrátit.</> : allResultsSelected ? <>Budou odstraněny všechny záznamy odpovídající aktuálním filtrům{total >= 0 ? ` (${total})` : ""}. Tuto akci nelze vrátit.</> : <>Bude trvale odstraněno {selected.length} vybraných auditních záznamů. Tuto akci nelze vrátit.</>}</p></div><div className="modal-footer"><button type="button" className="button subtle" autoFocus onClick={() => setPendingRemoval(null)} disabled={deleting}>Zrušit</button><button type="button" className="button danger" onClick={() => void confirmRemoval()} disabled={deleting}><Trash2 size={14}/>{deleting ? "Mažu…" : "Trvale smazat"}</button></div></section></div>}
   </div>;
 }

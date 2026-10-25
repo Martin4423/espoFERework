@@ -2472,6 +2472,11 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .action-history-pagination .button { min-height: 30px; padding: 5px 8px; font-size: 9px; }
 .action-history-pagination .button:disabled { opacity: .4; cursor: default; }
 .action-history-detail { width: min(680px, calc(100vw - 28px)); max-height: min(86vh, 780px); overflow: auto; }
+.action-history-confirm { width: min(480px, calc(100vw - 28px)); }
+.action-history-confirm-body { display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 24px; color: #586579; font-size: 13px; line-height: 1.6; }
+.action-history-confirm-body > svg { flex: 0 0 auto; margin-top: 2px; color: #c48a35; }
+.action-history-confirm-body p { margin: 0; }
+.action-history-confirm .modal-footer { padding: 12px 20px; }
 .history-detail-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 14px 20px; border-bottom: 1px solid #edf0f4; }
 .history-detail-meta span { display: grid; gap: 5px; color: #939eac; font-size: 9px; }
 .history-detail-meta b { overflow-wrap: anywhere; color: #53627a; font-size: 10px; font-weight: 600; }
