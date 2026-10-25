@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ArrowDown, ArrowDownToLine, Check, ExternalLink, FileImage, FileText, MessageSquare, Paperclip, Pin, RefreshCw, Send, Shield, Star, Trash2, X } from "./Icons";
-import { aclLevel, canAccessEntity, downloadAttachment, getAttachmentPreviewUrl, getSession, request, uploadAttachment } from "./api";
+import { aclLevel, canAccessEntity, downloadAttachment, fieldLabel, getAttachmentPreviewUrl, getSession, request, uploadAttachment } from "./api";
 import type { Metadata } from "./api";
 import EspoIcon from "./EspoIcon";
 import ImagePreviewDialog from "./ImagePreviewDialog";
@@ -388,7 +388,7 @@ export function StreamItem({ note, metadata, reactions, currentUserId, busy, onR
   const reactionLabels = (metadata.labels as any)?.Global?.reactions || {};
   return <article className={`stream-item ${pinned ? "is-pinned" : ""}`} data-note-id={note.id}>
     <StreamAvatar id={note.createdById} name={author} disabled={avatarsDisabled}/><div className="stream-item-body"><div className="stream-item-head"><div><strong>{author}</strong><span>{type === "Post" ? "přidal/a příspěvek" : systemText[type] || "provedl/a změnu"}</span><time>{relativeTime(note.createdAt)}</time></div>{note.isInternal && <span className="stream-internal">Interní</span>}</div>
-      {editing ? <form className="stream-edit-form" onSubmit={(event) => { event.preventDefault(); setEditError(""); void onEdit(note, draft).then(() => setEditing(false)).catch((e) => setEditError(e instanceof Error ? e.message : "Uložení selhalo.")); }}><textarea value={draft} onChange={(event) => setDraft(event.target.value)}/>{editError && <small>{editError}</small>}<div><button type="button" className="stream-item-action" onClick={() => { setDraft(note.post || ""); setEditing(false); }}>Zrušit</button><button className="stream-item-action is-on" disabled={busy || !draft.trim()}>Uložit změny</button></div></form> : note.post ? <p className="stream-post-text">{note.post}</p> : note.data ? <SystemChange data={note.data}/> : null}
+      {editing ? <form className="stream-edit-form" onSubmit={(event) => { event.preventDefault(); setEditError(""); void onEdit(note, draft).then(() => setEditing(false)).catch((e) => setEditError(e instanceof Error ? e.message : "Uložení selhalo.")); }}><textarea value={draft} onChange={(event) => setDraft(event.target.value)}/>{editError && <small>{editError}</small>}<div><button type="button" className="stream-item-action" onClick={() => { setDraft(note.post || ""); setEditing(false); }}>Zrušit</button><button className="stream-item-action is-on" disabled={busy || !draft.trim()}>Uložit změny</button></div></form> : note.post ? <p className="stream-post-text">{note.post}</p> : note.data ? <SystemChange data={note.data} metadata={metadata} entity={String(note.parentType || note.entityType || "")} type={type}/> : null}
       {attachmentIds.length > 0 && <div className="stream-attachments">{attachmentIds.map((id) => { const imageAt = imageAttachments.findIndex((item) => item.id === id); const name = attachmentNames[id] || "Příloha"; return imageAt >= 0 ? <StreamImageAttachment key={id} id={id} name={name} onOpen={() => setImageIndex(imageAt)}/> : <button key={id} onClick={() => void downloadAttachment(id, name)}>{name}</button>; })}</div>}
       <div className="stream-item-footer">{type === "Post" && reactions.map((reaction) => { const definition = reactionDefinitions.find((item) => item.type === reaction); const count = Number(counts[reaction] || 0); const active = myReactions.includes(reaction); const label = reactionLabels[reaction] || reaction; return <button key={reaction} className={`stream-reaction ${active ? "is-active" : ""}`} onClick={() => onReact(note, reaction)} disabled={busy} title={label} aria-label={`${label}${count ? ` · ${count}` : ""}`} aria-pressed={active}><EspoIcon className={definition?.iconClass || "fas fa-face-smile"} size={13}/>{count > 0 ? count : ""}</button>; })}
         {onOpen && <button className="stream-item-action" onClick={() => onOpen(note)} title="Otevřít samostatný záznam poznámky"><ExternalLink size={13}/> Otevřít</button>}
@@ -403,8 +403,62 @@ export function StreamItem({ note, metadata, reactions, currentUserId, busy, onR
   </article>;
 }
 
-function SystemChange({ data }: { data: Note }) {
-  const entries = Object.entries(data).filter(([key]) => !["id", "entityType", "entityId", "parentType", "parentId"].includes(key)).slice(0, 4);
+function SystemChange({ data, metadata, entity, type }: { data: Note; metadata: Metadata; entity: string; type: string }) {
+  const labels = (metadata.labels as any)?.[entity] || {};
+  const fieldDefs = metadata.entityDefs?.[entity]?.fields || {};
+  const optionLabel = (field: string, value: unknown) => {
+    const raw = String(value ?? "");
+    return String(labels.options?.[field]?.[raw] || fieldDefs[field]?.translatedOptions?.[raw] || raw || "—");
+  };
+  const valueView = (field: string, value: unknown, attrs?: Note) => {
+    const def = fieldDefs[field] || {};
+    const typeName = String(def.type || "");
+    const raw = attrs?.[`${field}Name`] ?? (value && typeof value === "object" ? (value as Note).name ?? (value as Note).value : value);
+    if (typeName === "bool" || typeof raw === "boolean") return <span className={`stream-change-bool ${raw ? "is-yes" : "is-no"}`}>{raw ? "Ano" : "Ne"}</span>;
+    if (["enum", "enumInt", "enumFloat", "enumStyled", "foreign", "multiEnum", "array", "checklist"].includes(typeName)) {
+      const choices = Array.isArray(raw) ? raw : typeName === "multiEnum" || typeName === "array" || typeName === "checklist" ? String(raw || "").split(",").filter(Boolean) : [raw];
+      const styleMap = def.style || {};
+      const stateLabel = def.labelType === "state";
+      const showLabel = Boolean(def.displayAsLabel) || stateLabel;
+      return choices.length ? <span className="stream-change-options">{choices.map((item, index) => {
+        const key = String(item ?? "");
+        const style = ["warning", "danger", "success", "info", "primary"].includes(String(styleMap[key])) ? String(styleMap[key]) : "default";
+        return showLabel && (style !== "default" || stateLabel)
+          ? <span className={`enum-value-label ${style} ${stateLabel ? "state" : ""}`} key={`${key}-${index}`}>{optionLabel(field, key)}</span>
+          : <span key={`${key}-${index}`}>{optionLabel(field, key)}</span>;
+      })}</span> : <span className="muted-cell">—</span>;
+    }
+    if (raw == null || raw === "") return <span className="muted-cell">—</span>;
+    if (typeof raw === "object") return <span>{JSON.stringify(raw)}</span>;
+    return <span>{String(raw)}</span>;
+  };
+  const actualAttributeNames = (field: string) => {
+    const def = fieldDefs[field] || {};
+    const definition = metadata.fields?.[String(def.type || "")];
+    const naming = definition?.naming || "suffix";
+    return (definition?.actualFields || []).map((part: string) => !part ? field : naming === "prefix" ? `${part}${field[0].toUpperCase()}${field.slice(1)}` : `${field}${part[0].toUpperCase()}${part.slice(1)}`);
+  };
+  const actualValue = (field: string, attrs: Note) => {
+    if (Object.prototype.hasOwnProperty.call(attrs, field)) return attrs[field];
+    const names = actualAttributeNames(field);
+    const parts = names.map((attribute: string) => attrs[attribute]).filter((value: unknown) => value != null && value !== "");
+    if (!parts.length) return undefined;
+    return fieldDefs[field]?.type === "address" ? parts.join(", ") : parts.length === 1 ? parts[0] : Object.fromEntries(names.filter((attribute: string) => attrs[attribute] != null && attrs[attribute] !== "").map((attribute: string) => [attribute, attrs[attribute]]));
+  };
+  if (type === "Status" && data.field) {
+    const field = String(data.field);
+    const label = fieldLabel(field, fieldDefs[field], entity, metadata);
+    const style = ["warning", "danger", "success", "info", "primary"].includes(String(data.style)) ? String(data.style) : "default";
+    return <div className="stream-status-change"><span>{label}</span><span aria-hidden="true">→</span><span className={`stream-status-value ${style}`}>{optionLabel(field, data.value)}</span></div>;
+  }
+  if (type === "Update" && Array.isArray(data.fields)) {
+    const was = data.attributes?.was || {};
+    const became = data.attributes?.became || {};
+    const changes = data.fields.map(String).map((field: string) => ({ field, hasBefore: actualValue(field, was) !== undefined, hasAfter: actualValue(field, became) !== undefined }));
+    if (!changes.length) return null;
+    return <dl className="stream-change-list">{changes.map(({ field, hasBefore, hasAfter }) => <div key={field}><dt>{fieldLabel(field, fieldDefs[field], entity, metadata)}</dt><dd>{hasBefore ? valueView(field, actualValue(field, was), was) : <span className="muted-cell">Původní hodnota není dostupná</span>}<span className="stream-change-arrow" aria-label="na">→</span>{hasAfter ? valueView(field, actualValue(field, became), became) : <span className="muted-cell">Hodnota není dostupná</span>}</dd></div>)}</dl>;
+  }
+  const entries = Object.entries(data).filter(([key]) => !["id", "entityType", "entityId", "parentType", "parentId", "attributes", "fields"].includes(key)).slice(0, 4);
   if (!entries.length) return null;
-  return <dl className="stream-change-list">{entries.map(([key, value]) => <div key={key}><dt>{key.replace(/([A-Z])/g, " $1")}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}</dd></div>)}</dl>;
+  return <dl className="stream-change-list">{entries.map(([key, value]) => <div key={key}><dt>{fieldDefs[key] ? fieldLabel(key, fieldDefs[key], entity, metadata) : key.replace(/([A-Z])/g, " $1")}</dt><dd>{value && typeof value === "object" ? JSON.stringify(value) : String(value ?? "—")}</dd></div>)}</dl>;
 }
