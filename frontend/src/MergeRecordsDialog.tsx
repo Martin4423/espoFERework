@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, X } from "./Icons";
 import { entityLabel, fieldLabel, request } from "./api";
 import type { Metadata } from "./api";
+import { useDialogFocus } from "./useDialogFocus";
 
 type Row = Record<string, any>;
 type MergeField = { name: string; attributes: string[]; readOnly: boolean };
@@ -31,14 +32,17 @@ export default function MergeRecordsDialog({ entity, ids, metadata, onClose, onC
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
+  const dialogRef = useDialogFocus<HTMLElement>(() => { if (!saving) onClose(); }, !saving);
   useEffect(() => {
     let live = true;
+    setBusy(true); setError("");
     Promise.all(ids.map((id) => request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(id)}`)))
       .then((list) => { if (live) { setRecords(list); setChoices({}); } })
       .catch((cause) => live && setError(cause instanceof Error ? cause.message : "Záznamy ke sloučení se nepodařilo načíst."))
       .finally(() => live && setBusy(false));
     return () => { live = false; };
-  }, [entity, ids.join(","), metadata]);
+  }, [entity, ids.join(","), metadata, retryKey]);
 
   const fields = useMemo(() => {
     const definitions = metadata.entityDefs?.[entity]?.fields || {};
@@ -47,8 +51,8 @@ export default function MergeRecordsDialog({ entity, ids, metadata, onClose, onC
       if (["createdAt", "modifiedAt"].includes(name) || def.type === "linkMultiple" || def.disabled || def.utility || def.mergeDisabled || metadata.userAcl?.fieldTable?.[entity]?.[name]?.read === "no" || !fieldType || fieldType.notMergeable) return [];
       const attributes = actualAttributes(name, def.type || "varchar", metadata);
       if (!attributes.some((attribute) => records.some((record) => JSON.stringify(record[attribute] ?? null) !== JSON.stringify(records[0]?.[attribute] ?? null)))) return [];
-      return [{ name, attributes, readOnly: Boolean(def.readOnly) }];
-    }).sort((a, b) => fieldLabel(a.name, metadata.entityDefs?.[entity]?.fields?.[a.name], entity, metadata).localeCompare(fieldLabel(b.name, metadata.entityDefs?.[entity]?.fields?.[b.name], entity, metadata), "cs"));
+      return [{ name, attributes, readOnly: Boolean(def.readOnly || metadata.userAcl?.fieldTable?.[entity]?.[name]?.edit === "no") }];
+    }).sort((a, b) => Number(a.readOnly) - Number(b.readOnly) || fieldLabel(a.name, metadata.entityDefs?.[entity]?.fields?.[a.name], entity, metadata).localeCompare(fieldLabel(b.name, metadata.entityDefs?.[entity]?.fields?.[b.name], entity, metadata), "cs"));
   }, [entity, metadata, records]);
 
   async function merge() {
@@ -69,11 +73,11 @@ export default function MergeRecordsDialog({ entity, ids, metadata, onClose, onC
     finally { setSaving(false); }
   }
 
-  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !saving && onClose()}><section className="record-modal merge-records-modal" role="dialog" aria-modal="true" aria-label="Sloučit záznamy">
-    <div className="modal-heading"><div><span className="eyebrow">HROMADNÁ AKCE · {entityLabel(metadata, entity, true).toLocaleUpperCase("cs")}</span><h2>Sloučit záznamy</h2><p>Vyberte hlavní záznam a zdroj hodnot u každého rozdílného pole.</p></div><button type="button" className="icon-button" onClick={onClose} disabled={saving} aria-label="Zavřít"><X size={16}/></button></div>
-    {error && <div className="table-error">{error}</div>}
+  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !saving && onClose()}><section ref={dialogRef} tabIndex={-1} className="record-modal merge-records-modal" role="dialog" aria-modal="true" aria-labelledby="merge-records-title" aria-describedby="merge-records-description">
+    <div className="modal-heading"><div><span className="eyebrow">HROMADNÁ AKCE · {entityLabel(metadata, entity, true).toLocaleUpperCase("cs")}</span><h2 id="merge-records-title">Sloučit záznamy</h2><p id="merge-records-description">Vyberte hlavní záznam a zdroj hodnot u každého rozdílného pole.</p></div><button type="button" className="icon-button" onClick={onClose} disabled={saving} aria-label="Zavřít"><X size={16}/></button></div>
+    {error && <div className="table-error" role="alert">{error}{!busy && <button type="button" onClick={() => setRetryKey((value) => value + 1)}>Zkusit znovu</button>}</div>}
     {busy ? <div className="table-loading"><span className="spinner"/> Načítám vybrané záznamy…</div> : <div className="merge-records-content">
-      <section><h3>Hlavní záznam</h3><p>Ostatní záznamy se po sloučení odstraní a jejich vazby se převedou.</p><div className="merge-master-list">{records.map((record) => <label key={record.id}><input type="radio" name="merge-master" checked={masterId === record.id} onChange={() => setMasterId(record.id)}/><span><strong>{record.name || record.subject || [record.firstName, record.lastName].filter(Boolean).join(" ") || record.id}</strong><small>{record.id}{record.createdAt ? ` · ${record.createdAt}` : ""}</small></span></label>)}</div></section>
+      <section><h3>Hlavní záznam</h3><p>Ostatní záznamy se po sloučení odstraní a jejich vazby se převedou.</p><div className="merge-master-list">{records.map((record, index) => <label key={record.id}><input type="radio" name="merge-master" autoFocus={index === 0} checked={masterId === record.id} onChange={() => setMasterId(record.id)}/><span><strong>{record.name || record.subject || [record.firstName, record.lastName].filter(Boolean).join(" ") || record.id}</strong><small>{record.id}{record.createdAt ? ` · ${record.createdAt}` : ""}</small></span></label>)}</div></section>
       <section><h3>Rozdílná pole <small>{fields.length}</small></h3>{fields.length ? <div className="merge-fields-table"><div className="merge-fields-header" style={{ gridTemplateColumns: `minmax(130px, 180px) repeat(${records.length}, minmax(130px, 1fr))` }}><span>Pole</span>{records.map((record) => <span key={record.id}>{record.name || record.subject || record.id}</span>)}</div>{fields.map((field) => <div className="merge-field-row" key={field.name} style={{ gridTemplateColumns: `minmax(130px, 180px) repeat(${records.length}, minmax(130px, 1fr))` }}><strong>{fieldLabel(field.name, metadata.entityDefs?.[entity]?.fields?.[field.name], entity, metadata)}</strong>{records.map((record) => <label key={record.id} title={formatValue(record, field, metadata, entity)}><input type="radio" name={`merge-${field.name}`} disabled={field.readOnly} checked={(choices[field.name] || masterId) === record.id} onChange={() => setChoices((old) => ({ ...old, [field.name]: record.id }))}/><span>{formatValue(record, field, metadata, entity)}</span></label>)}</div>)}</div> : <div className="merge-no-differences"><Check size={16}/> Záznamy nemají žádná rozdílná slučitelná pole.</div>}</section>
     </div>}
     <div className="modal-footer"><button type="button" className="button subtle" onClick={onClose} disabled={saving}>Zrušit</button><button type="button" className="button primary" onClick={() => void merge()} disabled={busy || saving || records.length < 2 || records.length > 4}>{saving ? "Slučuji…" : "Sloučit záznamy"}</button></div>
