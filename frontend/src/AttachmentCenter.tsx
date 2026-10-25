@@ -6,6 +6,7 @@ import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
 import { useDialogFocus } from "./useDialogFocus";
 
 type Attachment = Record<string, any> & { id: string; name?: string; type?: string; size?: number };
+type PendingRemoval = { kind: "one"; item: Attachment } | { kind: "many"; ids: string[] };
 const pageSize = 36;
 
 function formatSize(value: unknown) {
@@ -69,6 +70,8 @@ export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata:
   const [error, setError] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
+  const removalDialogRef = useDialogFocus<HTMLElement>(() => { if (!deleting) setPendingRemoval(null); }, !deleting, Boolean(pendingRemoval));
   const [openingDetails, setOpeningDetails] = useState(false);
   const canDelete = canChangeEntity(metadata, "Attachment", "delete");
   const page = Math.floor(offset / pageSize) + 1;
@@ -113,10 +116,14 @@ export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata:
   function selectAll(checked: boolean) { setSelected(checked ? visibleRows.map((row) => row.id) : []); }
   function toggleSelected(id: string) { setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); }
   async function removeSelected() {
-    if (!canDelete || !selected.length || !window.confirm(`Opravdu smazat ${selected.length} vybraných příloh?`)) return;
+    if (!canDelete || !selected.length) return;
+    setPendingRemoval({ kind: "many", ids: [...selected] });
+  }
+  async function performRemoveSelected(ids: string[]) {
+    if (!canDelete || !ids.length) return;
     setDeleting(true); setError("");
     try {
-      const results = await Promise.allSettled(selected.map((id) => request(`Attachment/${encodeURIComponent(id)}`, { method: "DELETE" })));
+      const results = await Promise.allSettled(ids.map((id) => request(`Attachment/${encodeURIComponent(id)}`, { method: "DELETE" })));
       const failed = results.filter((result) => result.status === "rejected").length;
       await load();
       if (failed) setError(`${failed} vybrané přílohy se nepodařilo smazat. Zkontrolujte oprávnění a zkuste to znovu.`);
@@ -124,11 +131,22 @@ export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata:
     finally { setDeleting(false); }
   }
   async function removeOne(item: Attachment) {
-    if (!canDelete || !window.confirm(`Opravdu smazat přílohu „${item.name || "soubor"}“?`)) return;
+    if (!canDelete) return;
+    setPendingRemoval({ kind: "one", item });
+  }
+  async function performRemoveOne(item: Attachment) {
+    if (!canDelete) return;
     setDeleting(true); setError("");
     try { await request(`Attachment/${encodeURIComponent(item.id)}`, { method: "DELETE" }); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Přílohu se nepodařilo smazat."); }
     finally { setDeleting(false); }
+  }
+  async function confirmRemoval() {
+    const action = pendingRemoval;
+    if (!action || deleting) return;
+    setPendingRemoval(null);
+    if (action.kind === "one") await performRemoveOne(action.item);
+    else await performRemoveSelected(action.ids);
   }
   async function openRelated(item: Attachment) {
     const entity = item.relatedType || item.parentType;
@@ -163,5 +181,6 @@ export default function AttachmentCenter({ metadata, onOpenRecord }: { metadata:
       <footer className="attachment-pagination"><span>Zobrazeno {total ? (offset + 1).toLocaleString("cs-CZ") : 0}–{Math.min(offset + pageSize, total).toLocaleString("cs-CZ")} z {total.toLocaleString("cs-CZ")}</span><div><button type="button" className="button subtle" disabled={offset <= 0 || busy} onClick={() => setOffset(Math.max(0, offset - pageSize))}><ArrowLeft size={13}/>Předchozí</button><b>{page} / {pageCount}</b><button type="button" className="button subtle" disabled={offset + pageSize >= total || busy} onClick={() => setOffset(offset + pageSize)}>Další<ArrowRight size={13}/></button></div></footer>
     </section>
     {preview && <AttachmentPreviewDialog item={preview} metadata={metadata} url={previewUrl} loading={loadingPreview || openingDetails} error={previewError} onClose={() => setPreview(null)} onRetry={() => setPreviewReload((value) => value + 1)} onDownload={() => void downloadAttachment(preview.id, preview.name || "soubor")} onOpenAttachment={() => void openAttachmentDetails(preview)} onOpenRelated={() => void openRelated(preview)}/>}
+    {pendingRemoval && <div className="modal-backdrop attachment-removal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !deleting && setPendingRemoval(null)}><section ref={removalDialogRef} className="record-modal attachment-removal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="attachment-removal-title" aria-describedby="attachment-removal-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">SOUBORY CRM · ODSTRANĚNÍ</span><h2 id="attachment-removal-title">{pendingRemoval.kind === "one" ? "Smazat přílohu?" : `Smazat ${pendingRemoval.ids.length} příloh?`}</h2><p id="attachment-removal-description">{pendingRemoval.kind === "one" ? <>Příloha <strong>{pendingRemoval.item.name || "soubor"}</strong> bude trvale odstraněna z CRM. Smaže se soubor i jeho záznam přílohy.</> : <>Vybrané přílohy budou trvale odstraněny z CRM. Tato akce smaže soubory i jejich záznamy.</>}</p></div><button type="button" className="icon-button" aria-label="Zrušit odstranění" onClick={() => setPendingRemoval(null)}><X size={16}/></button></div>{pendingRemoval.kind === "many" && <div className="attachment-removal-summary"><Trash2 size={16}/><span>Počet souborů k odstranění</span><strong>{pendingRemoval.ids.length}</strong></div>}<div className="modal-footer"><button type="button" autoFocus className="button subtle" onClick={() => setPendingRemoval(null)}>Ponechat přílohy</button><button type="button" className="button danger" onClick={() => void confirmRemoval()}><Trash2 size={14}/> Trvale smazat</button></div></section></div>}
   </div>;
 }
