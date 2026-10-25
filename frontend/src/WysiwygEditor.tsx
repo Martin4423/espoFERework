@@ -3,7 +3,7 @@ import EspoIcon from "./EspoIcon";
 import DOMPurify from "dompurify";
 import { getAttachmentPreviewUrl, uploadAttachment } from "./api";
 
-type Props = { value: string; htmlMode: boolean; entity: string; field: string; disabled?: boolean; sanitizeHtml?: boolean; onChange: (value: string) => void; onRegisterInsert?: (insert: (text: string) => void) => void };
+type Props = { value: string; htmlMode: boolean; entity: string; field: string; disabled?: boolean; sanitizeHtml?: boolean; onChange: (value: string) => void; onRegisterInsert?: (insert: (text: string, html?: boolean) => void) => void };
 
 export default function WysiwygEditor({ value, htmlMode, entity, field, disabled = false, sanitizeHtml = true, onChange, onRegisterInsert }: Props) {
   const canvas = useRef<HTMLDivElement>(null);
@@ -48,21 +48,26 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
     window.addEventListener("keydown", onKeyDown);
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", onKeyDown); };
   }, [fullscreen]);
-  useEffect(() => onRegisterInsert?.((text) => {
+  useEffect(() => onRegisterInsert?.((text, html = false) => {
     if (codeView && codeEditor.current) {
       const input = codeEditor.current;
       const start = input.selectionStart;
       const end = input.selectionEnd;
-      const next = `${value.slice(0, start)}${text}${value.slice(end)}`;
+      const insertion = html ? DOMPurify.sanitize(text, { USE_PROFILES: { html: true } }) : text;
+      const next = `${value.slice(0, start)}${insertion}${value.slice(end)}`;
       onChange(next);
-      requestAnimationFrame(() => { input.focus(); input.setSelectionRange(start + text.length, start + text.length); });
+      requestAnimationFrame(() => { input.focus(); input.setSelectionRange(start + insertion.length, start + insertion.length); });
       return;
     }
     restoreSelection();
     const current = window.getSelection();
-    const node = document.createTextNode(text);
-    if (current?.rangeCount) { const range = current.getRangeAt(0); range.deleteContents(); range.insertNode(node); range.setStartAfter(node); range.collapse(true); current.removeAllRanges(); current.addRange(range); selection.current = range.cloneRange(); }
-    else canvas.current?.append(node);
+    const insertion = html ? DOMPurify.sanitize(text, { USE_PROFILES: { html: true } }) : text;
+    const fragment = document.createDocumentFragment();
+    if (html) fragment.append(...Array.from(new DOMParser().parseFromString(insertion, "text/html").body.childNodes));
+    else fragment.append(document.createTextNode(text));
+    const lastNode = fragment.lastChild;
+    if (current?.rangeCount) { const range = current.getRangeAt(0); range.deleteContents(); range.insertNode(fragment); if (lastNode) range.setStartAfter(lastNode); range.collapse(true); current.removeAllRanges(); current.addRange(range); selection.current = range.cloneRange(); }
+    else canvas.current?.append(fragment);
     changed();
   }), [onRegisterInsert, codeView, value, onChange]);
 

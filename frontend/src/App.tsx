@@ -3902,6 +3902,9 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
   const recipientEntities = (Array.isArray(metadata.appParams?.emailAddressSelectEntityTypeList) ? metadata.appParams.emailAddressSelectEntityTypeList : []).filter((entity: string) => canAccessEntity(metadata, entity));
   const [recipientPickerField, setRecipientPickerField] = useState<"to" | "cc" | "bcc" | null>(null);
   const [recipientCreate, setRecipientCreate] = useState<{ entity: string; field: "to" | "cc" | "bcc" } | null>(null);
+  const [insertFieldOpen, setInsertFieldOpen] = useState(false);
+  const [insertFieldAvailable, setInsertFieldAvailable] = useState(false);
+  const richBodyInsert = useRef<((value: string, html?: boolean) => void) | null>(null);
   const [recipientEntity, setRecipientEntity] = useState(String(recipientEntities[0] || "Contact"));
   const initialAttachments = (initial.attachmentsIds || []).map((id: string) => ({ id, name: initial.attachmentsNames?.[id] || "Příloha", type: initial.attachmentsTypes?.[id] || "application/octet-stream" }));
   const originalAttachments = useRef(initialAttachments);
@@ -4040,7 +4043,7 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
   function closeComposer() { if (!hasUnsavedChanges || window.confirm("E-mail obsahuje neuložené změny. Opravdu chcete zavřít editor?")) onClose(); }
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); closeComposer(); return; }
+      if (event.key === "Escape") { if (insertFieldOpen) return; event.preventDefault(); closeComposer(); return; }
       if (!(event.ctrlKey || event.metaKey)) return;
       if (event.key.toLowerCase() === "s") { event.preventDefault(); if (!busy && !uploading && !draftLoading) void submit("Draft"); }
       if (event.key === "Enter") { event.preventDefault(); if (!busy && !uploading && !draftLoading) void submit(sendAt ? "Draft" : "Sending"); }
@@ -4052,14 +4055,66 @@ function EmailComposer({ metadata, onClose, onSaved, initial = {} }: { metadata:
     <div className="modal-heading"><div><span className="eyebrow">{initial.id ? "KONCEPT E-MAILU" : "NOVÁ ZPRÁVA"}</span><h2>{initial.id ? "Upravit koncept" : "Napsat e-mail"}</h2></div><button type="button" className="icon-button" onClick={closeComposer} aria-label="Zavřít"><X size={17}/></button></div>
     {draftLoading || !composerPreferencesLoaded ? <div className="table-loading"><span className="spinner"/>{draftLoading ? "Načítám koncept…" : "Načítám nastavení e-mailu…"}</div> : <div className="email-compose-fields">
       {!templateDisabled && templates.length > 0 && <label>Šablona<select value={templateId} onChange={(e) => void applyTemplate(e.target.value)}><option value="">Bez šablony</option>{templates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}{recipientEntities.length > 1 && <label>Adresář kontaktů<select value={recipientEntity} onChange={(event) => setRecipientEntity(event.target.value)}>{recipientEntities.map((entity: string) => <option key={entity} value={entity}>{entityLabel(metadata, entity, true)}</option>)}</select></label>}
-      {recipientInput("to", "Komu", to, setTo)}{recipientInput("cc", "Kopie", cc, setCc)}{recipientInput("bcc", "Skrytá kopie", bcc, setBcc)}<label>Předmět<input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)} /></label><div className="email-compose-body"><div className="email-compose-body-head"><span>Zpráva</span><label><input type="checkbox" checked={isHtml} onChange={(e) => toggleHtmlFormat(e.target.checked)}/> Formátovaný text</label></div>{isHtml ? <Suspense fallback={<div className="table-loading" role="status"><span className="spinner"/>Načítám textový editor…</div>}><WysiwygEditor value={body} htmlMode entity="Email" field="body" onChange={(value) => { setBody(value); setBodyChanged(true); bodyEditedRef.current = true; }}/></Suspense> : <textarea rows={10} value={body} onChange={(e) => { setBody(e.target.value); setBodyChanged(true); bodyEditedRef.current = true; }} />}{!signatureDisabled && signature && <small>Podpis je vložen do zprávy a můžete jej před odesláním upravit. U odpovědí stojí před citovaným obsahem.</small>}</div>
+      {recipientInput("to", "Komu", to, setTo)}{recipientInput("cc", "Kopie", cc, setCc)}{recipientInput("bcc", "Skrytá kopie", bcc, setBcc)}<label>Předmět<input type="text" required value={subject} onChange={(e) => setSubject(e.target.value)} /></label><div className="email-compose-body"><div className="email-compose-body-head"><span>Zpráva</span><div className="email-compose-body-actions">{isHtml && <button type="button" className="button subtle email-insert-field-button" disabled={!insertFieldAvailable || busy || uploading} onClick={() => setInsertFieldOpen(true)} title={!insertFieldAvailable ? "Načítám editor…" : undefined}><FileInput size={13}/>Vložit pole</button>}<label><input type="checkbox" checked={isHtml} onChange={(e) => { if (!e.target.checked) { setInsertFieldAvailable(false); richBodyInsert.current = null; } toggleHtmlFormat(e.target.checked); }}/> Formátovaný text</label></div></div>{isHtml ? <Suspense fallback={<div className="table-loading" role="status"><span className="spinner"/>Načítám textový editor…</div>}><WysiwygEditor value={body} htmlMode entity="Email" field="body" onChange={(value) => { setBody(value); setBodyChanged(true); bodyEditedRef.current = true; }} onRegisterInsert={(insert) => { richBodyInsert.current = insert; setInsertFieldAvailable(true); }}/></Suspense> : <textarea rows={10} value={body} onChange={(e) => { setBody(e.target.value); setBodyChanged(true); bodyEditedRef.current = true; }} />}{!signatureDisabled && signature && <small>Podpis je vložen do zprávy a můžete jej před odesláním upravit. U odpovědí stojí před citovaným obsahem.</small>}</div>
       <label>Odeslat později<input type="datetime-local" value={sendAt} min={dateTimeLocalValue(new Date(Date.now() + 60000))} onChange={(e) => setSendAt(e.target.value)} /></label>
       <label>Přílohy<input type="file" multiple onChange={(e) => { void addFiles(e.target.files); e.currentTarget.value = ""; }} /></label>
       {(uploading || attachments.length > 0) && <div className="email-attachments">{uploading && <span>Nahrávám přílohy…</span>}{attachments.map((item) => <span key={item.id}><Paperclip size={12}/>{item.name}<button type="button" aria-label={`Odebrat ${item.name}`} onClick={() => setAttachments((current) => current.filter((attachment) => attachment.id !== item.id))}><X size={12}/></button></span>)}</div>}
     </div>}
     {error && <div className="inline-error">{error}</div>}
     <div className="modal-footer"><button type="button" className="button subtle" title="Ctrl+S" onClick={() => void submit("Draft")} disabled={busy || uploading || draftLoading}>Uložit koncept <kbd>Ctrl+S</kbd></button><button className="button primary" title="Ctrl+Enter" disabled={busy || uploading || draftLoading}>{busy ? "Odesílám…" : sendAt ? "Naplánovat odeslání" : "Odeslat e-mail"}<kbd>Ctrl+Enter</kbd><ArrowRight size={14}/></button></div>
-  </form>{recipientPickerField && recipientEntities.length > 0 && <SelectRecordsDialog entity={recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]} metadata={metadata} multiple selectedIds={[]} selectedRows={[]} mandatorySelectAttributeList={["emailAddress", "emailAddressIsInvalid"]} fixedWhere={[{ type: "isNotNull", attribute: "emailAddress" }, { type: "notEquals", attribute: "emailAddress", value: "" }, { type: "isFalse", attribute: "emailAddressIsInvalid" }]} onCreate={recipientPickerField && !["User", "Team", "Role", "Portal"].includes(recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]) && !metadata.clientDefs?.[recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]]?.createDisabled && canCreateEntity(metadata, recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]) ? () => { const entityType = recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]; setRecipientCreate({ entity: entityType, field: recipientPickerField }); setRecipientPickerField(null); } : undefined} onClose={() => setRecipientPickerField(null)} onSelect={(rows) => { if (recipientPickerField) appendRecipientRows(recipientPickerField, rows); setRecipientPickerField(null); }}/ >}{recipientCreate && <RecordEditor entity={recipientCreate.entity} fields={getFormFields(metadata, recipientCreate.entity)} metadata={metadata} onClose={() => setRecipientCreate(null)} onSaved={(created) => { const field = recipientCreate.field; setRecipientCreate(null); appendRecipientRows(field, [created]); }}/>}</div>;
+  </form>{insertFieldOpen && <EmailInsertFieldDialog metadata={metadata} parentId={initial.parentId} parentType={initial.parentType} to={to} onClose={() => setInsertFieldOpen(false)} onInsert={(value) => { richBodyInsert.current?.(value, true); bodyEditedRef.current = true; setBodyChanged(true); setInsertFieldOpen(false); }}/ >}{recipientPickerField && recipientEntities.length > 0 && <SelectRecordsDialog entity={recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]} metadata={metadata} multiple selectedIds={[]} selectedRows={[]} mandatorySelectAttributeList={["emailAddress", "emailAddressIsInvalid"]} fixedWhere={[{ type: "isNotNull", attribute: "emailAddress" }, { type: "notEquals", attribute: "emailAddress", value: "" }, { type: "isFalse", attribute: "emailAddressIsInvalid" }]} onCreate={recipientPickerField && !["User", "Team", "Role", "Portal"].includes(recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]) && !metadata.clientDefs?.[recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]]?.createDisabled && canCreateEntity(metadata, recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]) ? () => { const entityType = recipientEntities.includes(recipientEntity) ? recipientEntity : recipientEntities[0]; setRecipientCreate({ entity: entityType, field: recipientPickerField }); setRecipientPickerField(null); } : undefined} onClose={() => setRecipientPickerField(null)} onSelect={(rows) => { if (recipientPickerField) appendRecipientRows(recipientPickerField, rows); setRecipientPickerField(null); }}/ >}{recipientCreate && <RecordEditor entity={recipientCreate.entity} fields={getFormFields(metadata, recipientCreate.entity)} metadata={metadata} onClose={() => setRecipientCreate(null)} onSaved={(created) => { const field = recipientCreate.field; setRecipientCreate(null); appendRecipientRows(field, [created]); }}/>}</div>;
+}
+
+function EmailInsertFieldDialog({ metadata, parentId, parentType, to, onClose, onInsert }: { metadata: Metadata; parentId?: string; parentType?: string; to: string; onClose: () => void; onInsert: (value: string) => void }) {
+  const dialogRef = useDialogFocus<HTMLElement>(onClose);
+  const [data, setData] = useState<Row>({});
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setLoading(true); setError("");
+    const params = new URLSearchParams();
+    if (parentId) params.set("parentId", parentId);
+    if (parentType) params.set("parentType", parentType);
+    if (to.trim()) params.set("to", to.split(/[;,]/)[0].trim());
+    request<Row>(`Email/insertFieldData?${params.toString()}`).then((result) => { if (live) setData(result || {}); })
+      .catch((cause) => live && setError(cause instanceof Error ? cause.message : "Hodnoty polí se nepodařilo načíst."))
+      .finally(() => live && setLoading(false));
+    return () => { live = false; };
+  }, [parentId, parentType, to, attempt]);
+  const groups = (["parent", "to"] as const).flatMap((type) => {
+    const source = data[type];
+    if (!source || typeof source !== "object") return [];
+    const scope = String(source.entityType || "");
+    const values = source.values && typeof source.values === "object" ? source.values as Row : {};
+    const defs = metadata.entityDefs?.[scope]?.fields || {};
+    const ignored = new Set(["id", "modifiedAt", "modifiedByName"]);
+    Object.entries(defs).forEach(([name, def]) => {
+      if (["link", "linkOne", "image", "file", "linkParent"].includes(def.type || "")) ignored.add(`${name}Id`);
+      if (def.type === "linkParent") ignored.add(`${name}Type`);
+    });
+    const items = Object.entries(values).flatMap(([name, raw]) => {
+      if (ignored.has(name) || raw == null || raw === "" || typeof raw === "boolean") return [];
+      const value = Array.isArray(raw) ? raw.filter((item) => typeof item === "string").join(", ") : String(raw);
+      if (!value.trim()) return [];
+      const safeHtml = DOMPurify.sanitize(value, { USE_PROFILES: { html: true } });
+      const previewHtml = safeHtml.replace(/<br\s*\/?\s*>/gi, " ").replace(/<\/p\s*>/gi, " ");
+      const preview = new DOMParser().parseFromString(previewHtml, "text/html").body.textContent?.replace(/\s+/g, " ").trim() || "";
+      return preview ? [{ name, label: fieldLabel(name, defs[name], scope, metadata), value: safeHtml, preview }] : [];
+    }).sort((a, b) => a.label.localeCompare(b.label, "cs"));
+    if (!items.length) return [];
+    return [{ type, scope, name: String(source.name || ""), items }];
+  });
+  const needle = query.trim().toLocaleLowerCase("cs-CZ");
+  const visibleGroups = groups.map((group) => ({ ...group, items: group.items.filter((item) => !needle || `${item.label} ${item.name} ${item.preview}`.toLocaleLowerCase("cs-CZ").includes(needle)) })).filter((group) => group.items.length);
+  return <div className="modal-backdrop email-insert-field-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={dialogRef} className="record-modal email-insert-field-modal" role="dialog" aria-modal="true" aria-labelledby="email-insert-field-title" aria-describedby="email-insert-field-description" tabIndex={-1}>
+    <div className="modal-heading"><div><span className="eyebrow">EDITOR E-MAILU</span><h2 id="email-insert-field-title">Vložit hodnotu pole</h2><p id="email-insert-field-description">Vyberte hodnotu z propojeného záznamu nebo kontaktu příjemce.</p></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={16}/></button></div>
+    {!loading && !error && groups.length > 0 && <label className="email-insert-field-search"><Search size={15}/><input type="search" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Hledat pole nebo hodnotu…" aria-label="Hledat hodnotu pole"/><span>{visibleGroups.reduce((sum, group) => sum + group.items.length, 0)}</span></label>}
+    {loading ? <div className="table-loading" role="status"><span className="spinner"/>Načítám dostupné hodnoty…</div> : error ? <div className="email-insert-field-error"><div className="inline-error" role="alert">{error}</div><button type="button" className="button subtle" onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={14}/>Zkusit znovu</button></div> : !visibleGroups.length ? <div className="email-insert-field-empty"><FileInput size={21}/><strong>{groups.length ? "Žádná pole neodpovídají hledání" : "Nejsou dostupné žádné hodnoty"}</strong><span>{groups.length ? "Zkuste jiné hledané slovo." : "Zadejte příjemce nebo otevřete editor ze souvisejícího záznamu."}</span></div> : <div className="email-insert-field-groups">{visibleGroups.map((group) => <section className="email-insert-field-group" key={`${group.type}-${group.scope}-${group.name}`}><div className="email-insert-field-group-heading"><span>{group.type === "parent" ? "Související záznam" : "Příjemce"}</span><strong>{group.name || entityLabel(metadata, group.scope)}</strong><small>{entityLabel(metadata, group.scope)}</small></div><div className="email-insert-field-list">{group.items.map((item) => <button type="button" className="email-insert-field-row" key={`${group.type}-${item.name}`} onClick={() => onInsert(item.value)}><span><strong>{item.label}</strong><small>{item.name}</small></span><span className="email-insert-field-preview">{item.preview}</span><Plus size={14}/></button>)}</div></section>)}</div>}
+    <div className="modal-footer"><button type="button" className="button subtle" onClick={onClose}>Zavřít</button></div>
+  </section></div>;
 }
 
 function addCalendarPeriod(timestamp: number, period: string) {

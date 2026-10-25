@@ -870,10 +870,41 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .email-compose-fields small { color: #8993a5; font-size: 10px; font-weight: 400; }
 .email-compose-body { display: grid; gap: 6px; margin-bottom: 12px; color: #68748a; font-size: 10px; font-weight: 600; }
 .email-compose-body-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.email-compose-body-actions { display: flex; align-items: center; gap: 12px; }
+.email-insert-field-button { min-height: 30px; gap: 6px; padding: 0 9px; font-size: 10px; }
 .email-compose-body-head label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 500; }
 .email-compose-body-head input[type="checkbox"] { width: 13px; height: 13px; accent-color: var(--primary); }
 .email-compose-body .wysiwyg-editor { color: var(--ink); }
 .email-compose-body textarea { min-height: 220px; }
+.email-insert-field-backdrop { z-index: 95; }
+.email-insert-field-modal { display: flex; width: min(680px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 32px)); flex-direction: column; overflow: hidden; }
+.email-insert-field-modal .modal-heading p { margin: 5px 0 0; color: var(--muted); font-size: 11px; font-weight: 450; }
+.email-insert-field-search { display: flex; min-height: 38px; flex: 0 0 auto; align-items: center; gap: 8px; margin: 0 18px 12px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); }
+.email-insert-field-search:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent); }
+.email-insert-field-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; }
+.email-insert-field-search span { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.email-insert-field-groups { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 18px 12px; }
+.email-insert-field-group + .email-insert-field-group { margin-top: 14px; }
+.email-insert-field-group-heading { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 10px; margin: 0 0 6px; }
+.email-insert-field-group-heading > span { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.email-insert-field-group-heading strong { grid-column: 1; color: var(--ink); font-size: 12px; }
+.email-insert-field-group-heading small { grid-column: 2; grid-row: 1 / span 2; color: var(--muted); font-size: 10px; }
+.email-insert-field-list { overflow: hidden; border: 1px solid var(--line); border-radius: 9px; }
+.email-insert-field-row { display: grid; width: 100%; grid-template-columns: minmax(110px, .8fr) minmax(0, 1.4fr) 18px; align-items: center; gap: 12px; padding: 9px 11px; border: 0; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; }
+.email-insert-field-row:last-child { border-bottom: 0; }
+.email-insert-field-row:hover, .email-insert-field-row:focus-visible { background: #f8f8fc; }
+.email-insert-field-row > span:first-child { display: grid; min-width: 0; gap: 2px; }
+.email-insert-field-row strong, .email-insert-field-row small, .email-insert-field-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.email-insert-field-row strong { font-size: 11px; }
+.email-insert-field-row small { color: var(--muted); font: 9px ui-monospace, monospace; }
+.email-insert-field-preview { color: var(--muted); font-size: 10px; }
+.email-insert-field-row > svg { color: var(--primary); }
+.email-insert-field-empty, .email-insert-field-error { display: grid; min-height: 150px; justify-items: center; align-content: center; gap: 8px; padding: 20px; color: var(--muted); text-align: center; }
+.email-insert-field-empty strong { color: var(--ink); font-size: 12px; }
+.email-insert-field-empty span { font-size: 11px; }
+.email-insert-field-error { gap: 12px; }
+.email-insert-field-modal > .modal-footer { flex: 0 0 auto; }
+@media (max-width: 560px) { .email-compose-body-actions { gap: 8px; } .email-insert-field-row { grid-template-columns: minmax(0, 1fr) 18px; gap: 4px 10px; } .email-insert-field-preview { grid-column: 1; grid-row: 2; } .email-insert-field-row > svg { grid-column: 2; grid-row: 1 / span 2; } }
 .email-attachments { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 0 12px; }
 .email-attachments > span { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 8px; border: 1px solid #e5e8ef; border-radius: 7px; color: #566177; background: #fafbfc; font-size: 10px; }
 .email-attachments > span button { display: inline-flex; padding: 0; border: 0; color: #8791a2; background: transparent; cursor: pointer; }
