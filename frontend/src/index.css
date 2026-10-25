@@ -1403,8 +1403,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .campaign-log-target:hover { text-decoration: underline; }
 .campaign-log-target:focus-visible { outline: 2px solid var(--accent, #526db0); outline-offset: 2px; border-radius: 2px; }
 .campaign-log-opt-out { color: #bc5965 !important; }
-.campaign-log-bounce { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: #667188; font-size: 9px; }
-.campaign-log-bounce small { padding: 3px 6px; border-radius: 20px; background: #eef1f6; font-size: 8px; }
+.campaign-log-bounce { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: #59657a; font-size: 11px; line-height: 1.4; }
+.campaign-log-bounce small { padding: 3px 8px; border-radius: 20px; background: #eef1f6; font-size: 10px; font-weight: 650; line-height: 1.35; }
 .campaign-log-bounce small.hard { color: #a84650; background: #fbebed; }
 .campaign-log-bounce s.hard { color: #a84650; }
 .template-placeholder-picker > p { margin: -4px 0 12px; color: #8792a5; font-size: 10px; line-height: 1.5; }
