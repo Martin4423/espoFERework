@@ -2736,7 +2736,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   const fieldPermissions = metadata.userAcl?.fieldTable?.[entity] || {};
   const canReadField = (name: string) => fieldPermissions[name]?.read !== "no";
   const statusField = String(metadata.scopes?.[entity]?.statusField || "");
-  const categoryScope = entity === "Document" ? "DocumentFolder" : entity === "KnowledgeBaseArticle" ? "KnowledgeBaseCategory" : "";
+  const categoryScope = entity === "Document" ? "DocumentFolder" : entity === "KnowledgeBaseArticle" ? "KnowledgeBaseCategory" : entity === "EmailTemplate" ? "EmailTemplateCategory" : "";
   const categoryField = String((metadata.scopes?.[categoryScope] as any)?.categoryField || (entity === "Document" ? "folder" : "category"));
   const hasCategoryNavigation = Boolean(categoryScope && metadata.scopes?.[categoryScope]?.entity && !metadata.scopes?.[categoryScope]?.disabled && canAccessEntity(metadata, categoryScope));
   const categoryFieldType = fieldDefs[categoryField]?.type || "link";
