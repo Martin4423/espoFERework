@@ -6896,12 +6896,7 @@ function RecordFieldDisplay({ entity, name, record, value, def, metadata, onOpen
     const types: Record<string, string> = record[`${name}Types`] || {};
     return ids.length ? <div className="detail-attachment-list">{ids.map((id) => <FileAttachmentDisplay key={id} value={{ id, name: names[id] || "Soubor", type: types[id] }} def={{ ...def, type: "file" }}/>)}</div> : <span className="muted-cell">—</span>;
   }
-  if (["multiEnum", "array", "arrayInt", "checklist"].includes(type)) {
-    const items = Array.isArray(value) ? value : typeof value === "string" ? value.split(",").map((item) => item.trim()).filter(Boolean) : [];
-    const options = (metadata.entityDefs?.[entity]?.fields?.[name] as any)?.options || [];
-    const optionLabels = (metadata.labels as any)?.[entity]?.options?.[name] || {};
-    return items.length ? <span className="detail-value-chips">{items.map((item) => <span key={String(item)}>{optionLabels[String(item)] || (Array.isArray(options) ? options[Number(item)] : undefined) || String(item)}</span>)}</span> : <span className="muted-cell">—</span>;
-  }
+  if (["multiEnum", "array", "arrayInt", "checklist"].includes(type)) return <ArrayFieldDisplay entity={entity} name={name} value={value} def={fieldDef!} metadata={metadata}/>;
   if (type === "bool" || typeof value === "boolean") return <span className={`detail-bool-value ${value ? "is-yes" : "is-no"}`}><span aria-hidden="true">{value ? "✓" : "×"}</span>{value ? "Ano" : "Ne"}</span>;
   if (type === "personName") return <PersonNameDisplay name={name} record={record} metadata={metadata}/>;
   if (["jsonObject", "jsonArray"].includes(type) || (typeof value === "object" && value !== null && !Array.isArray(value))) {
@@ -6937,6 +6932,23 @@ function RecordFieldDisplay({ entity, name, record, value, def, metadata, onOpen
   if (type === "text") return <DetailTextValue value={value} cutHeight={Number(fieldDef?.cutHeight) || 200} seeMoreDisabled={Boolean(fieldDef?.seeMoreDisabled)}/>;
   if (type === "formula") return <pre className="detail-plain-text">{String(value || "")}</pre>;
   return <strong className={className}>{formatValue()}</strong>;
+}
+
+function ArrayFieldDisplay({ entity, name, value, def, metadata }: { entity: string; name: string; value: unknown; def: FieldDef; metadata: Metadata }) {
+  const items = Array.isArray(value) ? value : typeof value === "string" ? value.split(",").map((item) => item.trim()).filter(Boolean) : [];
+  if (!items.length) return <span className="muted-cell">—</span>;
+  const resolved = nativeFieldOptions(metadata, entity, name, def);
+  const styleMap = resolved.style || def.style || {};
+  const useLabel = Boolean(def.displayAsLabel) || def.labelType === "state";
+  const safeStyle = (style: unknown) => ["warning", "danger", "success", "info", "primary"].includes(String(style)) ? String(style) : "default";
+  return <span className="detail-value-chips">{items.map((item, index) => {
+    const raw = String(item);
+    const label = String(resolved.labels?.[raw] || raw);
+    const style = safeStyle(styleMap?.[raw]);
+    return useLabel
+      ? <span className={`enum-value-label ${style} ${def.labelType === "state" ? "state" : ""}`} key={`${raw}-${index}`}>{label}</span>
+      : <span className={style !== "default" ? `detail-value-${style}` : undefined} key={`${raw}-${index}`}>{label}</span>;
+  })}</span>;
 }
 
 function PersonNameFieldInput({ entity, name, label, value, def, metadata, disabled, onChange }: { entity: string; name: string; label: ReactNode; value: Row; def: FieldDef; metadata: Metadata; disabled: boolean; onChange: (value: Row) => void }) {

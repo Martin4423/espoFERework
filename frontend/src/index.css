@@ -761,6 +761,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .record-page .detail-attachment-list { display: grid; justify-items: start; gap: 8px; }
 .record-page .detail-value-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .record-page .detail-value-chips > span { display: inline-flex; max-width: 100%; padding: 4px 9px; border: 1px solid color-mix(in srgb, var(--primary, #625bc4) 15%, var(--line, #e7eaf0)); border-radius: 999px; background: color-mix(in srgb, var(--primary, #625bc4) 5%, var(--surface, #fff)); color: var(--ink, #35415a); font-size: 11px; font-weight: 550; line-height: 1.35; overflow-wrap: anywhere; }
+.record-page .detail-value-chips > .detail-value-warning { color: #946200; }.record-page .detail-value-chips > .detail-value-danger { color: #ad3833; }.record-page .detail-value-chips > .detail-value-success { color: #26734f; }.record-page .detail-value-chips > .detail-value-info { color: #275d9a; }.record-page .detail-value-chips > .detail-value-primary { color: #594eb2; }
 .record-page .detail-bool-value { display: inline-flex; width: fit-content; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 650; }
 .record-page .detail-bool-value.is-yes { background: #e8f7ef; color: #218052; }
 .record-page .detail-bool-value.is-no { background: #f0f2f6; color: #747f91; }
