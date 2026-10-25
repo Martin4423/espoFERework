@@ -888,6 +888,8 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   const [quickCreateScope, setQuickCreateScope] = useState<string | null>(null);
   const [quickCreateInitialValues, setQuickCreateInitialValues] = useState<Row>({});
   const [quickCreateFromDashboard, setQuickCreateFromDashboard] = useState(false);
+  const [quickCreateResetKey, setQuickCreateResetKey] = useState(0);
+  const [entityRefreshKey, setEntityRefreshKey] = useState(0);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [tabPreferences, setTabPreferences] = useState<Row>({});
   const [openTabGroups, setOpenTabGroups] = useState<Record<string, boolean>>({});
@@ -1199,7 +1201,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : calendarOpen
         ? <CalendarView metadata={metadata} userId={calendarUser?.id} userName={calendarUser?.name || calendarUser?.userName} onOpenRecord={(name, row) => { setCalendarUser(null); setEntity(name); setRecord(row); }} />
         : entity === "Email" && !isPortalUser ? <EmailInbox metadata={metadata} refresh={emailRefresh} onCompose={() => setEmailDraft({})} onOpenRecord={(row) => { if (row.status === "Draft") setEmailDraft({ id: row.id, status: "Draft" }); else setRecord(row); }} />
-        : entity ? <EntityView key={entity} entity={entity} metadata={metadata} onOpenRecord={setRecord} onNavigateEntity={openEntity} fixedWhere={entityFixedWhere} routeAction={record ? null : routeAction} routeActionId={routeActionId} onEditorRouteChange={(action, id) => { setRouteAction(action); setRouteActionId(id || null); }} />
+        : entity ? <EntityView key={entity} entity={entity} metadata={metadata} onOpenRecord={setRecord} onNavigateEntity={openEntity} fixedWhere={entityFixedWhere} routeAction={record ? null : routeAction} routeActionId={routeActionId} reloadKey={entityRefreshKey} onEditorRouteChange={(action, id) => { setRouteAction(action); setRouteActionId(id || null); }} />
         : isPortalUser && Array.isArray(portalSettings.dashboardLayout) && portalSettings.dashboardLayout.length ? <Dashboard entities={navEntities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} layoutOverride={portalSettings.dashboardLayout} optionsOverride={portalSettings.dashletsOptions} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openQuickCreate} onComposeEmail={() => {}} />
         : isPortalUser ? <PortalHome metadata={metadata} user={user} portalName={portalName} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onAvailableChange={updatePortalScopes} />
         : <Dashboard entities={entities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openDashboardCreate} onComposeEmail={() => setEmailDraft({})} />}
@@ -1207,7 +1209,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
       {record && entity === "Email" && !isPortalUser ? <EmailDrawer record={record} metadata={metadata} canCreateDocument={canCreateEntity(metadata, "Document")} canCreateFilter={canCreateEntity(metadata, "EmailFilter")} onClose={() => setRecord(null)} onChanged={() => setEmailRefresh((n) => n + 1)} onReply={(draft) => setEmailDraft(draft)} onOpenRecord={(next) => setRecord(next)} onOpenEntityRecord={(scope, row) => { setEntityFixedWhere([]); setEntity(scope); setRecord(row); }} onCreateFilter={(address) => { setRecord(null); setEntityFixedWhere([]); setEntity("EmailFilter"); setEmailFilterDraft({ from: address, name: address }); }} /> : record && entity && <RecordDrawer entity={entity} record={record} metadata={metadata} onClose={() => setRecord(null)} onChanged={(next) => setRecord(next)} onOpenRelated={(relatedEntity, relatedRecord) => { setEntityFixedWhere([]); setEntity(relatedEntity); setRecord(relatedRecord); }} onOpenPreferences={openPreferencesFor} onOpenEmailAccounts={openEmailAccountsFor} onOpenEntity={(name, where) => openEntity(name, where)} onOpenCalendar={openCalendarFor} onComposeEmail={(draft) => setEmailDraft(draft)} onEditorRouteChange={(action, id) => { setRouteAction(action); setRouteActionId(id || null); }} />}
       {emailFilterDraft && entity === "EmailFilter" && <RecordEditor entity="EmailFilter" fields={getEditorFields(metadata, "EmailFilter")} metadata={metadata} initialValues={emailFilterDraft} onClose={() => setEmailFilterDraft(null)} onSaved={() => { setEmailFilterDraft(null); setEmailRefresh((n) => n + 1); }} />}
-      {quickCreateScope && <RecordEditor entity={quickCreateScope} fields={getEditorFields(metadata, quickCreateScope).filter(([name, def]) => (quickCreateLayout?.scope !== quickCreateScope || quickCreateLayout.names.includes(name)) && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.read !== "no" && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.edit !== "no" && !def.hidden && !def.utility && !def.disabled)} metadata={metadata} initialValues={quickCreateInitialValues} onClose={() => { setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); }} onSaved={(created) => { const scope = quickCreateScope; const fromDashboard = quickCreateFromDashboard; setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); if (fromDashboard) setDashboardRefreshKey((value) => value + 1); else { openEntity(scope); setRecord(created); } }}/>}
+      {quickCreateScope && <RecordEditor key={`${quickCreateScope}-${quickCreateResetKey}`} entity={quickCreateScope} fields={getEditorFields(metadata, quickCreateScope).filter(([name, def]) => (quickCreateLayout?.scope !== quickCreateScope || quickCreateLayout.names.includes(name)) && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.read !== "no" && metadata.userAcl?.fieldTable?.[quickCreateScope]?.[name]?.edit !== "no" && !def.hidden && !def.utility && !def.disabled)} metadata={metadata} initialValues={quickCreateInitialValues} onClose={() => { setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); }} onSaved={(created) => { const scope = quickCreateScope; const fromDashboard = quickCreateFromDashboard; setQuickCreateScope(null); setQuickCreateInitialValues({}); setQuickCreateFromDashboard(false); if (fromDashboard) setDashboardRefreshKey((value) => value + 1); else { openEntity(scope); setRecord(created); } }} onSavedAndNew={() => { setQuickCreateResetKey((value) => value + 1); if (quickCreateFromDashboard) setDashboardRefreshKey((value) => value + 1); else setEntityRefreshKey((value) => value + 1); }}/>}
       {emailDraft && <EmailComposer metadata={metadata} initial={emailDraft} onClose={() => setEmailDraft(null)} onSaved={() => { setEmailDraft(null); setEmailRefresh((n) => n + 1); }} />}
       {globalSearchOpen && <GlobalSearchOverlay metadata={metadata} tabs={nativeNavItems} isAdmin={user.type === "admin" || user.type === "super-admin"} onClose={() => setGlobalSearchOpen(false)} onNavigate={(target) => { setGlobalSearchOpen(false); if (target === "__dashboard__") { setEntity(null); setCalendarOpen(false); setAdminOpen(false); setActivityOpen(false); setGlobalStreamOpen(false); setNotificationsOpen(false); setLastViewedOpen(false); setAccountPage(null); setRecord(null); } else if (target === "__calendar__") openCalendar(); else openEntity(target); }} onSelect={(name, row) => { setGlobalSearchOpen(false); openEntity(name); setRecord(row); }} />}
       <Suspense fallback={null}><PopupReminderToasts metadata={metadata} isPortalUser={isPortalUser} onOpenRecord={(scope, id) => void openNotificationRecord(scope, id)}/></Suspense>
@@ -2681,7 +2683,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName }: { metadata: 
   </div>;
 }
 
-function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType, title, fixedWhere = [], routeAction = null, routeActionId = null, onEditorRouteChange }: { entity: string; metadata: Metadata; onOpenRecord: (record: Row) => void; onNavigateEntity?: (name: string) => void; userType?: "api" | "portal"; title?: string; fixedWhere?: Row[]; routeAction?: "create" | "edit" | null; routeActionId?: string | null; onEditorRouteChange?: (action: "create" | "edit" | null, id?: string) => void }) {
+function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType, title, fixedWhere = [], routeAction = null, routeActionId = null, reloadKey = 0, onEditorRouteChange }: { entity: string; metadata: Metadata; onOpenRecord: (record: Row) => void; onNavigateEntity?: (name: string) => void; userType?: "api" | "portal"; title?: string; fixedWhere?: Row[]; routeAction?: "create" | "edit" | null; routeActionId?: string | null; reloadKey?: number; onEditorRouteChange?: (action: "create" | "edit" | null, id?: string) => void }) {
   const fieldDefs = metadata.entityDefs?.[entity]?.fields || {};
   const [dateTimeZone, setDateTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   useEffect(() => { const id = getSession()?.user.id; if (!id) return; let live = true; request<Row>(`Preferences/${encodeURIComponent(id)}`).then((prefs) => live && typeof prefs.timeZone === "string" && Boolean(prefs.timeZone) && setDateTimeZone(prefs.timeZone)).catch(() => {}); return () => { live = false; }; }, [entity]);
@@ -2795,8 +2797,8 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
   const [presetOrderSaving, setPresetOrderSaving] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
-  const [editor, setEditorValue] = useState<{ record?: Row; initialValues?: Row } | null>(null);
-  function setEditor(value: { record?: Row; initialValues?: Row } | null) {
+  const [editor, setEditorValue] = useState<{ record?: Row; initialValues?: Row; resetKey?: number } | null>(null);
+  function setEditor(value: { record?: Row; initialValues?: Row; resetKey?: number } | null) {
     setEditorValue(value);
     onEditorRouteChange?.(value ? value.record ? "edit" : "create" : null, value?.record?.id);
   }
@@ -2923,7 +2925,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       setKanbanGroups(viewMode === "kanban" ? (data.groups || []).filter((group) => !((metadata.scopes?.[entity]?.kanbanStatusIgnoreList || []).includes(group.name))) : []);
     } catch (e) { setError(e instanceof Error ? e.message : "Záznamy se nepodařilo načíst."); }
     finally { setBusy(false); }
-  }, [entity, offset, search, userType, appliedFilters, primaryFilter, activeBoolFilters, categorySelection, categoryField, categoryFieldType, savedPresetWhere, sortOrder, sortPreferenceKey, metadata, fixedWhere, viewMode, statusField, kanbanLayout, kanbanPageSize, defaultOrderBy, defaultOrder]);
+  }, [entity, offset, search, userType, appliedFilters, primaryFilter, activeBoolFilters, categorySelection, categoryField, categoryFieldType, savedPresetWhere, sortOrder, sortPreferenceKey, metadata, fixedWhere, viewMode, statusField, kanbanLayout, kanbanPageSize, defaultOrderBy, defaultOrder, reloadKey]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     setFormulaScriptConfigured(false);
@@ -3615,7 +3617,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, userType
       <div className="table-footer"><span>Zobrazeno <b>{rows.length ? offset + 1 : 0}–{end}</b>{total ? <> z <b>{total}</b></> : " záznamů"}</span><div className="pagination"><button aria-label="Předchozí stránka" disabled={!offset || busy} onClick={() => setOffset(Math.max(0, offset - pageSize))}><ChevronLeft size={14}/></button><span>{Math.floor(offset / pageSize) + 1}</span><button aria-label="Další stránka" disabled={busy || (total ? end >= total : rows.length < pageSize)} onClick={() => setOffset(offset + pageSize)}><ChevronRight size={14}/></button></div></div></>}
       </div>
     </section>
-    {editor && <RecordEditor entity={entity} fields={createFields} metadata={metadata} record={editor.record} initialValues={{ ...(userType ? { type: userType } : {}), ...(editor.initialValues || {}) }} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(); }} />}
+    {editor && <RecordEditor key={`${entity}-${editor.record?.id || "new"}-${editor.resetKey || 0}`} entity={entity} fields={createFields} metadata={metadata} record={editor.record} initialValues={{ ...(userType ? { type: userType } : {}), ...(editor.initialValues || {}) }} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(); }} onSavedAndNew={() => { void load(); setEditorValue((current) => current ? { ...current, resetKey: (current.resetKey || 0) + 1 } : current); }} />}
     {portalContactPicker && <SelectRecordsDialog entity="Contact" metadata={metadata} multiple={false} selectedIds={[]} selectedRows={[]} primaryFilter="notPortalUsers" onCreate={canCreateEntity(metadata, "Contact") && !metadata.clientDefs?.Contact?.createDisabled ? () => { setPortalContactPicker(false); setPortalContactCreateOpen(true); } : undefined} onClose={() => setPortalContactPicker(false)} onSkip={() => { setPortalContactPicker(false); setEditor({ initialValues: { type: "portal" } }); }} onSelect={(rows) => { const selected = rows[0]; if (selected?.id) openPortalUserForContact(selected.id); else setPortalContactPicker(false); }}/ >}{portalContactCreateOpen && <RecordEditor entity="Contact" fields={getFormFields(metadata, "Contact")} metadata={metadata} onClose={() => setPortalContactCreateOpen(false)} onSaved={(contact) => { setPortalContactCreateOpen(false); openPortalUserForContact(contact.id); }}/ >}
     {exportOpen && <ExportDialog key={entity} entity={entity} metadata={metadata} selectedIds={selectedIds} total={total} search={search} primaryFilter={primaryFilter} boolFilters={activeBoolFilters} where={exportWhere} orderBy={activeOrderBy} order={activeOrder} onClose={() => setExportOpen(false)} />}
     {pdfTemplateOpen && <SelectRecordsDialog entity="Template" metadata={metadata} multiple={false} selectedIds={[]} selectedRows={[]} fixedWhere={[{ type: "equals", attribute: "entityType", value: entity }]} onCreate={canCreateEntity(metadata, "Template") && !metadata.clientDefs?.Template?.createDisabled ? () => { setPdfTemplateOpen(false); setPdfTemplateCreateOpen(true); } : undefined} onClose={() => setPdfTemplateOpen(false)} onSelect={(templates) => { const template = templates[0]; if (template) void printSelectedPdf(template); }}/>} {pdfTemplateCreateOpen && <RecordEditor entity="Template" fields={getFormFields(metadata, "Template")} metadata={metadata} initialValues={{ entityType: entity }} onClose={() => setPdfTemplateCreateOpen(false)} onSaved={(template) => { setPdfTemplateCreateOpen(false); void printSelectedPdf(template); }}/>}
@@ -4382,7 +4384,7 @@ function MassEmailSmtpAccountField({ metadata, def, values, onChange }: { metada
   </label>;
 }
 
-function RecordEditor({ entity, fields, metadata, record, initialValues = {}, duplicate = false, onClose, onSaved }: { entity: string; fields: [string, FieldDef][]; metadata: Metadata; record?: Row; initialValues?: Row; duplicate?: boolean; onClose: () => void; onSaved: (record: Row) => void }) {
+function RecordEditor({ entity, fields, metadata, record, initialValues = {}, duplicate = false, onClose, onSaved, onSavedAndNew }: { entity: string; fields: [string, FieldDef][]; metadata: Metadata; record?: Row; initialValues?: Row; duplicate?: boolean; onClose: () => void; onSaved: (record: Row) => void; onSavedAndNew?: (record: Row) => void }) {
   const timeSettings = useEspoTimeSettings(String(metadata.appSettings?.timeFormat || "HH:mm"), String(metadata.appSettings?.language || "en"));
   const [values, setValues] = useState<Row>(() => {
     const defaults = Object.fromEntries(fields.filter(([, def]) => def.default !== undefined && typeof def.default !== "string" || typeof def.default === "string" && !def.default.startsWith("javascript:")).map(([name, def]) => [name, def.default]));
@@ -4457,9 +4459,10 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const templateSelection = useRef<Record<string, { start: number; end: number }>>({});
   const templateRichInsert = useRef<Record<string, (text: string) => void>>({});
   const saveAndContinueRequested = useRef(false);
+  const saveAndNewRequested = useRef(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [saveConflict, setSaveConflict] = useState<{ fields: SaveConflictField[]; latest: Row } | null>(null);
-  const [duplicateCheck, setDuplicateCheck] = useState<{ rows: Row[]; payload: Row; keepOpen: boolean } | null>(null);
+  const [duplicateCheck, setDuplicateCheck] = useState<{ rows: Row[]; payload: Row; keepOpen: boolean; createNewAfterSave: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -4530,7 +4533,9 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   async function submit(event: FormEvent) {
     event.preventDefault();
     const keepOpen = saveAndContinueRequested.current;
+    const createNewAfterSave = saveAndNewRequested.current;
     saveAndContinueRequested.current = false;
+    saveAndNewRequested.current = false;
     if (uploading) return; setBusy(true); setError(""); setSaveNotice("");
     if (entity === "User" && values.password && values.password !== values.passwordConfirm) { setError("Hesla se neshodují."); setBusy(false); return; }
     if (entity === "User" && values.password && passwordStrengthParams === null) { setError("Načítám pravidla hesla. Zkuste to prosím znovu za chvíli."); setBusy(false); return; }
@@ -4701,12 +4706,13 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
         setRecordBaseline(saved);
         setVersionNumber(saved.versionNumber ?? null);
         setSaveNotice("Změny byly uloženy. Můžete pokračovat v úpravách.");
-      } else onSaved(saved);
+      } else if (createNewAfterSave && onSavedAndNew) onSavedAndNew(saved);
+      else onSaved(saved);
     } catch (e) {
       if (e instanceof ApiError && !activeRecord && e.status === 409 && e.statusReason?.reason === "duplicate") {
         const data = e.statusReason.data;
         const rows = Array.isArray(data) ? data : Array.isArray(data?.duplicates) ? data.duplicates : Array.isArray(data?.list) ? data.list : [];
-        setDuplicateCheck({ rows, payload, keepOpen }); setError("");
+        setDuplicateCheck({ rows, payload, keepOpen, createNewAfterSave }); setError("");
       } else if (e instanceof ApiError && e.status === 409 && e.statusReason?.reason === "modified" && activeRecord?.id) {
         try {
           const latest = await request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(activeRecord.id)}`);
@@ -4740,7 +4746,8 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       await cleanupUploads(keepIds); setDuplicateCheck(null);
       if (duplicateCheck.keepOpen) {
         setActiveRecord(saved); setChangingAppSecret(false); setValues(valuesFromRecordFields(entity, fields, saved)); setRecordBaseline(saved); setVersionNumber(saved.versionNumber ?? null); setSaveNotice("Záznam byl vytvořen. Můžete pokračovat v úpravách.");
-      } else onSaved(saved);
+      } else if (duplicateCheck.createNewAfterSave && onSavedAndNew) onSavedAndNew(saved);
+      else onSaved(saved);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Záznam se nepodařilo vytvořit."); setDuplicateCheck(null); }
     finally { setBusy(false); }
   }
@@ -5080,7 +5087,21 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     if (!["header", "body", "footer"].includes(name)) return;
     templateSelection.current[name] = { start: target.selectionStart, end: target.selectionEnd };
   };
-  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && void cancel()}><form ref={formRef} className="record-modal" onSubmit={submit} onKeyDown={(event) => { if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "s") return; event.preventDefault(); if (busy || uploading) return; saveAndContinueRequested.current = true; formRef.current?.requestSubmit(); }} onSelect={rememberTemplateSelection} onClick={rememberTemplateSelection} onKeyUp={rememberTemplateSelection}>
+  function handleEditorShortcut(event: ReactKeyboardEvent<HTMLFormElement>) {
+    if ((event.ctrlKey || event.metaKey) && event.altKey && event.key === "Enter" && !duplicate && !activeRecord && onSavedAndNew) {
+      event.preventDefault();
+      if (busy || uploading) return;
+      saveAndNewRequested.current = true;
+      formRef.current?.requestSubmit();
+      return;
+    }
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "s") return;
+    event.preventDefault();
+    if (busy || uploading) return;
+    saveAndContinueRequested.current = true;
+    formRef.current?.requestSubmit();
+  }
+  return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && void cancel()}><form ref={formRef} className="record-modal" onSubmit={submit} onKeyDown={handleEditorShortcut} onSelect={rememberTemplateSelection} onClick={rememberTemplateSelection} onKeyUp={rememberTemplateSelection}>
     <div className="modal-heading"><div><span className="eyebrow">{activeRecord ? "UPRAVIT" : duplicate ? "KOPIE ZÁZNAMU" : "NOVÝ ZÁZNAM"} · {entityLabel(metadata, entity, true).toUpperCase()}</span><h2>{activeRecord ? "Upravit záznam" : duplicate ? `Duplikovat ${entityLabel(metadata, entity).toLowerCase()}` : `Vytvořit ${entityLabel(metadata, entity).toLowerCase()}`}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button></div>
     {entity === "EmailFilter" && <div className="email-filter-guidance"><strong>Jak pravidla vyhodnocovat</strong><span>Adresy a předmět podporují zástupný znak <code>*</code>. „Obsahuje některý“ projde při shodě alespoň jedné fráze; „Obsahuje všechny“ vyžaduje shodu všech zadaných frází.</span><small>Akce a cílová složka se řídí typem účtu, ke kterému je filtr přiřazen.</small></div>}
     <div className="record-editor-groups">{groups.filter((group) => group.names.some(editorFieldVisible)).map((group) => <section className="record-editor-group" key={group.title}><h3>{group.title}</h3><div className="modal-fields">{group.names.map(renderField)}</div></section>)}</div>
@@ -5109,7 +5130,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     {testEmailNotice && <div className="save-confirm"><Check size={15}/>{testEmailNotice}</div>}
     {saveNotice && <div className="save-confirm" role="status"><Check size={15}/>{saveNotice}</div>}
     {error && <div className="inline-error">{error}</div>}
-    <div className="modal-footer"><button type="button" className="button subtle" onClick={() => void cancel()} disabled={busy}>Zrušit</button><button type="button" className="button subtle" disabled={busy || uploading} onClick={() => { saveAndContinueRequested.current = true; formRef.current?.requestSubmit(); }}>{uploading ? "Nahrávám soubor…" : "Uložit a pokračovat"}</button><button className="button primary" disabled={busy || uploading}>{uploading ? "Nahrávám soubor…" : busy ? "Ukládám…" : activeRecord ? "Uložit změny" : "Vytvořit záznam"}</button></div>
+    <div className="modal-footer"><button type="button" className="button subtle" onClick={() => void cancel()} disabled={busy}>Zrušit</button><button type="button" className="button subtle" disabled={busy || uploading} onClick={() => { saveAndContinueRequested.current = true; formRef.current?.requestSubmit(); }}>{uploading ? "Nahrávám soubor…" : "Uložit a pokračovat"}</button>{!duplicate && !activeRecord && onSavedAndNew && <button type="button" className="button subtle" title="Ctrl+Alt+Enter" disabled={busy || uploading} onClick={() => { saveAndNewRequested.current = true; formRef.current?.requestSubmit(); }}>{uploading ? "Nahrávám soubor…" : "Uložit a vytvořit další"}<kbd>Ctrl+Alt+Enter</kbd></button>}<button className="button primary" disabled={busy || uploading}>{uploading ? "Nahrávám soubor…" : busy ? "Ukládám…" : activeRecord ? "Uložit změny" : "Vytvořit záznam"}</button></div>
   </form>{oneOffTemplateOpen && <RecordEditor entity="EmailTemplate" fields={getFormFields(metadata, "EmailTemplate")} metadata={metadata} initialValues={{ oneOff: true }} onClose={() => setOneOffTemplateOpen(false)} onSaved={(created) => { setValues((old) => ({ ...old, emailTemplate: created.id, emailTemplateName: created.name })); setOneOffTemplateOpen(false); }}/ >}{duplicateCheck && <DuplicateCheckDialog entity={entity} duplicates={duplicateCheck.rows} metadata={metadata} busy={busy} onCreate={() => void createDespiteDuplicate()} onCancel={() => setDuplicateCheck(null)}/ >}{saveConflict && <SaveConflictDialog fields={saveConflict.fields} onApply={applySaveConflict} onCancel={() => setSaveConflict(null)}/ >}{testEmailOpen && <div className="modal-backdrop test-email-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !testEmailBusy && setTestEmailOpen(false)}><section className="record-modal test-email-dialog" role="dialog" aria-modal="true" aria-labelledby="test-email-title"><div className="modal-heading"><div><span className="eyebrow">SMTP · {values.smtpHost}</span><h2 id="test-email-title">Odeslat testovací e-mail</h2><p>Zkontrolujte přihlašovací údaje SMTP odesláním skutečné zprávy.</p></div><button type="button" className="icon-button" onClick={() => setTestEmailOpen(false)} disabled={testEmailBusy} aria-label="Zavřít"><X size={16}/></button></div><label className="field-input"><span>Odeslat na</span><input type="email" required autoFocus value={testEmailTo} onChange={(event) => setTestEmailTo(event.target.value)} placeholder="vas@email.cz"/></label>{testEmailError && <div className="inline-error test-email-error">{testEmailError}</div>}<div className="modal-footer"><button type="button" className="button subtle" onClick={() => setTestEmailOpen(false)} disabled={testEmailBusy}>Zrušit</button><button type="button" className="button primary" onClick={() => void sendTestEmail()} disabled={testEmailBusy || !testEmailTo.trim()}>{testEmailBusy ? "Odesílám…" : <><Send size={14}/> Odeslat testovací e-mail</>}</button></div></section></div>}</div>;
 }
 
