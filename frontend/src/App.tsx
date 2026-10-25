@@ -6775,7 +6775,8 @@ function displayValue(value: any, def?: FieldDef): string {
 }
 
 function RecordFieldDisplay({ entity, name, record, value, def, metadata, onOpen, className, formatValue }: { entity: string; name: string; record: Row; value: any; def?: FieldDef; metadata: Metadata; onOpen: (entity: string, id: string) => void; className?: string; formatValue: () => string }) {
-  const type = String(def?.type || "");
+  const fieldDef = def?.type === "foreign" ? nativeForeignFieldDef(metadata, entity, def) : def;
+  const type = String(fieldDef?.type || "");
   if (type === "link" || type === "linkOne" || type === "linkParent") {
     const relation = metadata.entityDefs?.[entity]?.links?.[name];
     const targetEntity = type === "linkParent" ? String(record[`${name}Type`] || relation?.entity || "") : String(relation?.entity || (def as any)?.entity || "");
@@ -6801,6 +6802,18 @@ function RecordFieldDisplay({ entity, name, record, value, def, metadata, onOpen
     try { json = JSON.stringify(typeof value === "string" ? JSON.parse(value) : value, null, 2); } catch { /* Preserve invalid legacy JSON as entered. */ }
     return <pre className="detail-json-value">{json}</pre>;
   }
+  if (type === "colorpicker") {
+    const color = String(value || "");
+    const validColor = /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(color);
+    return <span className="detail-color-value">{validColor && <i aria-hidden="true" style={{ backgroundColor: color }}/>}<code>{color || "—"}</code></span>;
+  }
+  if (type === "entityType") return <span className="detail-entity-type"><EntityIcon name={String(value)} size={14}/>{entityLabel(metadata, String(value), true)}</span>;
+  if (type === "entityTypeList") {
+    const items = Array.isArray(value) ? value : typeof value === "string" ? value.split(",").filter(Boolean) : [];
+    return items.length ? <span className="detail-value-chips">{items.map((item) => <span key={String(item)}><EntityIcon name={String(item)} size={13}/>{entityLabel(metadata, String(item), true)}</span>)}</span> : <span className="muted-cell">—</span>;
+  }
+  if (type === "wysiwyg") return <div className="detail-rich-text" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(String(value || ""), { USE_PROFILES: { html: true } }) }}/>;
+  if (["text", "formula"].includes(type)) return <pre className="detail-plain-text">{String(value || "")}</pre>;
   return <strong className={className}>{formatValue()}</strong>;
 }
 

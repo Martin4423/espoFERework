@@ -742,6 +742,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .record-page .detail-bool-value.is-yes { background: #e8f7ef; color: #218052; }
 .record-page .detail-bool-value.is-no { background: #f0f2f6; color: #747f91; }
 .record-page .detail-json-value { max-width: 100%; max-height: 280px; overflow: auto; margin: 0; padding: 12px 14px; border: 1px solid var(--line, #e7eaf0); border-radius: 9px; background: color-mix(in srgb, var(--canvas, #f5f6fa) 70%, var(--surface, #fff)); color: var(--ink, #35415a); white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.record-page .detail-color-value, .record-page .detail-entity-type { display: inline-flex; width: fit-content; max-width: 100%; align-items: center; gap: 8px; color: var(--ink, #35415a); font-size: 12px; font-weight: 600; }
+.record-page .detail-color-value > i { width: 20px; height: 20px; border: 1px solid rgba(30,40,60,.18); border-radius: 6px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55); }
+.record-page .detail-color-value code { padding: 3px 6px; border: 1px solid var(--line, #e7eaf0); border-radius: 5px; background: var(--canvas, #f5f6fa); color: var(--muted, #68758b); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.record-page .detail-plain-text { max-width: 100%; max-height: 320px; overflow: auto; margin: 0; color: var(--ink, #35415a); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 12px; line-height: 1.65; }
+.record-page .detail-rich-text { max-width: 100%; overflow: auto; color: var(--ink, #35415a); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+.record-page .detail-rich-text > :first-child { margin-top: 0; }
+.record-page .detail-rich-text > :last-child { margin-bottom: 0; }
+.record-page .detail-rich-text img { max-width: 100%; height: auto; border-radius: 6px; }
+.record-page .detail-rich-text table { max-width: 100%; border-collapse: collapse; }
+.record-page .detail-rich-text th, .record-page .detail-rich-text td { padding: 5px 8px; border: 1px solid var(--line, #e7eaf0); }
 .record-page .detail-panel { min-width: 0; margin: 19px 0 0; padding: 17px 19px; border: 1px solid var(--line, #e7eaf0); border-radius: 12px; background: color-mix(in srgb, var(--surface, #fff) 94%, var(--canvas, #f5f6fa)); }
 .record-page .detail-panel .drawer-section-title { margin: 0 0 12px; }
 .record-page .detail-panel .detail-grid { border-top: 0; }
