@@ -1755,6 +1755,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .preference-reset-dashboard strong { color: #3f4b63; font-size: 11px; }
 .security-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
 .security-card { padding: 19px; }
+.security-action-confirm { width: min(500px, calc(100vw - 32px)); }
+.security-action-confirm .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.security-action-confirm .modal-heading p strong { color: var(--ink); }
 .security-card .settings-card-head { padding: 0 0 17px; }
 .security-card .settings-card-head h2 { display: flex; gap: 8px; align-items: center; }
 .security-card > .button { margin-top: 4px; }

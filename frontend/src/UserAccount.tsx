@@ -8,6 +8,7 @@ import AdminTabListEditor from "./AdminTabListEditor";
 import DashboardLayoutEditor from "./DashboardLayoutEditor";
 import { canAccessEntity, fieldLabel, fetchLayout, request } from "./api";
 import type { DetailLayoutPanel, FieldDef, Metadata, User } from "./api";
+import { useDialogFocus } from "./useDialogFocus";
 
 type Data = Record<string, any>;
 type PrefField = { name: string; def: FieldDef; section: string };
@@ -249,6 +250,8 @@ export function UserSecurityView({ metadata, user, onBack, adminMode = false, on
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pendingSecurityAction, setPendingSecurityAction] = useState<"disable" | "reset" | null>(null);
+  const securityDialogRef = useDialogFocus<HTMLElement>(() => { if (!saving && !busy) setPendingSecurityAction(null); }, !saving && !busy, Boolean(pendingSecurityAction));
   const availableMethods: string[] = appSettings.auth2FAMethodList || [];
   const methodLabel = (value: string) => (metadata.labels as any)?.Settings?.options?.auth2FAMethodList?.[value] || ({ Totp: "Autentizační aplikace", Email: "E-mail", Sms: "SMS" } as Record<string, string>)[value] || value;
   const twoFactorAllowed = Boolean(appSettings.auth2FA) && (user.type !== "portal" || Boolean(appSettings.auth2FAInPortal)) && ["admin", "super-admin", "regular", "portal"].includes(user.type || "");
@@ -303,14 +306,19 @@ export function UserSecurityView({ metadata, user, onBack, adminMode = false, on
     finally { setSaving(false); }
   }
   async function disableTwoFactor() {
-    if (!window.confirm("Opravdu chcete vypnout dvoufázové ověření?")) return;
+    setPendingSecurityAction("disable");
+  }
+  async function performDisableTwoFactor() {
     setError(""); setNotice(""); setSaving(true);
     try { await request(`UserSecurity/${encodeURIComponent(user.id)}`, { method: "PUT", body: JSON.stringify({ password: setupPassword, auth2FA: false }) }); setSecurity({ auth2FA: false }); setTwoFactor(false); setSetupPassword(""); setNotice("Dvoufázové ověření bylo vypnuto."); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Dvoufázové ověření se nepodařilo vypnout."); }
     finally { setSaving(false); }
   }
   async function resetTwoFactor() {
-    if (!adminMode || !setupPassword || !window.confirm(`Resetovat dvoufázové ověření účtu ${user.name}? Uživatel bude muset 2FA znovu nastavit.`)) return;
+    if (!adminMode || !setupPassword) return;
+    setPendingSecurityAction("reset");
+  }
+  async function performResetTwoFactor() {
     setError(""); setNotice(""); setSaving(true);
     try {
       await request("UserSecurity/action/getTwoFactorUserSetupData", { method: "POST", body: JSON.stringify({ id: user.id, password: setupPassword, auth2FAMethod: security.auth2FAMethod || method, reset: true }) });
@@ -319,10 +327,18 @@ export function UserSecurityView({ metadata, user, onBack, adminMode = false, on
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Dvoufázové ověření se nepodařilo resetovat."); }
     finally { setSaving(false); }
   }
+  async function confirmSecurityAction() {
+    const action = pendingSecurityAction;
+    if (!action || saving || busy) return;
+    setPendingSecurityAction(null);
+    if (action === "disable") await performDisableTwoFactor();
+    else await performResetTwoFactor();
+  }
   return <div className={`admin-view user-account-view ${adminMode ? "admin-user-security" : ""}`}><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> {adminMode ? "Zpět na uživatele" : "Zpět do CRM"}</button><div className="eyebrow">ÚČET A PŘÍSTUP</div><h1>Zabezpečení</h1><p>{adminMode ? `Správa dvoufázového ověření účtu ${user.name}.` : `Změna hesla a nastavení dvoufázového ověření pro ${user.name}.`}</p></div></div>
     {error && <div className="table-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}{busy ? <div className="surface table-loading"><span className="spinner"/>Načítám zabezpečení…</div> : <div className="security-grid">{!adminMode && <form className="surface security-card" onSubmit={changePassword}><div className="settings-card-head"><div><h2><KeyRound size={17}/>Změnit heslo</h2><p>Změna se ověřuje přímo serverem EspoCRM.</p></div></div><label className="field-input"><span>Současné heslo</span><input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required/></label><label className="field-input"><span>Nové heslo</span><input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required/></label><label className="field-input"><span>Potvrdit nové heslo</span><input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/></label><button className="button primary" disabled={saving}><Save size={14}/>{saving ? "Ukládám…" : "Změnit heslo"}</button></form>}
     <section className="surface security-card"><div className="settings-card-head"><div><h2><Shield size={17}/>Dvoufázové ověření</h2><p>{twoFactor ? `Aktivní metoda: ${methodLabel(security.auth2FAMethod || "")}` : "Při přihlášení bude potřeba jednorázový ověřovací kód."}</p></div><span className={`security-state ${twoFactor ? "enabled" : "disabled"}`}>{twoFactor ? "Zapnuto" : "Vypnuto"}</span></div>
     {twoFactor && !changingMethod ? <><label className="field-input"><span>{adminMode ? "Heslo administrátora" : "Ověřte heslem pro vypnutí"}</span><input type="password" autoComplete="current-password" value={setupPassword} onChange={(event) => setSetupPassword(event.target.value)}/></label><div className="security-actions"><button className="button subtle" onClick={() => { setChangingMethod(true); setMethod(security.auth2FAMethod || availableMethods[0] || "Totp"); setSetupPassword(""); setError(""); }} disabled={saving}><RefreshCw size={14}/>Změnit metodu</button><button className="button danger" onClick={() => void disableTwoFactor()} disabled={saving || !setupPassword}>Vypnout 2FA</button>{adminMode && <button className="button subtle" onClick={() => void resetTwoFactor()} disabled={saving || !setupPassword}><RotateCcw size={14}/>Resetovat 2FA uživatele</button>}</div></> : !twoFactorAllowed || !availableMethods.length ? <p className="security-unavailable">Dvoufázové ověření není pro tento typ účtu nebo v této instalaci povolené.</p> : setupSecret || codeSent ? <form onSubmit={saveTwoFactor}><p className="security-instruction">{method === "Totp" ? "Naskenujte QR kód autentizační aplikací, případně tajný klíč zadejte ručně. Poté zadejte vygenerovaný kód." : `Zadejte ověřovací kód odeslaný na ${setupOption}.`}</p>{setupSecret && method === "Totp" && <div className="totp-setup-qr">{setupQr ? <img src={setupQr} alt="QR kód pro nastavení TOTP"/> : <span className="spinner"/>}<small>{setupLabel}</small></div>}{setupSecret && <div className="totp-secret">{setupSecret}</div>}<label className="field-input"><span>Ověřovací kód</span><input inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={verificationCode} onChange={(event) => setVerificationCode(event.target.value)} required/></label><div className="account-toolbar"><button type="button" className="button subtle" onClick={() => { setChangingMethod(false); setSetupSecret(""); setSetupLabel(""); setVerificationCode(""); setCodeSent(false); setSetupReady(false); }}>Zrušit</button><button className="button primary" disabled={saving || verificationCode.length < 6}>{saving ? "Ověřuji…" : changingMethod ? "Potvrdit novou metodu" : "Zapnout 2FA"}</button></div></form> : setupReady && method !== "Totp" ? <><label className="field-input"><span>{method === "Email" ? "E-mailová adresa" : "Telefonní číslo"}</span><select value={setupOption} onChange={(event) => setSetupOption(event.target.value)}>{setupOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><div className="field-actions"><button className="button subtle" onClick={() => { setChangingMethod(false); setSetupReady(false); setSetupOptions([]); }}>Zrušit</button><button className="button primary" onClick={() => void sendTwoFactorCode()} disabled={saving || !setupOption}>{saving ? "Odesílám…" : "Odeslat kód"}</button></div></> : <><label className="field-input"><span>{adminMode ? "Heslo administrátora" : "Současné heslo"}</span><input type="password" autoComplete="current-password" value={setupPassword} onChange={(event) => setSetupPassword(event.target.value)}/></label><label className="field-input"><span>Metoda</span><select value={method} onChange={(event) => { setMethod(event.target.value); setSetupReady(false); setSetupSecret(""); setCodeSent(false); }}>{availableMethods.map((item) => <option key={item} value={item}>{methodLabel(item)}</option>)}</select></label><button className="button primary" onClick={() => void startTwoFactor()} disabled={saving || !setupPassword}>{saving ? "Připravuji…" : changingMethod ? "Ověřit a změnit metodu" : "Nastavit dvoufázové ověření"}</button></>}
     </section></div>}{!adminMode && onLogout && <AccountSessions onLogout={onLogout}/>}
+    {pendingSecurityAction && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !saving && !busy && setPendingSecurityAction(null)}><section ref={securityDialogRef} className="record-modal security-action-confirm" role="alertdialog" aria-modal="true" aria-labelledby="security-action-title" aria-describedby="security-action-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">ZABEZPEČENÍ ÚČTU · 2FA</span><h2 id="security-action-title">{pendingSecurityAction === "disable" ? "Vypnout dvoufázové ověření?" : "Resetovat dvoufázové ověření?"}</h2><p id="security-action-description">{pendingSecurityAction === "disable" ? <>Dvoufázové ověření účtu <strong>{user.name}</strong> se vypne. Při příštím přihlášení už nebude vyžadován jednorázový kód.</> : <>Dvoufázové ověření účtu <strong>{user.name}</strong> bude resetováno. Uživatel se bude muset při příštím přihlášení znovu zaregistrovat.</>}</p></div><button type="button" className="icon-button" aria-label="Zrušit akci" onClick={() => setPendingSecurityAction(null)}><X size={16}/></button></div><div className="modal-footer"><button type="button" autoFocus className="button subtle" onClick={() => setPendingSecurityAction(null)}>Zrušit</button><button type="button" className="button danger" onClick={() => void confirmSecurityAction()}>{pendingSecurityAction === "disable" ? "Vypnout 2FA" : "Resetovat 2FA"}</button></div></section></div>}
   </div>;
 }
