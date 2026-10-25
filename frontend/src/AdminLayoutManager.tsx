@@ -42,10 +42,10 @@ export default function AdminLayoutManager({ metadata, onBack, layoutSetId, layo
     if (!def || def.utility || def.disabled) return false;
     const availableList = def.layoutAvailabilityList;
     const ignoredList = def.layoutIgnoreList || [];
-    if (Array.isArray(availableList) && !availableList.includes(layoutName) && !availableList.includes(realLayoutName)) return false;
-    if (ignoredList.includes(layoutName) || ignoredList.includes(realLayoutName)) return false;
+    if (layoutName !== "filters" && Array.isArray(availableList) && !availableList.includes(layoutName) && !availableList.includes(realLayoutName)) return false;
+    if (layoutName !== "filters" && (ignoredList.includes(layoutName) || ignoredList.includes(realLayoutName))) return false;
     if (layoutName === "filters") return typeDef?.filter === true && !def.layoutFiltersDisabled;
-    if (layoutName === "massUpdate") return !def.massUpdateDisabled && !def.layoutMassUpdateDisabled && !def.readOnly && !def.readOnlyAfterCreate && !["duration", "foreign"].includes(def.type);
+    if (layoutName === "massUpdate") return !def.massUpdateDisabled && !def.layoutMassUpdateDisabled && !def.readOnly && def.type !== "duration";
     if (layoutName === "defaultSidePanel") return !["modifiedAt", "createdAt", "modifiedBy", "createdBy"].includes(name) && !def.layoutDefaultSidePanelDisabled && !def.layoutDetailDisabled;
     if (layoutName.startsWith("list")) return !def.layoutListDisabled;
     if (layoutName.startsWith("detail")) return !def.layoutDetailDisabled;
