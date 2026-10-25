@@ -836,7 +836,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .lead-capture-request-example pre { max-height: 150px; overflow: auto; margin: 3px 0 0; padding: 8px; border-radius: 6px; background: #f0f3f7; color: #384357; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #f0f1f5; }
 .detail-field { min-height: 63px; display: grid; align-content: center; gap: 5px; padding: 9px 5px; border-bottom: 1px solid #f0f1f5; }
-.detail-field span, .drawer-meta span { color: #98a2b3; font-size: 9px; }
+.detail-field > span:first-child, .drawer-meta > span { color: #98a2b3; font-size: 9px; }
 .detail-field strong, .drawer-meta b { color: #46536b; font-size: 10px; font-weight: 600; overflow-wrap: anywhere; }
 .drawer-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 15px; padding: 18px 5px; }
 .drawer-meta-link { padding: 0; border: 0; background: transparent; color: var(--primary, #675fce); font: inherit; text-align: left; cursor: pointer; }
