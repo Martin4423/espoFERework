@@ -3484,3 +3484,12 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
   .calendar-embedded .calendar-toolbar-actions { width: 100%; justify-content: flex-end; }
   .calendar-embedded .calendar-open-full { font-size: 10px; }
 }
+.dashlet-stage-chart { display: grid; gap: 12px; padding: 17px 16px 19px; }
+.dashlet-stage-row { display: grid; grid-template-columns: minmax(74px, 1fr) minmax(54px, 2fr) auto; align-items: center; gap: 11px; min-width: 0; color: var(--muted); }
+.dashlet-stage-row > span { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.dashlet-stage-row > i { height: 10px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--line) 64%, var(--surface)); }
+.dashlet-stage-row > i > b { display: block; height: 100%; border-radius: inherit; transition: width .25s ease; }
+.dashlet-stage-row > strong { min-width: 72px; color: var(--text); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
+.dashlet-stage-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 5px; }
+.dashlet-month-column > i > b { background: var(--success) !important; }
+@media (max-width: 420px) { .dashlet-stage-row { grid-template-columns: minmax(62px, .9fr) minmax(32px, 1.4fr) auto; gap: 7px; } .dashlet-stage-row > strong { min-width: 60px; font-size: 9px; } }
