@@ -3433,6 +3433,9 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .stream-filter-tabs button:disabled { cursor:default; }
 @media(max-width:640px) { .global-stream-toolbar { align-items: stretch; flex-direction: column; } .global-stream-search { min-height: 36px; } .global-stream-toolbar .stream-filter-tabs { width: 100%; } .global-stream-toolbar .stream-filter-tabs button { flex: 1; } }
 .account-sessions { margin-top: 16px; padding: 18px; }
+.session-confirm-dialog { width: min(490px, calc(100vw - 32px)); }
+.session-confirm-dialog .modal-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; font-weight: 450; }
+.session-confirm-dialog .modal-heading p strong { color: var(--ink); }
 .account-session-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .account-session-toolbar .button { white-space: nowrap; }
 .account-session-list { display: grid; gap: 8px; }
