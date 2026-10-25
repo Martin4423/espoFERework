@@ -4190,6 +4190,10 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     setRecord(entity === "AppSecret" ? { ...initial, value: "" } : initial);
     setFullRecordLoaded(false);
     setFullRecordError("");
+    if (initial.deleted) {
+      setFullRecordLoaded(true);
+      return () => { live = false; };
+    }
     request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(initial.id)}`)
       .then((fresh) => {
         if (!live) return;
@@ -4204,7 +4208,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
         setFullRecordError(cause instanceof Error ? cause.message : "Úplná data záznamu se nepodařilo načíst.");
       });
     return () => { live = false; };
-  }, [entity, initial.id]);
+  }, [entity, initial.id, initial.deleted]);
   const [copiedCredential, setCopiedCredential] = useState("");
   const [dateTimeZone, setDateTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   useEffect(() => { const id = getSession()?.user.id; if (!id) return; let live = true; request<Row>(`Preferences/${encodeURIComponent(id)}`).then((prefs) => live && typeof prefs.timeZone === "string" && Boolean(prefs.timeZone) && setDateTimeZone(prefs.timeZone)).catch(() => {}); return () => { live = false; }; }, [entity]);
