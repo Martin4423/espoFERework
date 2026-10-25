@@ -200,7 +200,6 @@ function DashletCard({ item, user, metadata, options, appSettings, timeZone, ref
   const entity = definition.entityType || entityByDashlet[item.name] || options.entityType;
   useEffect(() => {
     let live = true;
-    setHasMoreRecords(false);
     if (item.name === "Calendar" && renderCalendarDashlet) { setRows([]); setBusy(false); return () => { live = false; }; }
     async function load() {
       setBusy(true); setError("");
