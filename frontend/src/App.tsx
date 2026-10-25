@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ComponentType, CSSProperties, DragEvent as ReactDragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, SyntheticEvent } from "react";
-import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, ClipboardList, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, GripVertical, History, Inbox as InboxIcon, Info, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Target, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, EyeSlash, type LucideIcon } from "./Icons";
+import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, AtSign, Banknote, Bell, BookOpen, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, ClipboardList, Clock3, Copy, Database, ExternalLink, FileInput, FileKey, FileSpreadsheet, FileText, Folder, Globe, GripVertical, History, Inbox as InboxIcon, Info, Languages, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Package, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Trash2, WandSparkles, UserRound, Users, Webhook, Workflow, X, KeyRound, Monitor, LogIn, Upload, Server, List, Brush, Wrench, Table2, SendHorizontal, Filter, ContactRound, Flag, Share2, Code2, Eye, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
 import FileAttachmentDisplay from "./FileAttachmentDisplay";
 import DetailTextValue from "./DetailTextValue";
@@ -14,8 +14,11 @@ import { conditionGroupMatches } from "./dynamicLogicRuntime";
 import { useDialogFocus } from "./useDialogFocus";
 import { portalEntities } from "./portalEntities";
 import { dateFilterBoundaryInTimeZone, espocrmDateTimeFromInput, formatEspoDateTime, formatEspoDateTimeInput, formatEspoDateTimeShort, useEspoTimeSettings, useEspoTimeZone, zonedWallTimeToUtc } from "./timeZone";
-import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, completeSecondStepLogin, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, loginWithAuthorizationHeaders, logout, request, restoreSession, uploadAttachment } from "./api";
-import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, PendingSecondStep, Session, User } from "./api";
+import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, logout, request, restoreSession, uploadAttachment } from "./api";
+import { Login } from "./Login.tsx";
+import { SessionHome } from "./SessionHome.tsx";
+import { t, useLocale } from "./i18n/index.ts";
+import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, Session, User } from "./api";
 import AboutDialog from "./AboutDialog";
 import { useConfirmDialog } from "./ConfirmDialogProvider";
 
@@ -90,8 +93,6 @@ type AddressParts = { street?: string; city?: string; state?: string; postalCode
 type PageResult = { list: Row[]; total: number };
 type FilterCondition = { field: string; operator: string; value: string | string[]; valueTo?: string; valueType?: string; valueNames?: Record<string, string> };
 type SaveConflictField = { name: string; label: string; current: unknown; actual: unknown; original: unknown };
-type PublicBranding = { portal?: boolean; name?: string; applicationName?: string; companyLogoId?: string; logoSrc?: string; theme?: string; themeParams?: { navbar?: string } };
-
 const adminRouteTargets: Record<string, string> = {
   settings: "__settings__", extensions: "__extensions__", integrations: "__integrations__", upgrade: "__upgrade__",
   authentication: "__auth-settings__", notifications: "__notification-settings__", "formula-sandbox": "__formula-sandbox__",
@@ -225,17 +226,6 @@ const portalThemeColors: Record<string, Record<string, string>> = {
   Hazyblue: { primary: "#537898", primaryDark: "#42647f", nav: "#5b7384", canvas: "#e5e9eb", surface: "#ffffff", ink: "#333333", line: "#d5dcdf" },
   Glass: { primary: "#788bb8", primaryDark: "#6578a4", nav: "#14141482", canvas: "#483f57", surface: "#2424246b", ink: "#dbdbdb", line: "#ffffff30" },
 };
-
-async function fetchPublicBranding(): Promise<PublicBranding | null> {
-  const params = new URLSearchParams({ path: window.location.pathname, host: window.location.hostname });
-  try {
-    const response = await fetch(`/api/v1/Portal/publicBranding?${params}`);
-    if (!response.ok) return null;
-    const data = await response.json() as PublicBranding;
-    if (data?.portal === false) return data;
-    return data?.portal || data?.name || data?.applicationName ? { ...data, portal: true } : null;
-  } catch { return null; }
-}
 
 function personNameAttribute(name: string, part: "first" | "middle" | "last") {
   return `${part}${name === "name" ? "Name" : name.charAt(0).toUpperCase() + name.slice(1)}`;
@@ -371,12 +361,6 @@ function EntityIcon({ name, size = 16 }: { name: string; size?: number }) {
   return <EspoIcon className={fallback} size={size} />;
 }
 
-function appPathname() {
-  const base = import.meta.env.BASE_URL;
-  const pathname = window.location.pathname;
-  if (base !== "/" && pathname.startsWith(base)) return `/${pathname.slice(base.length)}` || "/";
-  return pathname;
-}
 
 function appPublicPath(path: string) {
   const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
@@ -456,124 +440,64 @@ function renderImportDefaultField(metadata: Metadata, scope: string, name: strin
   return <FieldInput entity={scope} metadata={metadata} name={name} def={def} value={value} currencyValue={currencyValue} onCurrencyChange={onCurrencyChange} relatedContext={relatedContext} onChange={handleChange}/>;
 }
 
+// Until step S2 builds the metadata for the old screens, a signed-in user lands on SessionHome.
+const WORKSPACE_READY = false;
+
 function App() {
-  const currentPath = appPathname();
-  const publicCaptureId = currentPath.match(/^\/lead-capture\/([^/]+)\/?$/)?.[1];
-  const entryParams = new URLSearchParams(window.location.search);
-  const optInConfirmationId = currentPath === "/" && entryParams.get("entryPoint") === "confirmOptIn" ? entryParams.get("id") || undefined : undefined;
-  const passwordChangeRequest = currentPath === "/" && entryParams.get("entryPoint") === "changePassword" ? { id: entryParams.get("id") || undefined } : undefined;
-  const unsubscribeRequest = currentPath === "/" && entryParams.get("entryPoint") === "unsubscribe" ? { id: entryParams.get("id") || undefined, emailAddress: entryParams.get("emailAddress") || undefined, hash: entryParams.get("hash") || undefined } : undefined;
-  const eventConfirmationRequest = currentPath === "/" && entryParams.get("entryPoint") === "eventConfirmation" ? { uid: entryParams.get("uid") || undefined, action: entryParams.get("action") || undefined } : undefined;
+  useLocale();
   const [session, setSession] = useState(getSession());
   const [metadata, setMetadata] = useState<Metadata | null>(null);
-  const [portalBranding, setPortalBranding] = useState<PublicBranding | null>(null);
   const [loading, setLoading] = useState(true);
   const [fatal, setFatal] = useState("");
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     const handleSessionExpired = () => {
       setSession(null);
       setMetadata(null);
-      setFatal("Vaše přihlášení vypršelo nebo bylo odvoláno. Přihlaste se znovu.");
+      setExpired(true);
     };
     window.addEventListener("via-session-expired", handleSessionExpired);
     return () => window.removeEventListener("via-session-expired", handleSessionExpired);
   }, []);
 
   const loadApp = useCallback(async () => {
+    setFatal("");
     try {
-      const [valid, branding] = await Promise.all([restoreSession(), fetchPublicBranding()]);
-      setPortalBranding(branding);
-      const portalUser = valid && ["portal", "portal-user"].includes(String(valid.user.type));
-      const accepted = branding && valid && !portalUser ? null : valid;
-      if (valid && !accepted) logout();
-      setSession(accepted);
-      if (accepted) setMetadata(await fetchMetadata());
+      const hadSession = getSession() !== null;
+      const valid = await restoreSession();
+      setSession(valid);
+      if (!valid && hadSession) setExpired(true);
+      if (valid && WORKSPACE_READY) setMetadata(await fetchMetadata());
       else setMetadata(null);
     } catch (error) {
-      setFatal(error instanceof Error ? error.message : "CRM se nepodařilo načíst.");
+      setFatal(error instanceof Error ? error.message : t("session.unavailable"));
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { if (!publicCaptureId && !optInConfirmationId && !passwordChangeRequest && !unsubscribeRequest && !eventConfirmationRequest) void loadApp(); }, [loadApp, publicCaptureId, optInConfirmationId, passwordChangeRequest?.id, Boolean(passwordChangeRequest), unsubscribeRequest?.id, unsubscribeRequest?.emailAddress, unsubscribeRequest?.hash, eventConfirmationRequest?.uid, eventConfirmationRequest?.action]);
+  useEffect(() => { void loadApp(); }, [loadApp]);
 
-  async function onLogin(username: string, password: string, pending?: PendingSecondStep, code?: string, authorizationHeaders?: Record<string, string>): Promise<Session | PendingSecondStep> {
-    const user = pending ? await completeSecondStepLogin(pending, code || "") : authorizationHeaders ? await loginWithAuthorizationHeaders(authorizationHeaders, username) : await login(username, password);
-    if ("secondStepRequired" in user) return user;
-    if (portalBranding?.portal && !["portal", "portal-user"].includes(String(user.user.type))) {
-      logout(); setSession(null); setMetadata(null);
-      throw new Error("Tento účet není přiřazený k vybranému portálu.");
-    }
+  async function onLogin(email: string, password: string): Promise<Session> {
+    const next = await login(email, password);
     setFatal("");
-    setSession(user);
-    setMetadata(await fetchMetadata());
-    return user;
+    setExpired(false);
+    setSession(next);
+    if (WORKSPACE_READY) setMetadata(await fetchMetadata());
+    return next;
   }
 
   function onLogout() {
     logout();
     setSession(null);
     setMetadata(null);
+    setExpired(false);
   }
 
-  if (publicCaptureId) return <PublicLeadCapturePage key={publicCaptureId} recordId={decodeURIComponent(publicCaptureId)} />;
-  if (optInConfirmationId) return <PublicLeadCaptureConfirmation key={optInConfirmationId} confirmationId={optInConfirmationId} />;
-  if (passwordChangeRequest) return <PublicPasswordChangePage key={passwordChangeRequest.id || "missing"} requestId={passwordChangeRequest.id} />;
-  if (unsubscribeRequest) return <PublicCampaignUnsubscribe key={`${unsubscribeRequest.id || ""}:${unsubscribeRequest.emailAddress || ""}:${unsubscribeRequest.hash || ""}`} {...unsubscribeRequest} />;
-  if (eventConfirmationRequest?.uid && eventConfirmationRequest.action) return <PublicEventConfirmation key={`${eventConfirmationRequest.uid}:${eventConfirmationRequest.action}`} uid={eventConfirmationRequest.uid} action={eventConfirmationRequest.action} />;
-  if (loading) return <div className="boot-screen"><div className="brand-mark">v</div><div className="boot-line"/><span>Připojuji ViaCRM</span></div>;
-  if (!session) return <Login onLogin={onLogin} error={fatal} portalBranding={portalBranding} />;
-  if (!metadata) return <div className="boot-screen"><div className="error-card"><b>CRM není dostupné</b><p>{fatal || "Nepodařilo se načíst metadata."}</p><button className="button primary" onClick={() => void loadApp()}>Zkusit znovu</button></div></div>;
+  if (loading) return <div className="boot-screen"><div className="brand-mark">v</div><div className="boot-line"/><span>{t("common.loading")}</span></div>;
+  if (fatal) return <div className="boot-screen"><div className="error-card"><b>{t("session.unavailable")}</b><p>{fatal}</p><button className="button primary" onClick={() => { setLoading(true); void loadApp(); }}>{t("common.retry")}</button></div></div>;
+  if (!session) return <Login onLogin={onLogin} notice={expired ? t("session.expired") : ""} />;
+  if (!WORKSPACE_READY || !metadata) return <SessionHome user={session.user} onLogout={onLogout} />;
   return <Workspace metadata={metadata} user={session.user} onLogout={onLogout} onRefreshMetadata={async () => setMetadata(await fetchMetadata())} />;
-}
-
-type EventConfirmationData = { status: string; attendeeStatus?: string; eventName?: string; translatedEntityType?: string; translatedStatus?: string; style?: string; action?: string; statusTranslation?: Record<string, string>; dateStart?: string; sentDateStart?: string };
-
-function PublicEventConfirmation({ uid, action }: { uid: string; action: string }) {
-  const [data, setData] = useState<EventConfirmationData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busyAction, setBusyAction] = useState("");
-  const [error, setError] = useState("");
-  const loadAction = useCallback(async (nextAction: string) => {
-    setLoading(true); setError("");
-    try {
-      const response = await fetch(`/api/v1/EventConfirmation/${encodeURIComponent(uid)}/${encodeURIComponent(nextAction)}`);
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body?.message || "Potvrzení účasti není dostupné.");
-      setData(body);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Potvrzení účasti není dostupné."); }
-    finally { setLoading(false); setBusyAction(""); }
-  }, [uid]);
-  useEffect(() => { void loadAction(action); }, [action, loadAction]);
-  const statusOptions = data?.statusTranslation || {};
-  const datesChanged = Boolean(data?.sentDateStart && data?.dateStart && data.sentDateStart !== data.dateStart);
-  function formattedDate(value?: string) {
-    if (!value) return "";
-    const date = new Date(value.replace(" ", "T"));
-    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(date);
-  }
-  return <main className="public-capture-page"><section className="public-capture-card public-confirm-card"><div className="public-capture-brand"><span className="brand-mark">v</span><span>via<span className="brand-light">crm</span></span></div><div className={`public-confirm-icon ${data?.status === "confirmed" ? "success" : ""}`}>{data?.status === "confirmed" ? <Check size={23}/> : <CalendarDays size={21}/>}</div><h1>{data?.status === "final" ? "Událost už byla uzavřena" : "Potvrzení účasti"}</h1>{error ? <p className="public-confirm-message error" role="alert">{error}</p> : loading ? <div className="public-confirm-loading"><span className="spinner"/></div> : data && <><p className="public-confirm-event">{data.eventName}</p>{data.translatedEntityType && <p className="public-confirm-list">{data.translatedEntityType}{data.dateStart ? ` · ${formattedDate(data.dateStart)}` : ""}</p>}{data.translatedStatus && <p className={`public-confirm-status ${data.status === "confirmed" ? "success" : ""}`}>{data.translatedStatus}</p>}{datesChanged && <p className="public-confirm-message">Čas události se od odeslání pozvánky změnil. Aktuální čas: {formattedDate(data.dateStart)}.</p>}{data.status === "confirmed" && data.statusTranslation && <div className="public-event-actions">{["Accepted", "Tentative", "Declined"].map((status) => { const actionByStatus: Record<string, string> = { Accepted: "accept", Tentative: "tentative", Declined: "decline" }; const nextAction = actionByStatus[status]; const active = data.attendeeStatus === status; return <button key={status} className={`button ${active ? "primary" : "subtle"}`} disabled={Boolean(busyAction) || active} onClick={() => { setBusyAction(nextAction); void loadAction(nextAction); }}>{statusOptions[status] || status}</button>; })}</div>}{data.status === "final" && <p className="public-confirm-message">{data.translatedStatus}</p>}</> }<footer>ViaCRM · Pozvánka na událost</footer></section></main>;
-}
-
-function PasswordRecoveryRequest({ onClose }: { onClose: () => void }) {
-  const [userName, setUserName] = useState("");
-  const [emailAddress, setEmailAddress] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState("");
-  async function submit(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError("");
-    try {
-      const response = await fetch("/api/v1/User/passwordChangeRequest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userName: userName.trim(), emailAddress: emailAddress.trim(), url: window.location.href }) });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body?.message || "Požadavek se nepodařilo zpracovat.");
-      setSubmitted(true);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Požadavek se nepodařilo zpracovat."); }
-    finally { setBusy(false); }
-  }
-  return <div className="modal-backdrop password-recovery-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="password-recovery-dialog" role="dialog" aria-modal="true" aria-labelledby="password-recovery-title"><div className="password-recovery-heading"><div><span className="eyebrow">OBNOVA PŘÍSTUPU</span><h2 id="password-recovery-title">Zapomenuté heslo</h2><p>Zadejte uživatelské jméno a e-mailovou adresu svého účtu.</p></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={16}/></button></div>
-    {submitted ? <div className="password-recovery-success"><Check size={19}/><p>Pokud údaje odpovídají účtu a lze mu obnovit heslo, bude odeslán odkaz pro jeho změnu.</p><button className="button primary" onClick={onClose}>Zpět na přihlášení</button></div> : <form onSubmit={(event) => void submit(event)}><label>Uživatelské jméno<input autoComplete="username" value={userName} onChange={(event) => setUserName(event.target.value)} required maxLength={255}/></label><label>E-mailová adresa<input type="email" autoComplete="email" value={emailAddress} onChange={(event) => setEmailAddress(event.target.value)} required maxLength={255}/></label>{error && <div className="inline-error" role="alert">{error}</div>}<div className="password-recovery-actions"><button type="button" className="button subtle" onClick={onClose}>Zavřít</button><button className="button primary" disabled={busy}>{busy ? "Odesílám…" : "Odeslat odkaz"}</button></div></form>}
-  </section></div>;
 }
 
 function getPhoneValidationPattern(metadata: Metadata) {
@@ -582,7 +506,9 @@ function getPhoneValidationPattern(metadata: Metadata) {
   catch { return /^[+\d][\d\s().,/;*#-]*(?:\s*(?:ext\.?|x)\s*\d+)?$/i; }
 }
 
-function validateRequestedPassword(password: string, params: PasswordRecoveryInfo["strengthParams"] = {}) {
+type PasswordStrengthParams = Record<string, number | boolean | null> | undefined;
+
+function validateRequestedPassword(password: string, params: PasswordStrengthParams = {}) {
   const rules: Array<[boolean, string]> = [];
   const minLength = Number(params.passwordStrengthLength || 0);
   const letterCount = Number(params.passwordStrengthLetterCount || 0);
@@ -596,7 +522,7 @@ function validateRequestedPassword(password: string, params: PasswordRecoveryInf
   return rules.find(([valid]) => !valid)?.[1] || "";
 }
 
-function generateUserPassword(params: PasswordRecoveryInfo["strengthParams"] = {}) {
+function generateUserPassword(params: PasswordStrengthParams = {}) {
   const strengthLength = Number(params.passwordStrengthLength || 0);
   const length = Math.max(Number(params.passwordGenerateLength || 10), strengthLength, 10);
   const letters = Math.max(Number(params.passwordGenerateLetterCount || 4), Number(params.passwordStrengthLetterCount || 0), params.passwordStrengthBothCases ? 2 : 0);
@@ -616,334 +542,6 @@ function generateUserPassword(params: PasswordRecoveryInfo["strengthParams"] = {
   while (charList.length < length) charList.push(choose(all));
   for (let index = charList.length - 1; index > 0; index--) { const target = randomIndex(index + 1); [charList[index], charList[target]] = [charList[target], charList[index]]; }
   return charList.join("");
-}
-
-function PublicPasswordChangePage({ requestId }: { requestId?: string }) {
-  const [info, setInfo] = useState<PasswordRecoveryInfo | null>(null);
-  const [loading, setLoading] = useState(Boolean(requestId));
-  const [loadError, setLoadError] = useState("");
-  const [error, setError] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [changed, setChanged] = useState(false);
-  const [loginUrl, setLoginUrl] = useState("/");
-  useEffect(() => {
-    if (!requestId) { setLoadError("Odkaz pro změnu hesla není platný nebo úplný."); return; }
-    let live = true;
-    fetch(`/api/v1/User/passwordChangeInfo/${encodeURIComponent(requestId)}`).then(async (response) => { const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.message || "Platnost odkazu se nepodařilo ověřit."); return data as PasswordRecoveryInfo; }).then((data) => live && setInfo(data)).catch((cause) => live && setLoadError(cause instanceof Error ? cause.message : "Platnost odkazu se nepodařilo ověřit.")).finally(() => live && setLoading(false));
-    return () => { live = false; };
-  }, [requestId]);
-  const strengthError = password ? validateRequestedPassword(password, info?.strengthParams) : "";
-  async function submit(event: FormEvent) {
-    event.preventDefault(); setError("");
-    if (!requestId || !info?.requestFound) { setError("Odkaz pro změnu hesla už není platný. Požádejte o nový."); return; }
-    if (strengthError) { setError(strengthError); return; }
-    if (password !== confirmation) { setError("Zadaná hesla se neshodují."); return; }
-    setBusy(true);
-    try {
-      const response = await fetch("/api/v1/User/changePasswordByRequest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId, password }) });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body?.message || "Heslo se nepodařilo změnit. Zkontrolujte požadavky na heslo a platnost odkazu.");
-      setLoginUrl(typeof body?.url === "string" && body.url ? body.url : "/"); setChanged(true); setPassword(""); setConfirmation("");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Heslo se nepodařilo změnit."); }
-    finally { setBusy(false); }
-  }
-  const title = loading ? "Ověřuji odkaz…" : changed ? "Heslo bylo změněno" : info?.requestFound ? "Zvolte nové heslo" : "Odkaz není platný";
-  return <main className="public-capture-page"><section className="public-capture-card public-password-card"><div className="public-capture-brand"><span className="brand-mark">v</span><span>via<span className="brand-light">crm</span></span></div><div className={`public-confirm-icon ${changed ? "success" : ""}`}>{changed ? <Check size={22}/> : <Shield size={20}/>}</div><h1>{title}</h1>{loading ? <div className="public-confirm-loading"><span className="spinner"/></div> : changed ? <div className="public-password-success"><p>Vaše heslo bylo bezpečně změněno.</p><a className="button primary" href={loginUrl}>Přejít na přihlášení <ArrowRight size={14}/></a></div> : loadError ? <><p className="public-confirm-message error" role="alert">{loadError}</p><a className="button subtle" href="/">Zpět na přihlášení</a></> : !info?.requestFound ? <><p className="public-confirm-message">Odkaz mohl vypršet nebo už byl použit. Vraťte se na přihlášení a požádejte o nový.</p><a className="button subtle" href="/">Zpět na přihlášení</a></> : <form className="public-password-form" onSubmit={(event) => void submit(event)}><label>Nové heslo<input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required maxLength={255}/></label><label>Potvrdit nové heslo<input type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required maxLength={255}/></label>{info.strengthParams && Object.values(info.strengthParams).some(Boolean) && <ul className="public-password-rules">{Number(info.strengthParams.passwordStrengthLength) > 0 && <li className={password.length >= Number(info.strengthParams.passwordStrengthLength) ? "ok" : ""}>Nejméně {info.strengthParams.passwordStrengthLength} znaků</li>}{Number(info.strengthParams.passwordStrengthLetterCount) > 0 && <li className={(password.match(/[a-z]/gi) || []).length >= Number(info.strengthParams.passwordStrengthLetterCount) ? "ok" : ""}>Nejméně {info.strengthParams.passwordStrengthLetterCount} písmena</li>}{Number(info.strengthParams.passwordStrengthNumberCount) > 0 && <li className={(password.match(/[0-9]/g) || []).length >= Number(info.strengthParams.passwordStrengthNumberCount) ? "ok" : ""}>Nejméně {info.strengthParams.passwordStrengthNumberCount} číslice</li>}{info.strengthParams.passwordStrengthBothCases && <li className={/[a-z]/.test(password) && /[A-Z]/.test(password) ? "ok" : ""}>Malé i velké písmeno</li>}{Number(info.strengthParams.passwordStrengthSpecialCharacterCount) > 0 && <li className={[...password].filter((char) => "'-!\"#$%&()*,./:;?@[]^_`{|}~+<=>".includes(char)).length >= Number(info.strengthParams.passwordStrengthSpecialCharacterCount) ? "ok" : ""}>Nejméně {info.strengthParams.passwordStrengthSpecialCharacterCount} speciální znak</li>}</ul>}{error && <div className="inline-error" role="alert">{error}</div>}<button className="button primary public-password-submit" disabled={busy}>{busy ? "Měním heslo…" : "Změnit heslo"}</button><a className="public-password-back" href="/">Zpět na přihlášení</a></form>}<footer>ViaCRM · Zabezpečení účtu</footer></section></main>;
-}
-
-function PublicCampaignUnsubscribe({ id, emailAddress, hash }: { id?: string; emailAddress?: string; hash?: string }) {
-  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const infoPath = emailAddress && hash
-    ? `Campaign/unsubscribeInfo/${encodeURIComponent(emailAddress)}/${encodeURIComponent(hash)}`
-    : id ? `Campaign/unsubscribeInfo/${encodeURIComponent(id)}` : "";
-  const actionPath = emailAddress && hash
-    ? `Campaign/unsubscribe/${encodeURIComponent(emailAddress)}/${encodeURIComponent(hash)}`
-    : id ? `Campaign/unsubscribe/${encodeURIComponent(id)}` : "";
-  useEffect(() => {
-    let live = true;
-    if (!infoPath) { setError("Odkaz pro správu odběru není úplný."); return () => { live = false; }; }
-    fetch(`/api/v1/${infoPath}`).then(async (response) => {
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body?.message || "Odkaz pro správu odběru není platný.");
-      return body;
-    }).then((body) => live && setIsSubscribed(Boolean(body.isSubscribed)))
-      .catch((cause) => live && setError(cause instanceof Error ? cause.message : "Stav odběru se nepodařilo načíst."));
-    return () => { live = false; };
-  }, [infoPath]);
-  async function updateSubscription() {
-    if (!actionPath || isSubscribed == null) return;
-    setBusy(true); setError(""); setNotice("");
-    try {
-      const response = await fetch(`/api/v1/${actionPath}`, { method: isSubscribed ? "POST" : "DELETE" });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body?.message || "Stav odběru se nepodařilo změnit.");
-      setIsSubscribed(!isSubscribed);
-      setNotice(isSubscribed ? "Odběr byl zrušen." : "Odběr byl znovu zapnut.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Stav odběru se nepodařilo změnit."); }
-    finally { setBusy(false); }
-  }
-  return <main className="public-capture-page"><section className="public-capture-card public-confirm-card"><div className="public-capture-brand"><span className="brand-mark">v</span><span>via<span className="brand-light">crm</span></span></div><div className={`public-confirm-icon ${isSubscribed === false ? "success" : ""}`}>{isSubscribed === false ? <Check size={23}/> : <Mail size={21}/>}</div><h1>Správa e-mailového odběru</h1>{error ? <p className="public-confirm-message error" role="alert">{error}</p> : isSubscribed == null ? <div className="public-confirm-loading"><span className="spinner"/></div> : <><p className="public-confirm-message">{notice || (isSubscribed ? "Tato e-mailová adresa dostává zprávy kampaně." : "Tato e-mailová adresa je z odběru odhlášená.")}</p><button className={`button ${isSubscribed ? "subtle" : "primary"} public-unsubscribe-action`} onClick={() => void updateSubscription()} disabled={busy}>{busy ? "Ukládám…" : isSubscribed ? "Odhlásit e-maily" : "Znovu přihlásit e-maily"}</button></>}{!error && isSubscribed == null && <span className="sr-only">Načítám stav odběru.</span>}<footer>ViaCRM · Nastavení odběru</footer></section></main>;
-}
-
-function PublicLeadCaptureConfirmation({ confirmationId }: { confirmationId: string }) {
-  const [result, setResult] = useState<{ status: "success" | "expired"; message?: string; leadCaptureName?: string } | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let live = true;
-    fetch(`/api/v1/LeadCapture/confirmOptIn/${encodeURIComponent(confirmationId)}`)
-      .then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body?.message || "Potvrzení odběru se nepodařilo zpracovat."); return body; })
-      .then((body) => live && setResult(body))
-      .catch((cause) => live && setError(cause instanceof Error ? cause.message : "Potvrzení odběru se nepodařilo zpracovat."))
-      .finally(() => live && setLoading(false));
-    return () => { live = false; };
-  }, [confirmationId]);
-  const success = result?.status === "success";
-  return <main className="public-capture-page"><section className="public-capture-card public-confirm-card"><div className="public-capture-brand"><span className="brand-mark">v</span><span>via<span className="brand-light">crm</span></span></div><div className={`public-confirm-icon ${success ? "success" : ""}`}>{success ? <Check size={23}/> : <Clock3 size={22}/>}</div><h1>{loading ? "Ověřuji potvrzení…" : error ? "Potvrzení se nezdařilo" : success ? "E-mail byl potvrzen" : "Platnost odkazu vypršela"}</h1>{result?.leadCaptureName && <p className="public-confirm-list">{result.leadCaptureName}</p>}{error ? <p className="public-confirm-message error">{error}</p> : result?.message ? <div className="public-confirm-message" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(result.message) }}/> : loading ? <div className="public-confirm-loading"><span className="spinner"/></div> : null}<footer>ViaCRM · Potvrzení odběru</footer></section></main>;
-}
-
-type PublicLeadCaptureData = {
-  requestUrl: string;
-  fieldDefs: Record<string, FieldDef>;
-  metadata?: { fields?: Record<string, any>; app?: Record<string, any> };
-  detailLayout?: Array<{ rows?: Array<Array<{ name?: string }>> }>;
-  language?: Metadata["labels"];
-  successText?: string;
-  text?: string;
-  title?: string;
-  captchaKey?: string | null;
-  isDark?: boolean;
-  config?: Record<string, any>;
-};
-
-function PublicLeadCapturePage({ recordId }: { recordId: string }) {
-  const [form, setForm] = useState<PublicLeadCaptureData | null>(null);
-  const [values, setValues] = useState<Row>({});
-  const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [posted, setPosted] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let live = true;
-    const oldTitle = document.title;
-    fetch(`/api/v1/LeadCapture/formData/${encodeURIComponent(recordId)}`)
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data?.message || "Tento formulář není dostupný.");
-        return data as PublicLeadCaptureData;
-      })
-      .then((data) => { if (live) { setForm(data); document.title = data.title || "Formulář"; } })
-      .catch((cause) => live && setError(cause instanceof Error ? cause.message : "Formulář se nepodařilo načíst."))
-      .finally(() => live && setLoading(false));
-    return () => { live = false; document.title = oldTitle; };
-  }, [recordId]);
-  useEffect(() => {
-    if (!form?.captchaKey) return;
-    const existing = document.querySelector<HTMLScriptElement>("script[data-via-captcha]");
-    if (existing) return;
-    const script = document.createElement("script");
-    script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(form.captchaKey)}`;
-    script.async = true; script.defer = true; script.dataset.viaCaptcha = "true";
-    document.head.append(script);
-    return () => { script.remove(); };
-  }, [form?.captchaKey]);
-
-  const metadata = useMemo<Metadata>(() => ({
-    scopes: { Lead: { entity: true } },
-    entityDefs: { Lead: { fields: form?.fieldDefs || {} } },
-    fields: form?.metadata?.fields || {},
-    labels: form?.language || {},
-    app: { ...(form?.config || {}), ...(form?.metadata?.app || {}) },
-    userAcl: {},
-  }), [form]);
-  const orderedNames = useMemo(() => {
-    if (!form) return [];
-    const layoutNames = (form.detailLayout || []).flatMap((panel) => (panel.rows || []).flat().flatMap((item) => item?.name ? [item.name] : []));
-    return [...new Set([...layoutNames, ...Object.keys(form.fieldDefs || {})])].filter((name) => Boolean(form.fieldDefs[name]));
-  }, [form]);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    if (!formElement.reportValidity() || !form) return;
-    setBusy(true); setError("");
-    const payload: Row = {};
-    for (const name of orderedNames) {
-      const def = form.fieldDefs[name];
-      const value = values[name];
-      if (value == null || value === "") continue;
-      if (def.type === "datetimeOptional") {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
-          const date = String(value);
-          const boundary = new Date(`${date}T00:00:00Z`);
-          if (def.isEnd) boundary.setUTCDate(boundary.getUTCDate() + 1);
-          const boundaryDate = `${boundary.getUTCFullYear()}-${String(boundary.getUTCMonth() + 1).padStart(2, "0")}-${String(boundary.getUTCDate()).padStart(2, "0")}`;
-          payload[name] = dateFilterBoundaryInTimeZone(boundaryDate, Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-          payload[`${name}Date`] = date;
-        } else {
-          payload[name] = value;
-          payload[`${name}Date`] = null;
-        }
-      } else if (["rangeInt", "rangeFloat", "rangeCurrency"].includes(def.type || "")) {
-        const upperName = name.charAt(0).toUpperCase() + name.slice(1);
-        const from = value.from == null || value.from === "" ? null : Number(value.from);
-        const to = value.to == null || value.to === "" ? null : Number(value.to);
-        if ((from != null && to != null && from > to) || (from != null && !Number.isFinite(from)) || (to != null && !Number.isFinite(to)) || def.type === "rangeInt" && (from != null && !Number.isInteger(from) || to != null && !Number.isInteger(to))) {
-          setError(`${fieldLabel(name, def, "Lead", metadata)}: zkontrolujte pořadí a formát hodnot rozsahu.`);
-          setBusy(false);
-          return;
-        }
-        payload[`from${upperName}`] = from;
-        payload[`to${upperName}`] = to;
-        if (def.type === "rangeCurrency") {
-          payload[`from${upperName}Currency`] = from == null ? null : value.currency || form.config?.defaultCurrency || form.metadata?.app?.defaultCurrency || "USD";
-          payload[`to${upperName}Currency`] = to == null ? null : value.currency || form.config?.defaultCurrency || form.metadata?.app?.defaultCurrency || "USD";
-        }
-      } else if (def.type === "personName") {
-        const prefix = name === "name" ? "" : name[0].toUpperCase() + name.slice(1);
-        if (value.firstName) payload[`${prefix}firstName`] = value.firstName;
-        if (value.middleName) payload[`${prefix}middleName`] = value.middleName;
-        if (value.lastName) payload[`${prefix}lastName`] = value.lastName;
-      } else if (def.type === "address") {
-        for (const [part, suffix] of [["street", "Street"], ["city", "City"], ["state", "State"], ["postalCode", "PostalCode"], ["country", "Country"]]) {
-          if (value[part]) payload[`${name}${suffix}`] = value[part];
-        }
-      } else if (["multiEnum", "array", "checklist", "urlMultiple"].includes(def.type || "") && typeof value === "string") {
-        payload[name] = value.split("\n").map((part: string) => part.trim()).filter(Boolean);
-      } else if (def.type === "currency") {
-        payload[name] = value === "" || value == null ? null : Number(value);
-        payload[`${name}Currency`] = values[`${name}Currency`] || form?.metadata?.app?.defaultCurrency || form?.config?.defaultCurrency || "USD";
-      } else if (["int", "float", "enumInt"].includes(def.type || "")) {
-        payload[name] = Number(value);
-      } else payload[name] = value;
-    }
-    try {
-      const headers = new Headers({ "Content-Type": "application/json" });
-      if (form.captchaKey) {
-        const captcha = (window as any).grecaptcha;
-        if (!captcha) throw new Error("Ověření formuláře CAPTCHA se ještě načítá. Zkuste to znovu za chvíli.");
-        const token = await new Promise<string>((resolve, reject) => captcha.ready(() => captcha.execute(form.captchaKey, { action: "leadCaptureSubmit" }).then(resolve).catch(reject)));
-        headers.set("X-Captcha-Token", token);
-      }
-      const response = await fetch(`/api/v1/${form.requestUrl}`, { method: "POST", headers, body: JSON.stringify(payload) });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result?.message || result?.error || "Odeslání formuláře se nezdařilo.");
-      if (result?.redirectUrl) { window.location.assign(result.redirectUrl); return; }
-      setPosted(true);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Odeslání formuláře se nezdařilo."); }
-    finally { setBusy(false); }
-  }
-
-  if (loading) return <main className="public-capture-page"><div className="surface table-loading"><span className="spinner"/> Načítám formulář…</div></main>;
-  if (!form) return <main className="public-capture-page"><section className="public-capture-card"><div className="public-capture-error"><Target size={20}/><h1>Formulář není dostupný</h1><p>{error}</p></div></section></main>;
-  return <main className={`public-capture-page ${form.isDark ? "dark" : ""}`}><section className="public-capture-card"><div className="public-capture-brand"><span className="brand-mark">v</span><span>via<span className="brand-light">crm</span></span></div>
-    {form.title && <h1>{form.title}</h1>}
-    {form.text && <div className="public-capture-copy" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(form.text) }}/>}
-    {posted ? <div className="public-capture-success" role="status"><Check size={19}/><div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(form.successText || "Děkujeme za odeslání.") }}/></div> : <form className="public-capture-form" onSubmit={(event) => void submit(event)}>
-      <div className="public-capture-fields">{orderedNames.map((name) => <FieldInput key={name} entity="Lead" metadata={metadata} name={name} def={form.fieldDefs[name]} value={values[name]} currencyValue={values[`${name}Currency`]} onCurrencyChange={(currency) => setValues((old) => ({ ...old, [`${name}Currency`]: currency }))} onChange={(value) => setValues((old) => ({ ...old, [name]: value }))}/>)}</div>
-      {error && <div className="inline-error" role="alert">{error}</div>}
-      <button className="button primary public-capture-submit" disabled={busy}>{busy ? "Odesílám…" : "Odeslat formulář"}<ArrowRight size={15}/></button>
-      {form.captchaKey && <small className="public-capture-privacy">Tento formulář je chráněn službou Google reCAPTCHA.</small>}
-    </form>}
-    <footer>ViaCRM · Bezpečný formulář</footer>
-  </section></main>;
-}
-
-type PasswordRecoveryInfo = { passwordRecoveryEnabled?: boolean; requestFound?: boolean | null; strengthParams?: Record<string, number | boolean | null> };
-type PublicLoginOptions = { oidc?: boolean; fallback?: boolean };
-
-function Login({ onLogin, error: initialError, portalBranding }: { onLogin: (username: string, password: string, pending?: PendingSecondStep, code?: string, authorizationHeaders?: Record<string, string>) => Promise<Session | PendingSecondStep>; error: string; portalBranding: PublicBranding | null }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const [secondStep, setSecondStep] = useState<PendingSecondStep | null>(null);
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(initialError);
-  const [recoveryEnabled, setRecoveryEnabled] = useState(false);
-  const [recoveryOpen, setRecoveryOpen] = useState(false);
-  const [loginOptions, setLoginOptions] = useState<PublicLoginOptions>({});
-  const [showPasswordFallback, setShowPasswordFallback] = useState(false);
-  const [oidcBusy, setOidcBusy] = useState(false);
-  const isPortalLogin = Boolean(portalBranding?.portal);
-  const portalTitle = String(portalBranding?.applicationName || portalBranding?.name || "Klientský portál");
-  const portalTheme = portalBranding?.theme || "Espo";
-  const portalColors = portalThemeColors[portalTheme] || portalThemeColors.Espo;
-  const loginStyle = { "--primary": portalColors.primary, "--primary-dark": portalColors.primaryDark, "--canvas": portalColors.canvas, "--ink": portalColors.ink, "--line": portalColors.line } as CSSProperties;
-  const loginLogo = portalBranding?.companyLogoId ? `/?entryPoint=LogoImage&id=${encodeURIComponent(portalBranding.companyLogoId)}` : portalBranding?.logoSrc ? new URL(portalBranding.logoSrc, window.location.origin).toString() : "";
-  const applicationTitle = portalBranding?.applicationName || portalBranding?.name || "ViaCRM";
-  useEffect(() => { let live = true; fetch("/api/v1/User/passwordRecoveryInfo").then((response) => response.json()).then((data: PasswordRecoveryInfo) => live && setRecoveryEnabled(Boolean(data.passwordRecoveryEnabled))).catch(() => live && setRecoveryEnabled(false)); return () => { live = false; }; }, []);
-  useEffect(() => { let live = true; if (isPortalLogin) return () => { live = false; }; fetch("/api/v1/App/publicLoginOptions").then((response) => response.ok ? response.json() : {}).then((data: PublicLoginOptions) => live && setLoginOptions(data || {})).catch(() => live && setLoginOptions({})); return () => { live = false; }; }, [isPortalLogin]);
-  async function signInWithOidc() {
-    const popup = window.open("about:blank", "ViaCRMOpenID", "popup,width=800,height=800");
-    if (!popup) { setError("Přihlášení zablokovalo vyskakovací okno. Povolte ho pro tuto adresu a zkuste to znovu."); return; }
-    setOidcBusy(true); setError("");
-    try {
-      const response = await fetch("/api/v1/Oidc/authorizationData");
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.message || "Nastavení jednotného přihlášení není dostupné.");
-      const randomKey = () => Array.from(crypto.getRandomValues(new Uint8Array(18)), (byte) => byte.toString(16).padStart(2, "0")).join("");
-      const state = randomKey();
-      const nonce = randomKey();
-      const params = new URLSearchParams({ client_id: data.clientId, redirect_uri: data.redirectUri, response_type: "code", scope: (data.scopes || []).join(" "), state, nonce, prompt: data.prompt || "" });
-      if (data.maxAge != null) params.set("max_age", String(data.maxAge));
-      if (data.claims) params.set("claims", String(data.claims));
-      popup.location.href = `${data.endpoint}?${params.toString()}`;
-      const code = await new Promise<string>((resolve, reject) => {
-        const started = Date.now();
-        const timer = window.setInterval(() => {
-          if (popup.closed) { window.clearInterval(timer); reject(new Error("Přihlášení bylo zavřeno.")); return; }
-          if (Date.now() - started > 5 * 60 * 1000) { window.clearInterval(timer); popup.close(); reject(new Error("Přihlášení vypršelo. Zkuste to znovu.")); return; }
-          let callbackUrl: URL;
-          try { callbackUrl = new URL(popup.location.href); } catch { return; }
-          const result = callbackUrl.searchParams;
-          const authorizationCode = result.get("code");
-          const providerError = result.get("error");
-          if (!authorizationCode && !providerError) return;
-          window.clearInterval(timer);
-          if (result.get("state") !== state) { popup.close(); reject(new Error("Ověření jednotného přihlášení se neshoduje. Zkuste to znovu.")); return; }
-          if (providerError) { popup.close(); reject(new Error(result.get("errorDescription") || providerError)); return; }
-          popup.close(); resolve(authorizationCode!);
-        }, 300);
-      });
-      const auth = btoa(`**oidc:${code}`);
-      const result = await onLogin("", "", undefined, undefined, { Authorization: `Basic ${auth}`, "Espo-Authorization": auth, "X-Oidc-Authorization-Nonce": nonce });
-      if ("secondStepRequired" in result) { setSecondStep(result); setCode(""); }
-    } catch (cause) { if (!popup.closed) popup.close(); setError(cause instanceof Error ? cause.message : "Jednotné přihlášení se nezdařilo."); }
-    finally { setOidcBusy(false); }
-  }
-  async function submit(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError("");
-    try { const result = await onLogin(username, password); if ("secondStepRequired" in result) { setSecondStep(result); setCode(""); setPasswordVisible(false); } } catch (e) { setError(e instanceof Error ? e.message : "Přihlášení se nezdařilo."); }
-    finally { setBusy(false); }
-  }
-  async function submitSecondStep(event: FormEvent) {
-    event.preventDefault(); if (!secondStep) return; setBusy(true); setError("");
-    try { await onLogin(username, password, secondStep, code); }
-    catch (e) { setError(e instanceof Error ? e.message : "Ověření se nezdařilo."); }
-    finally { setBusy(false); }
-  }
-  return <main dir={isPortalLogin && portalTheme === "EspoRtl" ? "rtl" : "ltr"} className={`login-page ${isPortalLogin ? `portal-login portal-theme-${portalTheme.toLowerCase()}` : ""}`} style={loginStyle}>
-    <section className="login-story">
-      <div className="brand lockup">{loginLogo ? <img className="portal-brand-logo" src={loginLogo} alt=""/> : <span className="brand-mark">{isPortalLogin ? portalTitle.slice(0, 1).toUpperCase() : applicationTitle.slice(0, 1).toUpperCase()}</span>}<span>{isPortalLogin ? portalTitle : applicationTitle}</span></div>
-      <div className="story-copy">{isPortalLogin ? <><span className="eyebrow">ZÁKAZNICKÝ PORTÁL</span><h1>Vítejte v portálu<br/>{portalTitle}.</h1><p>Po přihlášení najdete své požadavky, dokumenty a komunikaci s naším týmem.</p></> : <><span className="eyebrow">{applicationTitle.toLocaleUpperCase("cs")}</span><h1>Dobré vztahy<br/>začínají přehledem.</h1><p>Klienti, obchod i každodenní práce. Všechno navazuje na sebe.</p></>}</div>
-      <div className="story-foot"><span>{isPortalLogin ? portalTitle : applicationTitle}</span><span>{isPortalLogin ? "Zabezpečený přístup" : "Zabezpečené přihlášení"}</span></div>
-    </section>
-    <section className="login-side"><form className="login-card" onSubmit={secondStep ? submitSecondStep : submit} onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); event.currentTarget.requestSubmit(); } }}>
-      <span className="eyebrow">{isPortalLogin ? portalTitle : "VÍTEJTE ZPĚT"}</span><h2>{isPortalLogin ? "Přihlášení do portálu" : "Přihlášení do CRM"}</h2><p className="login-hint">{isPortalLogin ? "Použijte přihlašovací údaje svého portálového účtu." : "Použijte svůj účet EspoCRM."}</p>
-      {!secondStep && loginOptions.oidc && !showPasswordFallback ? <><button type="button" className="button primary login-submit" onClick={() => void signInWithOidc()} disabled={oidcBusy}>{oidcBusy ? "Připojuji poskytovatele…" : "Přihlásit se firemním účtem"}<span>→</span></button>{loginOptions.fallback && <button type="button" className="login-recovery-link" onClick={() => { setShowPasswordFallback(true); setError(""); }}>Použít uživatelské jméno a heslo</button>}</> : !secondStep ? <><label>Uživatelské jméno<input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required /></label>
-      <label>Heslo<div className="login-password-control"><input id="login-password" type={passwordVisible ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" className="login-password-toggle" aria-label={passwordVisible ? "Skrýt heslo" : "Zobrazit heslo"} aria-pressed={passwordVisible} aria-controls="login-password" onClick={() => setPasswordVisible((visible) => !visible)}>{passwordVisible ? <EyeSlash size={16}/> : <Eye size={16}/>}</button></div></label></> : <><p className="login-hint">{secondStep.message || "Zadejte ověřovací kód z druhého kroku přihlášení."}</p><label>Ověřovací kód<input autoFocus inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} required /></label></>}
-      {error && <div className="inline-error">{error}</div>}
-      {(!loginOptions.oidc || showPasswordFallback || secondStep) && <button className="button primary login-submit" disabled={busy}>{busy ? "Ověřuji…" : secondStep ? "Ověřit a přihlásit se" : "Přihlásit se"}<span>→</span></button>}
-      {secondStep ? <button type="button" className="login-recovery-link" onClick={() => { setSecondStep(null); setCode(""); setError(""); }}>Zpět na přihlášení</button> : recoveryEnabled && <button type="button" className="login-recovery-link" onClick={() => setRecoveryOpen(true)}>Zapomněli jste heslo?</button>}
-      <div className="login-secure"><span className="secure-dot"/>Přihlášení ověřuje přímo EspoCRM</div>
-    </form><div className="login-bottom">{isPortalLogin ? portalTitle : "ViaCRM"} <span>·</span> {isPortalLogin ? "Zákaznický portál" : "Klientský portál"}</div>{recoveryOpen && <PasswordRecoveryRequest onClose={() => setRecoveryOpen(false)}/>}</section>
-  </main>;
 }
 
 function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: Metadata; user: User; onLogout: () => void; onRefreshMetadata: () => Promise<void> }) {
@@ -4580,7 +4178,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   {pdfTemplateOpen && <SelectRecordsDialog entity="Template" metadata={metadata} multiple={false} selectedIds={[]} selectedRows={[]} fixedWhere={[{ type: "equals", attribute: "entityType", value: entity }]} onCreate={canCreateEntity(metadata, "Template") && !metadata.clientDefs?.Template?.createDisabled ? () => { const previewWindow = window.open("about:blank", "_blank"); if (!previewWindow) { setError("Prohlížeč zablokoval nové okno. Povolte vyskakovací okna a zkuste tisk znovu."); return; } pdfCreatePreviewWindow.current = previewWindow; setPdfTemplateOpen(false); setPdfTemplateCreateOpen(true); } : undefined} onClose={() => setPdfTemplateOpen(false)} onSelect={(templates) => { const template = templates[0]; const previewWindow = template ? window.open("about:blank", "_blank") : null; if (template) void printRecordPdf(template, previewWindow); else setPdfTemplateOpen(false); }}/>} {pdfTemplateCreateOpen && <RecordEditor entity="Template" fields={getFormFields(metadata, "Template")} metadata={metadata} initialValues={{ entityType: entity }} onClose={() => { setPdfTemplateCreateOpen(false); pdfCreatePreviewWindow.current?.close(); pdfCreatePreviewWindow.current = null; }} onSaved={(template) => { setPdfTemplateCreateOpen(false); const previewWindow = pdfCreatePreviewWindow.current; pdfCreatePreviewWindow.current = null; void printRecordPdf(template, previewWindow); }}/>}
   {massTestPicker && <SelectRecordsDialog entity={massTestPicker} metadata={metadata} multiple selectedIds={massTestRecipients[massTestPicker].map((item) => item.id)} selectedRows={massTestRecipients[massTestPicker]} onClose={() => setMassTestPicker("")} onSelect={(items) => { setMassTestRecipients((old) => ({ ...old, [massTestPicker]: items })); setMassTestPicker(""); }}/>}
   {targetAcl && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setTargetAcl(null)}><section className="record-modal user-access-modal"><div className="modal-heading"><div><span className="eyebrow">PŘÍSTUPOVÁ PRÁVA</span><h2>{record.name || record.userName}</h2></div><button className="icon-button" onClick={() => setTargetAcl(null)} aria-label="Zavřít"><X size={17}/></button></div><div className="user-access-table"><div className="user-access-row header"><b>Modul</b><b>Čtení</b><b>Vytvořit</b><b>Upravit</b><b>Smazat</b><b>Stream</b></div>{Object.entries(targetAcl.table || {}).filter(([, acl]) => acl && typeof acl === "object").sort(([a], [b]) => entityLabel(metadata, a).localeCompare(entityLabel(metadata, b), "cs")).map(([scope, raw]) => { const permission = raw as Row; return <div className="user-access-row" key={scope}><strong>{entityLabel(metadata, scope, true)}</strong>{["read", "create", "edit", "delete", "stream"].map((key) => <span key={key} className={`user-access-state ${permission[key] === "no" ? "denied" : permission[key] ? "granted" : "unknown"}`}>{permission[key] === "no" ? "Ne" : permission[key] ? permission[key] === "all" ? "Vše" : "Ano" : "—"}</span>)}</div>; })}</div><div className="modal-footer"><button className="button subtle" onClick={() => setTargetAcl(null)}>Zavřít</button></div></section></div>}
-  {userSecurityOpen && <div className="modal-backdrop user-security-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setUserSecurityOpen(false)}><section className="user-security-modal"><UserSecurityView metadata={metadata} user={{ id: record.id, name: record.name || record.userName, userName: record.userName, type: record.type }} adminMode onBack={() => setUserSecurityOpen(false)}/></section></div>}
+  {userSecurityOpen && <div className="modal-backdrop user-security-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setUserSecurityOpen(false)}><section className="user-security-modal"><UserSecurityView metadata={metadata} user={{ id: record.id, name: record.name || record.userName, userName: record.userName, type: record.type } as User} adminMode onBack={() => setUserSecurityOpen(false)}/></section></div>}
   {followersOpen && <FollowersDialog entity={entity} recordId={record.id} metadata={metadata} canManage={canManageFollowers} currentUserId={sessionUser?.id} onClose={() => setFollowersOpen(false)} onOpenUser={(user) => onOpenRelated("User", user)} onChanged={() => { void request<Row>(`${encodeURIComponent(entity)}/${encodeURIComponent(record.id)}`).then((fresh) => { setRecord(fresh); onChanged(fresh); }).catch(() => {}); }} />}
   {currencyConvertOpen && <CurrencyConversionDialog entity={entity} metadata={metadata} fields={currencyFields} recordId={record.id} onClose={() => setCurrencyConvertOpen(false)} onComplete={(next) => { setCurrencyConvertOpen(false); if (next) { setRecord(next); onChanged(next); } else void request<Row>(`${entity}/${record.id}`).then((fresh) => { setRecord(fresh); onChanged(fresh); }).catch(() => {}); }}/>}
   {dashboardDeployOpen && <DashboardTemplateDeploy id={record.id} name={record.name || "Dashboard"} onClose={() => setDashboardDeployOpen(false)} onComplete={setUserNotice}/>}{editor && <RecordEditor entity={entity} fields={getEditorFields(metadata, entity)} metadata={metadata} record={record} onClose={() => changeEditor(false)} onSaved={(next) => { const safeNext = entity === "AppSecret" ? { ...next, value: "" } : next; changeEditor(false); setRecord(safeNext); onChanged(safeNext); }} />}{duplicateValues && <RecordEditor entity={entity} fields={getEditorFields(metadata, entity)} metadata={metadata} initialValues={duplicateValues} duplicate onClose={() => setDuplicateValues(null)} onSaved={(created) => { setDuplicateValues(null); onClose(); onOpenRelated(entity, created); }}/ >}{convertOpen && <LeadConversion metadata={metadata} lead={record} onClose={() => setConvertOpen(false)} onOpenRecord={onOpenRelated} onConverted={(next) => { setRecord(next); onChanged(next); setConvertOpen(false); }}/>}{personalDataOpen && <PersonalDataDialog entity={entity} record={record} fields={personalFields.map(({ name, def, value, attributes, canErase }) => ({ name, def, value, attributes, canErase, label: fieldLabel(name, def, entity, metadata) }))} canErase={canErasePersonalData} onClose={() => setPersonalDataOpen(false)} onErased={(next) => { setRecord(next); onChanged(next); }}/>}</>;
@@ -4851,12 +4449,11 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
   const [dateTimeZone, setDateTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [changingAppSecret, setChangingAppSecret] = useState(!activeRecord);
   const [changingUserPassword, setChangingUserPassword] = useState(!record);
-  const [passwordStrengthParams, setPasswordStrengthParams] = useState<PasswordRecoveryInfo["strengthParams"] | null>(null);
+  const [passwordStrengthParams, setPasswordStrengthParams] = useState<PasswordStrengthParams | null>(null);
   useEffect(() => {
     if (entity !== "User" || getSession()?.user.type !== "admin") return;
-    let live = true;
-    fetch("/api/v1/User/passwordRecoveryInfo").then((response) => response.json()).then((info: PasswordRecoveryInfo) => { if (live) setPasswordStrengthParams(info.strengthParams || {}); }).catch(() => live && setPasswordStrengthParams({}));
-    return () => { live = false; };
+    // ViaCRM password policy (docs/contract m1): 12 to 128 characters.
+    setPasswordStrengthParams({ minLength: 12, maxLength: 128 });
   }, [entity]);
   const [recordBaseline, setRecordBaseline] = useState<Row>(activeRecord || {});
   const [versionNumber, setVersionNumber] = useState(activeRecord?.versionNumber ?? null);

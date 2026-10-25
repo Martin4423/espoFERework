@@ -1,6 +1,9 @@
-export type User = { id: string; name: string; userName: string; type?: string; portalId?: string; auth2FA?: boolean };
-export type Session = { username: string; token: string; user: User };
-export type PendingSecondStep = { secondStepRequired: true; username: string; token: string; message?: string; authorizationHeaders?: Record<string, string> };
+import { AuthClient, toUser } from "./auth/client.ts";
+import type { MeResponse, Session } from "./auth/client.ts";
+import { ApiError, UnsupportedError, networkError, problemFromResponse } from "./problem.ts";
+
+export type { Session, User } from "./auth/client.ts";
+export { ApiError, UnsupportedError, isUnsupported } from "./problem.ts";
 export type UserAcl = { table?: Record<string, boolean | Record<string, string>>; fieldTable?: Record<string, Record<string, Record<string, string>>>; exportPermission?: string; massUpdatePermission?: string; [key: string]: any };
 export type FieldDef = {
   type?: string;
@@ -36,153 +39,60 @@ export type Metadata = {
 export type LayoutItem = { name?: string; label?: string; fullWidth?: boolean; width?: number; widthPx?: number; hidden?: boolean; link?: boolean; notSortable?: boolean; align?: "left" | "right" | "center" } | false;
 export type DetailLayoutPanel = { label?: string; rows?: LayoutItem[][]; tabBreak?: boolean; tabLabel?: string };
 
-export class ApiError extends Error {
-  readonly status: number;
-  readonly data: unknown;
-  readonly statusReason?: { reason?: string; data?: any };
-  constructor(message: string, status: number, data: unknown, statusReason?: { reason?: string; data?: any }) { super(message); this.name = "ApiError"; this.status = status; this.data = data; this.statusReason = statusReason; }
-}
+// One client per page. The ViaCRM API has no CORS: every call goes to /v1 on this origin (Vite or nginx proxy).
+const auth = new AuthClient({
+  fetch: (path, init) => window.fetch(path, init),
+  storage: (() => { try { return window.localStorage; } catch { return { getItem: () => null, setItem: () => undefined, removeItem: () => undefined }; } })(),
+  now: () => Date.now(),
+  locks: typeof navigator !== "undefined" && "locks" in navigator ? { request: (name, callback) => navigator.locks.request(name, callback) as Promise<any> } : undefined,
+  onExpired: () => window.dispatchEvent(new Event("via-session-expired")),
+});
 
-const SESSION_KEY = "via-espo-session";
-let current: Session | null = (() => {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
-})();
+export function getSession(): Session | null { return auth.getSession(); }
 
-function authHeader(session: Session) {
-  return btoa(`${session.username}:${session.token}`);
-}
+export function login(email: string, password: string): Promise<Session> { return auth.login(email, password); }
 
-export function getSession() { return current; }
-
-function storeLogin(username: string, body: any): Session {
-  if (!body.user?.token) throw new Error(body.message || "Odpověď EspoCRM neobsahuje přihlašovací token.");
-  current = { username: body.user.userName || username, token: body.user.token, user: body.user };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(current));
-  return current;
-}
-
-export async function login(username: string, password: string): Promise<Session | PendingSecondStep> {
-  const auth = btoa(`${username}:${password}`);
-  return loginWithAuthorizationHeaders({ Authorization: `Basic ${auth}`, "Espo-Authorization": auth }, username);
-}
-
-export async function loginWithAuthorizationHeaders(authorizationHeaders: Record<string, string>, username = ""): Promise<Session | PendingSecondStep> {
-  const headers = { ...authorizationHeaders, "Espo-Authorization-By-Token": "false", "Espo-Authorization-Create-Token-Secret": "true" };
-  const response = await fetch("/api/v1/App/user", { headers });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok && response.headers.get("X-Status-Reason") === "second-step-required") {
-    if (!body.token) throw new Error(body.message || "EspoCRM vyžaduje druhý ověřovací krok, ale neposlalo jeho přihlašovací údaj.");
-    return { secondStepRequired: true, username, token: body.token, message: body.message, authorizationHeaders: username ? undefined : authorizationHeaders };
-  }
-  if (!response.ok) throw new Error(body.message || "Přihlašovací údaje nejsou správné.");
-  return storeLogin(username, body);
-}
-
-export async function completeSecondStepLogin(pending: PendingSecondStep, code: string): Promise<Session> {
-  const cleanCode = code.replace(/\s/g, "");
-  if (!cleanCode) throw new Error("Zadejte ověřovací kód.");
-  const auth = btoa(`${pending.username}:${pending.token}`);
-  const responseHeaders: Record<string, string> = pending.authorizationHeaders
-    ? { ...pending.authorizationHeaders, "Espo-Authorization-Code": cleanCode, "Espo-Authorization-Create-Token-Secret": "true" }
-    : { Authorization: `Basic ${auth}`, "Espo-Authorization": auth, "Espo-Authorization-Code": cleanCode, "Espo-Authorization-Create-Token-Secret": "true" };
-  const response = await fetch("/api/v1/App/user", { headers: responseHeaders });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.message || (response.status === 401 ? "Ověřovací kód není správný nebo už vypršel." : "Druhý ověřovací krok se nezdařil."));
-  return storeLogin(pending.username, body);
-}
-
+// Loads the signed-in user again (and so refreshes the tokens when needed). Null when there is no usable session;
+// a network or server failure is thrown so the caller can offer a retry instead of signing the user out.
 export async function restoreSession(): Promise<Session | null> {
-  if (!current) return null;
+  if (!auth.getSession()) return null;
   try {
-    const body = await request<{ user: User }>("App/user");
-    current.user = body.user;
-    localStorage.setItem(SESSION_KEY, JSON.stringify(current));
-    return current;
-  } catch {
-    logout();
-    return null;
+    const me = await apiJson<MeResponse>("/v1/me");
+    return auth.updateUser(toUser(me));
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null;
+    throw error;
   }
 }
 
-export function logout() {
-  current = null;
-  localStorage.removeItem(SESSION_KEY);
-}
+export function logout() { void auth.logout(); }
 
-export async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
-  if (!current) throw new Error("Přihlášení vypršelo.");
+// JSON call to the ViaCRM API (path starts with /v1). 204 gives null; a failure is an ApiError built from problem+json.
+export async function apiJson<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("Espo-Authorization", authHeader(current));
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const response = await fetch(`/api/v1/${path}`, { ...init, headers });
-  const text = await response.text();
-  const body = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    if (response.status === 401) {
-      logout();
-      window.dispatchEvent(new Event("via-session-expired"));
-    }
-    const statusReasonHeader = response.headers.get("X-Status-Reason");
-    let statusReason: ApiError["statusReason"];
-    if (statusReasonHeader) {
-      try { statusReason = JSON.parse(statusReasonHeader); }
-      catch { statusReason = { reason: statusReasonHeader, data: body }; }
-    }
-    throw new ApiError(body?.message || body?.error || `CRM API vrátilo chybu ${response.status}.`, response.status, body, statusReason);
-  }
-  return body as T;
+  const response = await auth.authorizedFetch(path, { ...init, headers });
+  if (!response.ok) throw await problemFromResponse(response);
+  if (response.status === 204) return null as T;
+  try { return (await response.json()) as T; } catch (cause) { throw networkError(cause); }
 }
 
-export async function downloadAttachment(id: string, name: string) {
-  if (!current) throw new Error("Přihlášení vypršelo.");
-  const response = await fetch(`/api/v1/Attachment/file/${encodeURIComponent(id)}`, { headers: { "Espo-Authorization": authHeader(current) } });
-  if (!response.ok) throw new Error(`Soubor se nepodařilo stáhnout (${response.status}).`);
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url; anchor.download = name || "priloha"; anchor.style.display = "none"; document.body.append(anchor); anchor.click(); anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+// Legacy entry point of the screens written for the previous backend. Only /v1 paths are served; every other
+// path is a feature that is not migrated (or not offered by ViaCRM yet) and ends in the "not available" notice.
+export async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (!normalized.startsWith("/v1/")) throw new UnsupportedError(path);
+  return apiJson<T>(normalized, init);
 }
 
-export async function getAttachmentPreviewUrl(id: string): Promise<string> {
-  if (!current) throw new Error("Přihlášení vypršelo.");
-  const response = await fetch(`/api/v1/Attachment/file/${encodeURIComponent(id)}`, { headers: { "Espo-Authorization": authHeader(current) } });
-  if (!response.ok) throw new Error(`Náhled souboru se nepodařil načíst (${response.status}).`);
-  return URL.createObjectURL(await response.blob());
-}
+export async function downloadAttachment(_id: string, _name: string): Promise<void> { throw new UnsupportedError("Attachment/file"); }
 
-export async function uploadAttachment(file: File, entity: string, field: string, multiple = false, role = "Attachment"): Promise<{ id: string; name: string; type: string }> {
-  const inline = role === "Inline Attachment";
-  const options = { name: file.name, type: file.type || "application/octet-stream", size: file.size, role, field, ...(inline ? { global: true, relatedType: entity } : multiple ? { parentType: entity } : { relatedType: entity }) };
-  if (!file.size) {
-    const data = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
-    const attachment = await request("Attachment", { method: "POST", body: JSON.stringify({ ...options, file: data }) });
-    return { id: attachment.id, name: file.name, type: options.type };
-  }
-  const attachment = await request("Attachment", { method: "POST", body: JSON.stringify({ ...options, isBeingUploaded: true }) });
-  const chunkSize = 1024 * 1024;
-  for (let start = 0; start < file.size; start += chunkSize) {
-    const chunk = file.slice(start, Math.min(start + chunkSize, file.size));
-    const data = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(chunk); });
-    await request(`Attachment/chunk/${encodeURIComponent(attachment.id)}`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: data });
-  }
-  return { id: attachment.id, name: file.name, type: options.type };
-}
+export async function getAttachmentPreviewUrl(_id: string): Promise<string> { throw new UnsupportedError("Attachment/file"); }
 
-export async function fetchMetadata() {
-  const userId = current?.user.id;
-  const [metadata, labels, userAcl, appData] = await Promise.all([
-    request<Metadata>("Metadata"),
-    request<Metadata["labels"]>("I18n"),
-    userId ? request<UserAcl>(`User/${encodeURIComponent(userId)}/acl`).catch(() => undefined) : Promise.resolve(undefined),
-    request<{ appParams?: Record<string, any>; settings?: Record<string, any> }>("App/user"),
-  ]);
-  metadata.labels = labels || {};
-  metadata.userAcl = userAcl;
-  metadata.appSettings = appData.settings || {};
-  metadata.appParams = appData.appParams || {};
-  return metadata;
-}
+export async function uploadAttachment(_file: File, _entity: string, _field: string, _multiple = false, _role = "Attachment"): Promise<{ id: string; name: string; type: string }> { throw new UnsupportedError("Attachment"); }
+
+// Step S2 builds the metadata from /v1/meta, /v1/me/permissions and the layouts.
+export async function fetchMetadata(): Promise<Metadata> { throw new UnsupportedError("Metadata"); }
 
 export function aclLevel(metadata: Metadata, entity: string, action: string): string | null {
   const table = metadata.userAcl?.table;

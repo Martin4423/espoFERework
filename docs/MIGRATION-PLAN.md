@@ -14,6 +14,14 @@ Větev `dot-net`. Navazuje na `docs/BACKEND-MIGRATION-ANALYSIS.md` (co se mění
 - **Automaticky:** krok 0 přidá `vitest` (adaptér a čisté funkce) a `Playwright` smoke test proti reálnému backendu v dockeru. Každý krok přidá své testy; gate = `npm run lint`, `tsc -b`, `vitest`, Playwright.
 - **Data:** nástroj `espo-import` už existuje; pro vývoj přibude jednoduchý seed (několik set účtů/kontaktů).
 
+## Stav
+| Krok | Stav |
+|---|---|
+| B0 | hotovo (`scripts/run.sh` v `viacrm-be`) |
+| S0 | hotovo (Docker stack bez EspoCRM, proxy `/v1`, vitest + Playwright) |
+| S1 | hotovo (přihlášení e-mailem, refresh s ochranou proti dvojímu použití tokenu, CZ/EN, dočasná domovská stránka) |
+| S2 a dál | čeká |
+
 ## Kroky
 
 Odhady jsou **uplynulý pracovní čas** (ne člověkohodiny) při práci s paralelními agenty, včetně mé kontroly a oprav. Rozptyl ±50 %; největší nejistota je v krocích 3–4 a 8.

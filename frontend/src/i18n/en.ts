@@ -1,0 +1,46 @@
+import type { MessageKey } from "./cs.ts";
+
+export const en: Record<MessageKey, string> = {
+  "app.name": "ViaCRM",
+  "common.loading": "Loading…",
+  "common.retry": "Try again",
+  "common.logout": "Sign out",
+  "common.language": "Language",
+  "unsupported.title": "Not available in ViaCRM yet",
+  "unsupported.body": "This feature is not implemented in the new ViaCRM backend yet.",
+
+  "login.eyebrow": "WELCOME BACK",
+  "login.title": "Sign in to the CRM",
+  "login.hint": "Use your e-mail address and password.",
+  "login.email": "E-mail",
+  "login.password": "Password",
+  "login.showPassword": "Show password",
+  "login.hidePassword": "Hide password",
+  "login.submit": "Sign in",
+  "login.busy": "Signing in…",
+  "login.secure": "Sign-in is verified by ViaCRM",
+
+  "session.expired": "Your session expired or was revoked. Please sign in again.",
+  "session.unavailable": "The CRM is not available. Please try again in a moment.",
+
+  "home.signedInAs": "Signed in as {name}",
+  "home.role.admin": "administrator",
+  "home.role.regular": "user",
+  "home.interim": "Sign-in works. More screens are being connected step by step.",
+
+  "error.network": "The server does not respond. Check your connection and try again.",
+  "error.generic": "The request failed ({status}).",
+  "error.INVALID_CREDENTIALS": "The e-mail or password is not correct.",
+  "error.TOO_MANY_ATTEMPTS": "Too many attempts. Try again in {minutes} min.",
+  "error.TOO_MANY_ATTEMPTS.soon": "Too many attempts. Try again in a moment.",
+  "error.UNAUTHENTICATED": "You need to sign in.",
+  "error.INVALID_REFRESH_TOKEN": "Your session expired. Please sign in again.",
+  "error.FORBIDDEN": "You are not allowed to do this.",
+  "error.NOT_FOUND": "The record or page does not exist.",
+  "error.VALIDATION_FAILED": "The entered data is not valid.",
+  "error.CONFLICT": "The action conflicts with the current state.",
+  "error.PRECONDITION_FAILED": "The record changed in the meantime. Load it again.",
+  "error.PAYLOAD_TOO_LARGE": "The data is too large.",
+  "error.UNSUPPORTED_MEDIA_TYPE": "Unsupported content type.",
+  "error.INTERNAL": "A server error occurred. Please try again later.",
+};
