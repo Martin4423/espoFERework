@@ -295,7 +295,7 @@ export function ActivityView({ user, metadata, onBack }: { user: User; metadata:
   </div>;
 }
 
-export function GlobalStreamView({ user, metadata, onBack, onOpenRecord }: { user: User; metadata: Metadata; onBack: () => void; onOpenRecord: (scope: string, id: string) => void }) {
+export function GlobalStreamView({ user, metadata, onBack, onOpenRecord, portalMode = false }: { user: User; metadata: Metadata; onBack: () => void; onOpenRecord: (scope: string, id: string) => void; portalMode?: boolean }) {
   const [items, setItems] = useState<Note[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [filter, setFilter] = useState<"all" | "posts" | "updates">("all");
@@ -309,15 +309,20 @@ export function GlobalStreamView({ user, metadata, onBack, onOpenRecord }: { use
   const pageSize = 20;
   const where = useMemo(() => filter === "all" ? [] : [{ type: filter === "posts" ? "equals" : "notEquals", attribute: "type", value: "Post" }], [filter]);
   const load = useCallback(async (append = false, beforeNumber?: number) => {
-    if (!canAccessEntity(metadata, "GlobalStream")) { setItems([]); setHasMore(false); setError("Nemáte oprávnění číst globální stream."); setBusy(false); setLoadingMore(false); return; }
+    if (!portalMode && !canAccessEntity(metadata, "GlobalStream")) { setItems([]); setHasMore(false); setError("Nemáte oprávnění číst globální stream."); setBusy(false); setLoadingMore(false); return; }
     if (append) setLoadingMore(true); else setBusy(true);
     setError("");
     try {
       const params = new URLSearchParams({ maxSize: String(pageSize), orderBy: "number", order: "desc" });
-      if (append && beforeNumber != null) params.set("beforeNumber", String(beforeNumber));
-      if (query) params.set("q", query);
-      if (where.length) params.set("where", JSON.stringify(where));
-      const result = await request<Page<Note>>(`GlobalStream?${params}`);
+      if (portalMode) {
+        params.set("offset", String(append ? beforeNumber ?? 0 : 0));
+        if (filter !== "all") params.set("filter", filter);
+      } else {
+        if (append && beforeNumber != null) params.set("beforeNumber", String(beforeNumber));
+        if (query) params.set("q", query);
+        if (where.length) params.set("where", JSON.stringify(where));
+      }
+      const result = await request<Page<Note>>(`${portalMode ? "Stream" : "GlobalStream"}?${params}`);
       const list = result.list || [];
       setItems((old) => append ? [...old, ...list.filter((item) => !old.some((current) => current.id === item.id))] : list);
       setHasMore(list.length === pageSize);
@@ -325,7 +330,7 @@ export function GlobalStreamView({ user, metadata, onBack, onOpenRecord }: { use
       setError(cause instanceof Error ? cause.message : "Globální stream se nepodařilo načíst.");
       if (!append) { setItems([]); setHasMore(false); }
     } finally { setBusy(false); setLoadingMore(false); }
-  }, [query, where, metadata]);
+  }, [query, where, metadata, portalMode, filter]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     let live = true;
@@ -351,10 +356,10 @@ export function GlobalStreamView({ user, metadata, onBack, onOpenRecord }: { use
     catch (cause) { setError(cause instanceof Error ? cause.message : "Příspěvek se nepodařilo upravit."); throw cause; }
     finally { setBusyId(""); }
   }
-  return <div className="social-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Přehled</button><div className="eyebrow">STREAM A KOMUNIKACE</div><h1><Globe size={22}/> Globální stream</h1><p>Veřejné a týmové příspěvky dostupné vašemu účtu.</p></div><button className="button subtle" onClick={() => void load()} disabled={busy}><RefreshCw size={14}/> Obnovit</button></div>
-    <form className="surface global-stream-toolbar" onSubmit={(event) => { event.preventDefault(); setQuery(queryDraft.trim()); }}><label className="global-stream-search"><Search size={15}/><input value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} placeholder="Hledat ve streamu"/><button className="button subtle" disabled={busy}>Hledat</button></label><div className="stream-filter-tabs" role="group" aria-label="Filtrovat globální stream">{([ ["all", "Vše"], ["posts", "Příspěvky"], ["updates", "Změny"] ] as const).map(([key, label]) => <button type="button" key={key} className={filter === key ? "active" : ""} aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}</button>)}</div></form>
+  return <div className="social-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Přehled</button><div className="eyebrow">STREAM A KOMUNIKACE</div><h1><Globe size={22}/> {portalMode ? "Stream" : "Globální stream"}</h1><p>{portalMode ? "Příspěvky a změny dostupné ve vašem portálu." : "Veřejné a týmové příspěvky dostupné vašemu účtu."}</p></div><button className="button subtle" onClick={() => void load()} disabled={busy}><RefreshCw size={14}/> Obnovit</button></div>
+    <div className="surface global-stream-toolbar">{!portalMode && <form className="global-stream-search" onSubmit={(event) => { event.preventDefault(); setQuery(queryDraft.trim()); }}><Search size={15}/><input value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} placeholder="Hledat ve streamu"/><button className="button subtle" disabled={busy}>Hledat</button></form>}<div className="stream-filter-tabs" role="group" aria-label={portalMode ? "Filtrovat stream" : "Filtrovat globální stream"}>{([ ["all", "Vše"], ["posts", "Příspěvky"], ["updates", "Změny"] ] as const).map(([key, label]) => <button type="button" key={key} className={filter === key ? "active" : ""} aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}</button>)}</div></div>
     {error && <div className="table-error" role="alert">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
-    <section className="surface social-feed">{busy ? <div className="table-loading"><span className="spinner"/> Načítám globální stream…</div> : items.length ? items.map((note) => <StreamItem key={note.id} note={note} metadata={metadata} reactions={reactions} currentUserId={user.id} busy={busyId === note.id || busyId.startsWith(`${note.id}:`)} onReact={react} onPin={() => {}} onRemove={remove} onEdit={edit} onQuote={() => {}} allowQuote={false} pinned={false} allowPin={false} onOpen={(item) => onOpenRecord("Note", item.id)} onOpenParent={(item) => { const scope = item.parentType || item.entityType; const id = item.parentId || item.entityId; if (scope && id) onOpenRecord(scope, id); }} avatarsDisabled={Boolean(metadata.appSettings?.avatarsDisabled)}/>) : <div className="stream-empty"><Activity size={22}/><span>{query || filter !== "all" ? "Pro zadané hledání nejsou ve streamu žádné záznamy." : "Globální stream zatím neobsahuje žádné záznamy."}</span></div>}{hasMore && !busy && <button className="stream-load-more" onClick={() => void load(true, Number(items.at(-1)?.number))} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Starší aktivita</button>}</section>
+    <section className="surface social-feed">{busy ? <div className="table-loading"><span className="spinner"/> Načítám {portalMode ? "stream" : "globální stream"}…</div> : items.length ? items.map((note) => <StreamItem key={note.id} note={note} metadata={metadata} reactions={reactions} currentUserId={user.id} busy={busyId === note.id || busyId.startsWith(`${note.id}:`)} onReact={react} onPin={() => {}} onRemove={remove} onEdit={edit} onQuote={() => {}} allowQuote={false} pinned={false} allowPin={false} onOpen={(item) => onOpenRecord("Note", item.id)} onOpenParent={(item) => { const scope = item.parentType || item.entityType; const id = item.parentId || item.entityId; if (scope && id) onOpenRecord(scope, id); }} avatarsDisabled={Boolean(metadata.appSettings?.avatarsDisabled)}/>) : <div className="stream-empty"><Activity size={22}/><span>{query || filter !== "all" ? "Pro zadaná kritéria nejsou ve streamu žádné záznamy." : `${portalMode ? "Stream" : "Globální stream"} zatím neobsahuje žádné záznamy.`}</span></div>}{hasMore && !busy && <button className="stream-load-more" onClick={() => void load(true, portalMode ? items.length : Number(items.at(-1)?.number))} disabled={loadingMore}>{loadingMore ? <LoaderCircle size={14} className="spin"/> : <ArrowDown size={14}/>} Starší aktivita</button>}</section>
   </div>;
 }
 
