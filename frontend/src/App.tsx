@@ -963,6 +963,22 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
     const filtered = source.map(filterItem).filter(Boolean);
     return filtered.filter((item, index) => item?.type !== "divider" || Boolean(filtered[index - 1] && filtered[index + 1] && filtered[index - 1]?.type !== "divider" && filtered[index + 1]?.type !== "divider"));
   }, [metadata, tabPreferences, user.type]);
+  const portalNavItems = useMemo(() => {
+    const configured = Array.isArray(portalSettings.tabList) ? portalSettings.tabList as any[] : [];
+    const source = configured.length ? configured : navEntities;
+    const isAdmin = user.type === "admin" || user.type === "super-admin";
+    const visible = source.filter((item) => {
+      if (typeof item === "string") return item === "Home" || item === "Stream" || item.startsWith("_delimiter") || navEntities.includes(item);
+      if (item?.type === "divider") return true;
+      if (item?.type === "url") return (!item.onlyAdmin || isAdmin) && (!item.aclScope || canAccessEntity(metadata, item.aclScope)) && /^https?:\/\//i.test(String(item.url || ""));
+      return false;
+    }).filter((item, index, items) => item?.type !== "divider" || Boolean(items[index - 1] && items[index + 1] && items[index - 1]?.type !== "divider" && items[index + 1]?.type !== "divider"));
+    return visible.filter((item) => item !== "Home");
+  }, [portalSettings.tabList, navEntities, metadata, user.type]);
+  function portalTabLabel(item: any): string {
+    if (typeof item === "string") return item === "Stream" ? "Stream" : item.startsWith("_delimiter") ? "Oddělovač" : entityLabel(metadata, item, true);
+    return String(item?.text || (item?.type === "url" ? "Vlastní odkaz" : "Oddělovač"));
+  }
   function nativeTabLabel(item: any): string {
     if (typeof item === "string") return item === "Home" ? "Přehled" : item === "Calendar" ? "Kalendář" : entityLabel(metadata, item, true);
     const raw = String(item?.text || "");
@@ -1085,7 +1101,16 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         <button aria-label={isPortalUser ? "Přehled" : "Dashboard"} title={sidebarCollapsed ? (isPortalUser ? "Přehled" : "Dashboard") : undefined} className={`nav-item ${!entity && !calendarOpen && !adminOpen && !activityOpen && !globalStreamOpen && !notificationsOpen && !lastViewedOpen && !accountPage ? "active" : ""}`} onClick={() => { leaveRelatedRoute(); setEntity(null); setCalendarOpen(false); setAdminOpen(false); setActivityOpen(false); setGlobalStreamOpen(false); setNotificationsOpen(false); setLastViewedOpen(false); setAccountPage(null); setAccountMenuOpen(false); setRecord(null); setMobileNav(false); }}><span className="nav-icon"><LayoutDashboard size={17}/></span><span>{isPortalUser ? "Přehled" : "Dashboard"}</span></button>
         {!isPortalUser && <>{!nativeNavItems.some((item) => item === "Calendar") && <button aria-label="Kalendář" title={sidebarCollapsed ? "Kalendář" : undefined} className={`nav-item ${calendarOpen ? "active" : ""}`} onClick={openCalendar}><span className="nav-icon"><CalendarDays size={17}/></span><span>Kalendář</span></button>}
         <button aria-label="Aktivita" title={sidebarCollapsed ? "Aktivita" : undefined} className={`nav-item ${activityOpen ? "active" : ""}`} onClick={openActivity}><span className="nav-icon"><Activity size={17}/></span><span>Aktivita</span></button>{canAccessEntity(metadata, "GlobalStream") && <button aria-label="Globální stream" title={sidebarCollapsed ? "Globální stream" : undefined} className={`nav-item ${globalStreamOpen ? "active" : ""}`} onClick={openGlobalStream}><span className="nav-icon"><Activity size={17}/></span><span>Globální stream</span></button>}</>}
-        {isPortalUser ? <><div className="nav-caption modules-caption">MODULY <span>{navEntities.length}</span></div>{navEntities.map((item) => <button key={item} className={`nav-item ${entity === item ? "active" : ""}`} aria-label={entityLabel(metadata, item, true)} title={sidebarCollapsed ? entityLabel(metadata, item, true) : undefined} onClick={() => openEntity(item)}><span className="nav-icon"><EntityIcon name={item}/></span><span>{entityLabel(metadata, item, true)}</span></button>)}</> : nativeNavItems.map((item, index) => {
+        {isPortalUser ? <><div className="nav-caption modules-caption">MODULY <span>{portalNavItems.filter((item: any) => typeof item === "string" && item !== "Stream" && !item.startsWith("_")).length}</span></div>{portalNavItems.map((item: any, index: number) => {
+          if (typeof item === "string") {
+            if (item === "Stream") return null;
+            if (item.startsWith("_delimiter")) return <div key={`${item}-${index}`} className="nav-caption native-nav-divider">{portalTabLabel(item)}</div>;
+            return <button key={`${item}-${index}`} className={`nav-item ${entity === item ? "active" : ""}`} aria-label={portalTabLabel(item)} onClick={() => openEntity(item)}><span className="nav-icon"><EntityIcon name={item}/></span><span>{portalTabLabel(item)}</span></button>;
+          }
+          if (item?.type === "divider") return <div key={item.id || `portal-divider-${index}`} className="nav-caption native-nav-divider">{portalTabLabel(item)}</div>;
+          if (item?.type === "url") return <a key={item.id || `portal-url-${index}`} className="nav-item native-nav-url" aria-label={portalTabLabel(item)} href={item.url} target={item.targetBlank ? "_blank" : undefined} rel={item.targetBlank ? "noreferrer" : undefined} onClick={() => setMobileNav(false)}><span className="nav-icon"><Globe size={16}/></span><span>{portalTabLabel(item)}</span></a>;
+          return null;
+        })}</> : nativeNavItems.map((item, index) => {
           if (typeof item === "string") {
             if (item === "Home" || item.startsWith("_delimiter")) return null;
             return <button key={`${item}-${index}`} aria-label={nativeTabLabel(item)} title={sidebarCollapsed ? nativeTabLabel(item) : undefined} className={`nav-item ${(item === "Calendar" ? calendarOpen : entity === item) ? "active" : ""}`} onClick={() => openNativeTab(item)}><span className="nav-icon">{item === "Calendar" ? <CalendarDays size={16}/> : <EntityIcon name={item}/>}</span><span>{nativeTabLabel(item)}</span></button>;
@@ -5706,7 +5731,7 @@ function ColorPickerFieldInput({ id, label, value, required, disabled, onChange 
   </label>;
 }
 
-function PortalScopeListEditor({ name, label, value, metadata, disabled, onChange }: { name: string; label: string; value: unknown; metadata: Metadata; disabled: boolean; onChange: (value: string[]) => void }) {
+function PortalScopeListEditor({ name, label, value, metadata, disabled, onChange }: { name: string; label: string; value: unknown; metadata: Metadata; disabled: boolean; onChange: (value: any[]) => void }) {
   const tabList = name === "tabList";
   const rawOptions = Object.entries(metadata.scopes || {}).filter(([, def]) => !def.disabled && def.aclPortal && (tabList ? def.tab : def.entity && def.object)).map(([scope]) => scope);
   if (tabList) rawOptions.push("Stream", "_delimiter_", "_delimiter-ext_");
@@ -5714,11 +5739,15 @@ function PortalScopeListEditor({ name, label, value, metadata, disabled, onChang
   const available = rawOptions.filter((item) => item.startsWith("_delimiter") || !selected.includes(item));
   const [next, setNext] = useState(available[0] || "");
   useEffect(() => { if (!available.includes(next)) setNext(available[0] || ""); }, [next, available.join("|")]);
+  if (tabList) {
+    const allowedScopes = rawOptions.filter((item) => item !== "Stream" && !item.startsWith("_delimiter"));
+    return <div className="field-input portal-tab-list-field"><span>{label}</span><AdminTabListEditor value={Array.isArray(value) ? value as any[] : []} metadata={metadata} allowedScopes={allowedScopes} noGroups portalMode disabled={disabled} onChange={onChange}/><small className="field-hint">Navigace zachovává moduly, Stream, oddělovače i vlastní URL v jejich pořadí. Přístup se dál řídí portálovými oprávněními.</small></div>;
+  }
   const optionLabel = (item: string) => item === "Stream" ? "Stream" : item === "_delimiter_" || item === "_delimiter-ext_" ? "· · · Oddělovač · · ·" : entityLabel(metadata, item, true);
   function move(index: number, direction: -1 | 1) { const target = index + direction; if (target < 0 || target >= selected.length) return; const result = [...selected]; [result[index], result[target]] = [result[target], result[index]]; onChange(result); }
   function remove(index: number) { onChange(selected.filter((_, current) => current !== index)); }
   function add() { if (!next || !available.includes(next)) return; onChange([...selected, next]); const remaining = available.filter((item) => item !== next); setNext(remaining[0] || ""); }
-  return <div className="field-input portal-scope-list-editor"><span>{label}</span><div className="portal-scope-list">{selected.map((item, index) => <div className="portal-scope-list-row" key={`${item}-${index}`}><strong>{optionLabel(item)}</strong><div><button type="button" className="icon-button" disabled={disabled || index === 0} onClick={() => move(index, -1)} aria-label={`Posunout nahoru: ${optionLabel(item)}`}><ArrowUp size={13}/></button><button type="button" className="icon-button" disabled={disabled || index === selected.length - 1} onClick={() => move(index, 1)} aria-label={`Posunout dolů: ${optionLabel(item)}`}><ArrowDown size={13}/></button><button type="button" className="icon-button danger-ghost" disabled={disabled} onClick={() => remove(index)} aria-label={`Odebrat: ${optionLabel(item)}`}><Trash2 size={13}/></button></div></div>)}{!selected.length && <small>Žádná položka není vybraná.</small>}</div><div className="portal-scope-list-add"><select value={next} disabled={disabled || !available.length} onChange={(event) => setNext(event.target.value)}><option value="">Vyberte modul…</option>{available.map((item, index) => <option key={`${item}-${index}`} value={item}>{optionLabel(item)}</option>)}</select><button type="button" className="button subtle" disabled={disabled || !next} onClick={add}><Plus size={13}/>Přidat</button></div><small className="field-hint">{tabList ? "Pořadí určuje navigaci portálu. Nabízené moduly respektují portálová oprávnění." : "Rychlé vytvoření nabízí jen objekty povolené pro tento portál."}</small></div>;
+  return <div className="field-input portal-scope-list-editor"><span>{label}</span><div className="portal-scope-list">{selected.map((item, index) => <div className="portal-scope-list-row" key={`${item}-${index}`}><strong>{optionLabel(item)}</strong><div><button type="button" className="icon-button" disabled={disabled || index === 0} onClick={() => move(index, -1)} aria-label={`Posunout nahoru: ${optionLabel(item)}`}><ArrowUp size={13}/></button><button type="button" className="icon-button" disabled={disabled || index === selected.length - 1} onClick={() => move(index, 1)} aria-label={`Posunout dolů: ${optionLabel(item)}`}><ArrowDown size={13}/></button><button type="button" className="icon-button danger-ghost" disabled={disabled} onClick={() => remove(index)} aria-label={`Odebrat: ${optionLabel(item)}`}><Trash2 size={13}/></button></div></div>)}{!selected.length && <small>Žádná položka není vybraná.</small>}</div><div className="portal-scope-list-add"><select value={next} disabled={disabled || !available.length} onChange={(event) => setNext(event.target.value)}><option value="">Vyberte modul…</option>{available.map((item, index) => <option key={`${item}-${index}`} value={item}>{optionLabel(item)}</option>)}</select><button type="button" className="button subtle" disabled={disabled || !next} onClick={add}><Plus size={13}/>Přidat</button></div><small className="field-hint">Rychlé vytvoření nabízí jen objekty povolené pro tento portál.</small></div>;
 }
 
 function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}, onColumnsChange, primaryId, onPrimaryChange, onChange, onUploading, onUploaded, onError, relatedContext, currencyValue, onCurrencyChange, themeParamsValue, onThemeParamsChange, timeZone, onRegisterTemplateInsert }: { entity: string; metadata: Metadata; name: string; def: FieldDef; value: any; columns?: Row; onColumnsChange?: (columns: Row) => void; primaryId?: string; onPrimaryChange?: (id: string, label?: string) => void; onChange: (value: any) => void; onUploading?: (value: boolean) => void; onUploaded?: (id: string) => void; onError?: (message: string) => void; relatedContext?: Row; currencyValue?: string; onCurrencyChange?: (currency: string) => void; themeParamsValue?: Row; onThemeParamsChange?: (value: Row) => void; timeZone?: string; onRegisterTemplateInsert?: (name: string, insert: (text: string) => void) => void }) {
