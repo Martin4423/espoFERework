@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Languages, Save, Search } from "./Icons";
 import { humanize, request } from "./api";
 import type { Metadata } from "./api";
+import { useDialogFocus } from "./useDialogFocus";
 
 type LabelData = Record<string, Record<string, string>>;
+type PendingLabelAction = { kind: "back" | "scope" | "language"; value?: string };
 
 function languageLabel(code: string) {
   try {
@@ -26,6 +28,8 @@ export default function AdminLabelManager({ metadata, onBack, onRefreshMetadata 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pendingAction, setPendingAction] = useState<PendingLabelAction | null>(null);
+  const confirmDialogRef = useDialogFocus<HTMLElement>(() => { if (!busy && !saving) setPendingAction(null); }, !busy && !saving, Boolean(pendingAction));
   const loadSequence = useRef(0);
 
   useEffect(() => {
@@ -74,13 +78,28 @@ export default function AdminLabelManager({ metadata, onBack, onRefreshMetadata 
     finally { setSaving(false); }
   }
   function setValue(category: string, key: string, value: string) { setLabels((old) => ({ ...old, [category]: { ...old[category], [key]: value } })); }
-  function back() { if (Object.keys(dirty).length && !window.confirm("Zahodit neuložené změny překladů?")) return; onBack(); }
+  function requestAction(action: PendingLabelAction) {
+    if (busy || saving) return;
+    if (Object.keys(dirty).length) setPendingAction(action);
+    else if (action.kind === "back") onBack();
+    else if (action.kind === "scope" && action.value) setScope(action.value);
+    else if (action.kind === "language" && action.value) setLanguage(action.value);
+  }
+  function confirmPendingAction() {
+    const action = pendingAction;
+    if (!action || busy || saving) return;
+    setPendingAction(null);
+    if (action.kind === "back") onBack();
+    else if (action.kind === "scope" && action.value) setScope(action.value);
+    else if (action.kind === "language" && action.value) setLanguage(action.value);
+  }
   const allRows = Object.values(labels).reduce((count, values) => count + Object.keys(values || {}).length, 0);
 
-  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={back}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">LOKALIZACE</div><h1>Správce popisků</h1><p>Upravujte překlady polí, relací, voleb a systémových textů.</p></div><button className="button primary" onClick={() => void save()} disabled={busy || saving || !Object.keys(dirty).length}><Save size={14}/>{saving ? "Ukládám…" : `Uložit změny${Object.keys(dirty).length ? ` · ${Object.keys(dirty).length}` : ""}`}</button></div>
+  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={() => requestAction({ kind: "back" })}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">LOKALIZACE</div><h1>Správce popisků</h1><p>Upravujte překlady polí, relací, voleb a systémových textů.</p></div><button className="button primary" onClick={() => void save()} disabled={busy || saving || !Object.keys(dirty).length}><Save size={14}/>{saving ? "Ukládám…" : `Uložit změny${Object.keys(dirty).length ? ` · ${Object.keys(dirty).length}` : ""}`}</button></div>
     {error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
-      <section className="surface label-manager"><div className="label-toolbar"><label className="setting-field"><span>Oblast popisků</span><select value={scope} disabled={busy || saving} onChange={(event) => { if (Object.keys(dirty).length && !window.confirm("Zahodit neuložené změny překladů?")) return; setScope(event.target.value); }}>{scopeList.map((name) => <option value={name} key={name}>{name === "Global" ? "Globální popisky" : metadata.labels?.Global?.scopeNamesPlural?.[name] || humanize(name)}</option>)}</select></label><label className="setting-field"><span>Jazyk</span><select value={language} disabled={busy || saving} onChange={(event) => { if (Object.keys(dirty).length && !window.confirm("Zahodit neuložené změny překladů?")) return; setLanguage(event.target.value); }}>{languages.map((code: string) => <option value={code} key={code}>{languageLabel(code)}</option>)}</select></label><form className="label-search" onSubmit={(event) => event.preventDefault()}><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filtrovat popisky…"/></form><span className="label-count"><Languages size={14}/>{allRows} položek</span></div>
+      <section className="surface label-manager"><div className="label-toolbar"><label className="setting-field"><span>Oblast popisků</span><select value={scope} disabled={busy || saving} onChange={(event) => requestAction({ kind: "scope", value: event.target.value })}>{scopeList.map((name) => <option value={name} key={name}>{name === "Global" ? "Globální popisky" : metadata.labels?.Global?.scopeNamesPlural?.[name] || humanize(name)}</option>)}</select></label><label className="setting-field"><span>Jazyk</span><select value={language} disabled={busy || saving} onChange={(event) => requestAction({ kind: "language", value: event.target.value })}>{languages.map((code: string) => <option value={code} key={code}>{languageLabel(code)}</option>)}</select></label><form className="label-search" onSubmit={(event) => event.preventDefault()}><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filtrovat popisky…"/></form><span className="label-count"><Languages size={14}/>{allRows} položek</span></div>
       {busy ? <div className="table-loading"><span className="spinner"/> Načítám překlady…</div> : filtered.length ? <div className="label-category-list">{filtered.map(([category, rows]) => <details className="label-category" key={category} open={Boolean(query)}><summary><span>{humanize(category)}</span><small>{rows.length} popisků</small></summary><div className="label-rows">{rows.map(([key, value]) => <label className="label-row" key={`${category}-${key}`}><span><strong>{key.split("[.]").slice(1).join(" · ") || key}</strong><small>{category}</small></span>{String(value).length > 72 || String(value).includes("\n") ? <textarea rows={3} value={value || ""} onChange={(event) => setValue(category, key, event.target.value)}/> : <input value={value || ""} onChange={(event) => setValue(category, key, event.target.value)}/>}</label>)}</div></details>)}</div> : <div className="label-empty"><Languages size={20}/><strong>Žádné popisky k zobrazení</strong><span>Změňte oblast nebo filtr.</span></div>}
     </section>
+    {pendingAction && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && !saving && setPendingAction(null)}><section ref={confirmDialogRef} className="record-modal label-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="label-confirm-title" aria-describedby="label-confirm-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">LOKALIZACE · NEULOŽENÉ ZMĚNY</span><h2 id="label-confirm-title">{pendingAction.kind === "back" ? "Odejít bez uložení?" : "Přepnout překlady?"}</h2><p id="label-confirm-description">{pendingAction.kind === "back" ? <>Neuložené překlady pro <strong>{scope === "Global" ? "globální popisky" : metadata.labels?.Global?.scopeNamesPlural?.[scope] || humanize(scope)}</strong> v jazyce <strong>{languageLabel(language)}</strong> budou zahozeny.</> : <>Neuložené překlady pro <strong>{scope === "Global" ? "globální popisky" : metadata.labels?.Global?.scopeNamesPlural?.[scope] || humanize(scope)}</strong> v jazyce <strong>{languageLabel(language)}</strong> budou zahozeny{pendingAction.kind === "scope" ? <> a otevře se oblast <strong>{pendingAction.value === "Global" ? "Globální popisky" : metadata.labels?.Global?.scopeNamesPlural?.[pendingAction.value || ""] || humanize(pendingAction.value || "")}</strong></> : <> a otevře se jazyk <strong>{languageLabel(pendingAction.value || "")}</strong></>}.</>}</p></div><button type="button" className="icon-button" aria-label="Pokračovat v úpravách" onClick={() => setPendingAction(null)}>×</button></div><div className="modal-footer"><button type="button" autoFocus className="button subtle" onClick={() => setPendingAction(null)}>Pokračovat v úpravách</button><button type="button" className="button primary" onClick={confirmPendingAction}>{pendingAction.kind === "back" ? "Zahodit a odejít" : "Zahodit a přepnout"}</button></div></section></div>}
   </div>;
 }
