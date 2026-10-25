@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, Database, RefreshCw, RotateCcw, Server, Terminal } from "./Icons";
+import { AlertTriangle, ArrowLeft, Check, Database, RefreshCw, RotateCcw, Server, Terminal, X } from "./Icons";
 import { request, type Metadata } from "./api";
+import { useDialogFocus } from "./useDialogFocus";
 
 type SystemData = Record<string, any>;
 
@@ -18,6 +19,8 @@ export default function AdminSystemTools({ metadata, onBack, onRefreshMetadata }
   const [action, setAction] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [confirmAction, setConfirmAction] = useState<"clearCache" | "rebuild" | null>(null);
+  const confirmDialogRef = useDialogFocus<HTMLElement>(() => { if (!action) setConfirmAction(null); }, !action, Boolean(confirmAction));
   const load = useCallback(async () => {
     setBusy(true); setError("");
     const [reqResult, jobsResult, cronResult] = await Promise.allSettled([
@@ -34,13 +37,18 @@ export default function AdminSystemTools({ metadata, onBack, onRefreshMetadata }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  async function runAction(name: "clearCache" | "rebuild") {
-    const labels = { clearCache: "vyčistit aplikační cache", rebuild: "spustit kompletní rebuild CRM" };
-    if (!window.confirm(`Opravdu chcete ${labels[name]}?`)) return;
+  async function runAction(name: "clearCache" | "rebuild", confirmed = false) {
+    if (!confirmed) { setConfirmAction(name); return; }
     setAction(name); setError(""); setNotice("");
     try { await request(`Admin/${name}`, { method: "POST", body: JSON.stringify({}) }); await onRefreshMetadata(); setNotice(name === "clearCache" ? "Aplikační cache byla vyčištěna a data rozhraní obnovena." : "Rebuild EspoCRM byl dokončen a data rozhraní obnovena."); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Akce se nepodařila dokončit."); }
     finally { setAction(""); }
+  }
+  async function confirmSystemAction() {
+    const name = confirmAction;
+    if (!name || action) return;
+    setConfirmAction(null);
+    await runAction(name, true);
   }
 
   const nativeLabels = (metadata.labels as any)?.Admin?.systemRequirements || {};
@@ -66,5 +74,6 @@ export default function AdminSystemTools({ metadata, onBack, onRefreshMetadata }
     <div className="system-tool-actions"><section className="surface system-action-card"><span className="system-action-icon"><RotateCcw size={18}/></span><div><strong>Vyčistit cache</strong><p>Smaže dočasnou aplikační cache. EspoCRM ji znovu vytvoří při běhu.</p></div><button className="button subtle" onClick={() => void runAction("clearCache")} disabled={Boolean(action)}>{action === "clearCache" ? "Probíhá…" : "Vyčistit"}</button></section><section className="surface system-action-card"><span className="system-action-icon"><Database size={18}/></span><div><strong>Rebuild aplikace</strong><p>Obnoví metadata, konfiguraci a aplikační cache EspoCRM.</p></div><button className="button primary" onClick={() => void runAction("rebuild")} disabled={Boolean(action)}>{action === "rebuild" ? "Probíhá…" : "Spustit rebuild"}</button></section></div>
     <div className="system-tools-grid"><section className="surface system-info-card"><div className="settings-card-head"><div><h2><Server size={15}/> Systémové požadavky</h2><p>{busy ? "Načítám stav instalace…" : `${passed} v pořádku${failed ? ` · ${failed} problémů` : ""}`}</p></div></div>{busy ? <div className="table-loading"><span className="spinner"/> Kontroluji server…</div> : rows.length ? <div className="system-requirement-groups">{groups.map((group) => group.rows.length ? <div className="system-requirement-group" key={group.key}><h3>{group.label}</h3><div className="system-check-list">{group.rows.map(([name, value]) => { const acceptable = typeof value?.acceptable === "boolean" ? value.acceptable : null; const detail = requirementDetail(group.key, value); const status = acceptable === true ? "Splněno" : acceptable === false ? "Nesplněno" : "—"; return <div className="system-check-row" key={`${group.key}-${name}`}><span className={`requirement-dot ${acceptable === true ? "pass" : acceptable === false ? "fail" : "unknown"}`}/><span className="system-check-label"><strong>{nativeLabels[name] || readableRequirement(name)}</strong>{group.key === "permission" && <small>{detail}</small>}</span><span className="system-check-value">{group.key === "permission" ? status : detail}{group.key !== "permission" && <small className={acceptable === true ? "requirement-pass-label" : acceptable === false ? "requirement-fail-label" : ""}>{status}</small>}</span></div>; })}</div></div> : null)}<div className="system-requirement-help"><a href="https://docs.espocrm.com/administration/server-configuration/" target="_blank" rel="noreferrer">Pokyny ke konfiguraci serveru ↗</a></div></div> : <p className="field-manager-empty">API nevrátilo přehled systémových požadavků.</p>}</section>
       <section className="surface system-info-card"><div className="settings-card-head"><div><h2><Terminal size={15}/> Plánované úlohy</h2><p>Registrované EspoCRM scheduled jobs · {jobs.length}</p></div></div>{busy ? <div className="table-loading"><span className="spinner"/> Načítám úlohy…</div> : jobs.length ? <div className="system-job-list">{jobs.map((job) => <span key={job}>{job}</span>)}</div> : <p className="field-manager-empty">Nejsou dostupné žádné plánované úlohy.</p>}<div className="cron-command"><strong>Cron konfigurace</strong><p>{cron.message || "Nastavte systémový cron pro pravidelné spouštění úloh CRM."}</p>{cron.command && <code>{cron.command}</code>}</div></section></div>
+    {confirmAction && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !action && setConfirmAction(null)}><section ref={confirmDialogRef} className="record-modal system-action-confirm" role="alertdialog" aria-modal="true" aria-labelledby="system-action-confirm-title" aria-describedby="system-action-confirm-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">PROVOZ A DIAGNOSTIKA</span><h2 id="system-action-confirm-title">{confirmAction === "clearCache" ? "Vyčistit aplikační cache?" : "Spustit rebuild EspoCRM?"}</h2></div><button type="button" className="icon-button" onClick={() => setConfirmAction(null)} disabled={Boolean(action)} aria-label="Zavřít"><X size={16}/></button></div><div className="system-action-confirm-body"><AlertTriangle size={18}/><p id="system-action-confirm-description">{confirmAction === "clearCache" ? "Dočasná aplikační cache se smaže a EspoCRM ji znovu vytvoří. Po dokončení obnovím metadata a data tohoto rozhraní." : "EspoCRM znovu sestaví metadata, konfiguraci a aplikační cache. Operace může na chvíli zatížit server; po dokončení obnovím metadata a data tohoto rozhraní."}</p></div><div className="modal-footer"><button type="button" className="button subtle" autoFocus onClick={() => setConfirmAction(null)} disabled={Boolean(action)}>Zrušit</button><button type="button" className="button primary" onClick={() => void confirmSystemAction()} disabled={Boolean(action)}>{confirmAction === "clearCache" ? <RotateCcw size={14}/> : <Database size={14}/>} {confirmAction === "clearCache" ? "Vyčistit cache" : "Spustit rebuild"}</button></div></section></div>}
   </div>;
 }

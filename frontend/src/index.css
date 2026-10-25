@@ -396,6 +396,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .layout-section-cell > select { flex: 1; min-width: 100px; min-height: 30px; padding: 0 8px; border: 1px solid #e7e9ef; border-radius: 5px; background: white; color: #4e5b72; font: inherit; font-size: 10px; }
 .layout-add-cell { min-height: 27px !important; }
 .system-tool-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 13px; }
+.system-action-confirm { width: min(500px, calc(100vw - 28px)); }
+.system-action-confirm-body { display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 24px; color: #586579; font-size: 13px; line-height: 1.6; }
+.system-action-confirm-body > svg { flex: 0 0 auto; margin-top: 2px; color: #c48a35; }
+.system-action-confirm-body p { margin: 0; }
+.system-action-confirm .modal-footer { padding: 12px 20px; }
 .system-action-card { display: flex; align-items: center; gap: 11px; padding: 15px; }
 .system-action-icon { display: grid; place-items: center; flex: 0 0 36px; height: 36px; border-radius: 10px; background: #f1f0ff; color: #7068d6; }
 .system-action-card > div { flex: 1; min-width: 0; }
