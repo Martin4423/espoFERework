@@ -740,6 +740,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .record-page .drawer-avatar { width: 58px; height: 58px; flex: 0 0 58px; border-radius: 17px; font-size: 21px; }
 .record-page .drawer-title h2 { margin-bottom: 7px; color: var(--ink, #27344e); font-size: clamp(22px,2.3vw,30px); letter-spacing: -.7px; line-height: 1.2; }
 .record-page .drawer-title p { color: var(--muted, #7f899c); font-size: 12px; }
+.record-page-note .drawer-title { align-items: center; }
+.record-page-note .drawer-title h2 { font-size: clamp(24px,2.6vw,32px); }
+.record-page-note .drawer-title .note-detail-byline { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.record-page-note .note-parent-link { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: var(--primary, #625bc4); font: inherit; font-size: inherit; font-weight: 600; cursor: pointer; }
+.record-page-note .note-parent-link:hover { text-decoration: underline; }
+.record-page-note .note-parent-link:focus-visible { outline: 2px solid var(--primary, #625bc4); outline-offset: 3px; border-radius: 3px; }
 .record-page .drawer-actions { flex-wrap: wrap; gap: 8px; padding: 0 0 19px; }
 .record-page .record-detail-tabs { display: flex; align-items: center; gap: 4px; margin: 4px 0 18px; padding: 4px; overflow-x: auto; border: 1px solid var(--line, #e7eaf0); border-radius: 10px; background: color-mix(in srgb, var(--canvas, #f5f6fa) 72%, var(--surface, #fff)); scrollbar-width: thin; }
 .record-page .record-detail-tabs button { flex: 0 0 auto; min-height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: transparent; color: var(--muted, #68758b); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
