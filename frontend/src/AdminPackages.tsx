@@ -8,9 +8,9 @@ import { useDialogFocus } from "./useDialogFocus";
 type Extension = { id: string; name: string; version?: string; description?: string; isInstalled?: boolean; [key: string]: any };
 type UploadResult = { id: string; name: string; version: string; description?: string };
 
-function PackageActionConfirmation({ title, description, confirmLabel, danger = false, busy, onCancel, onConfirm }: { title: string; description: string; confirmLabel: string; danger?: boolean; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
+function PackageActionConfirmation({ title, description, confirmLabel, eyebrow = "SPRÁVA ROZŠÍŘENÍ", danger = false, busy, onCancel, onConfirm }: { title: string; description: string; confirmLabel: string; eyebrow?: string; danger?: boolean; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
   const dialogRef = useDialogFocus<HTMLElement>(onCancel, !busy);
-  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && onCancel()}><section ref={dialogRef} className="record-modal package-action-confirm" role="alertdialog" aria-modal="true" aria-labelledby="package-action-confirm-title" aria-describedby="package-action-confirm-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">SPRÁVA ROZŠÍŘENÍ</span><h2 id="package-action-confirm-title">{title}</h2></div><button type="button" className="icon-button" onClick={onCancel} disabled={busy} aria-label="Zavřít"><X size={16}/></button></div><div className="package-action-confirm-body"><AlertTriangle size={18}/><p id="package-action-confirm-description">{description}</p></div><div className="modal-footer"><button type="button" className="button subtle" autoFocus onClick={onCancel} disabled={busy}>Zrušit</button><button type="button" className={`button ${danger ? "danger" : "primary"}`} onClick={onConfirm} disabled={busy}>{danger ? <Trash2 size={14}/> : <Download size={14}/>} {confirmLabel}</button></div></section></div>;
+  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && onCancel()}><section ref={dialogRef} className="record-modal package-action-confirm" role="alertdialog" aria-modal="true" aria-labelledby="package-action-confirm-title" aria-describedby="package-action-confirm-description" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">{eyebrow}</span><h2 id="package-action-confirm-title">{title}</h2></div><button type="button" className="icon-button" onClick={onCancel} disabled={busy} aria-label="Zavřít"><X size={16}/></button></div><div className="package-action-confirm-body"><AlertTriangle size={18}/><p id="package-action-confirm-description">{description}</p></div><div className="modal-footer"><button type="button" className="button subtle" autoFocus onClick={onCancel} disabled={busy}>Zrušit</button><button type="button" className={`button ${danger ? "danger" : "primary"}`} onClick={onConfirm} disabled={busy}>{danger ? <Trash2 size={14}/> : <Download size={14}/>} {confirmLabel}</button></div></section></div>;
 }
 
 function readPackage(file: File) {
@@ -131,6 +131,7 @@ export function AdminUpgrade({ metadata, onBack, onUpgraded }: { metadata: Metad
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [confirmUpgrade, setConfirmUpgrade] = useState(false);
   async function upload(file: File | undefined) {
     if (!file) return;
     if (!/\.zip$/i.test(file.name)) { setError("Vyberte ZIP balíček aktualizace EspoCRM."); return; }
@@ -141,17 +142,24 @@ export function AdminUpgrade({ metadata, onBack, onUpgraded }: { metadata: Metad
     catch (cause) { setError(cause instanceof Error ? cause.message : "Aktualizační balíček nelze ověřit."); }
     finally { setUploading(false); }
   }
-  async function runUpgrade() {
-    if (!upgradeId || !window.confirm(`Spustit aktualizaci EspoCRM na verzi ${version}? Před pokračováním ověřte zálohu souborů i databáze.`)) return;
+  async function runUpgrade(confirmed = false) {
+    if (!upgradeId) return;
+    if (!confirmed) { setConfirmUpgrade(true); return; }
     setRunning(true); setError(""); setNotice("Aktualizace probíhá. Nezavírejte toto okno.");
     try { await request("Admin/action/runUpgrade", { method: "POST", body: JSON.stringify({ id: upgradeId }) }); setNotice(`EspoCRM bylo aktualizováno na verzi ${version}.`); setUpgradeId(""); onUpgraded(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Aktualizace se nepodařila."); setNotice(""); }
     finally { setRunning(false); }
+  }
+  async function confirmUpgradeAction() {
+    if (running || !upgradeId) return;
+    setConfirmUpgrade(false);
+    await runUpgrade(true);
   }
   return <div className="admin-view package-admin-view"><div className="entity-heading"><div><button className="back-link" onClick={onBack}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">ÚDRŽBA INSTALACE</div><h1>Aktualizace EspoCRM</h1><p>Nahrajte a ověřte aktualizační balíček a spusťte upgrade instalace.</p></div></div>
     {error && <div className="table-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
     <section className="surface upgrade-guidance"><div><span className="eyebrow">AKTUÁLNÍ INSTALACE</span><strong>EspoCRM {metadata.appSettings?.version || "—"}</strong></div><p>Než začnete, vytvořte zálohu databáze i souborů a ověřte požadavky cílové verze. Upgrade může dočasně přerušit dostupnost CRM.</p><div className="upgrade-links"><a href="https://www.espocrm.com/documentation/administration/upgrading/" target="_blank" rel="noreferrer">Postup aktualizace <ExternalLink size={13}/></a><a href="https://www.espocrm.com/download/upgrades" target="_blank" rel="noreferrer">Stáhnout upgrade balíček <ExternalLink size={13}/></a></div></section>
     <PackageUploadCard className="upgrade-upload" title="Nahrát aktualizační balíček" description="EspoCRM balíček před spuštěním ověří." buttonLabel="Vybrat ZIP" disabled={uploading || running} busy={uploading} maxSize={Number(metadata.appParams?.maxUploadSize) || 0} onFile={(file) => void upload(file)}/>
     {upgradeId && <section className="surface upgrade-ready"><div><span className="eyebrow">PŘIPRAVENO K AKTUALIZACI</span><h2>EspoCRM {version}</h2><p>Balíček byl úspěšně nahrán a ověřen. Upgrade může dočasně přerušit dostupnost CRM.</p></div><button className="button primary" onClick={() => void runUpgrade()} disabled={running}><Download size={14}/>{running ? "Probíhá upgrade…" : "Spustit aktualizaci"}</button></section>}
+    {confirmUpgrade && <PackageActionConfirmation eyebrow="ÚDRŽBA INSTALACE" title={`Aktualizovat na EspoCRM ${version}?`} description="Upgrade může dočasně přerušit dostupnost CRM a změnit soubory i databázi. Před pokračováním ověřte aktuální zálohu obou." confirmLabel="Spustit aktualizaci" busy={running} onCancel={() => setConfirmUpgrade(false)} onConfirm={() => void confirmUpgradeAction()}/>}
   </div>;
 }
