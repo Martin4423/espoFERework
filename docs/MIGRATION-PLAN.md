@@ -29,7 +29,8 @@ Větev `dot-net`. Navazuje na `docs/BACKEND-MIGRATION-ANALYSIS.md` (co se mění
 | S6 | hotovo (příspěvky se zmínkami, historie změn, sledování, notifikace, živý SSE stream, soubory záznamu) |
 | S7 | hotovo (převod leadu přes `/convert`, kanban podle fáze/stavu, součty nabídek živě, úkoly a stavy, kalendář z `/v1/calendar`) |
 | S8 | hotovo (uživatelé, týmy, role, entity a pole, layouty, automatizace, import CSV; ostatní dlaždice hlásí „není k dispozici“) |
-| S9, S10 | čeká |
+| S9 | hotovo (login s brandingem, zapomenuté a nové heslo, veřejný lead formulář a potvrzení, zabezpečení účtu: heslo, zařízení, historie; admin brandingu a lead formulářů) |
+| S10 | čeká |
 
 ## Kroky
 

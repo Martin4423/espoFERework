@@ -1,5 +1,8 @@
 import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdminApp from "./admin/AdminApp.tsx";
+import { AccountPreferences, AccountSecurity } from "./account/AccountPages.tsx";
+import { publicRoute } from "./public/client.ts";
+import { PublicPage } from "./public/PublicPages.tsx";
 import type { ChangeEvent, ComponentType, CSSProperties, DragEvent as ReactDragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, SyntheticEvent } from "react";
 import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, Bell, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, ClipboardList, Clock3, Copy, Database, ExternalLink, FileInput, FileText, Folder, Globe, GripVertical, Inbox as InboxIcon, Info, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Trash2, WandSparkles, UserRound, Users, Workflow, X, KeyRound, LogIn, SendHorizontal, Filter, ContactRound, Code2, Eye, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
@@ -82,7 +85,6 @@ const GlobalStreamView = lazy(() => import("./SocialViews").then((module) => ({ 
 const NotificationCenter = lazy(() => import("./SocialViews").then((module) => ({ default: module.NotificationCenter })));
 const PopupReminderToasts = lazy(() => import("./PopupReminderToasts"));
 const NotificationPanel = lazy(() => import("./SocialViews").then((module) => ({ default: module.NotificationPanel })));
-const UserPreferencesView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserPreferencesView })));
 const UserSecurityView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserSecurityView })));
 const RequiredTwoFactorGate = lazy(() => import("./UserAccount").then((module) => ({ default: module.RequiredTwoFactorGate })));
 const ExtensionLicenseDialog = lazy(() => import("./ExtensionLicenseDialog"));
@@ -447,7 +449,13 @@ function renderImportDefaultField(metadata: Metadata, scope: string, name: strin
   return <FieldInput entity={scope} metadata={metadata} name={name} def={def} value={value} currencyValue={currencyValue} onCurrencyChange={onCurrencyChange} relatedContext={relatedContext} onChange={handleChange}/>;
 }
 
+// The links people get by mail open the public pages; everything else is the application.
 function App() {
+  const route = publicRoute();
+  return route ? <PublicPage route={route} /> : <Application />;
+}
+
+function Application() {
   useLocale();
   const [session, setSession] = useState(getSession());
   const [metadata, setMetadata] = useState<Metadata | null>(null);
@@ -886,9 +894,9 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
       <main className="content-area"><Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/> Připravuji obrazovku…</div>}>{relatedRoute
         ? relatedParentRecord ? <RelatedRecordsPage entity={relatedRoute.entity} record={relatedParentRecord} link={relatedRoute.link} metadata={metadata} onBack={() => { setRelatedRoute(null); setRelatedParentRecord(null); setEntity(relatedRoute.entity); setRecord(relatedParentRecord); }} onOpenRecord={(scope, row) => { setRelatedRoute(null); setRelatedParentRecord(null); setEntity(scope); setRecord(row); }} onComposeEmail={(draft) => setEmailDraft(draft)} renderActivityEditor={(scope, initialValues, onActivitySaved, onActivityClose) => <RecordEditor key={`${scope}-${initialValues.id || "new"}`} entity={scope} fields={getEditorFields(metadata, scope)} metadata={metadata} record={initialValues.id ? initialValues : undefined} initialValues={initialValues} onClose={onActivityClose} onSaved={onActivitySaved}/>} /> : <div className="surface table-loading" role="status"><span className="spinner"/> Načítám záznam…</div>
         : accountPage === "preferences"
-        ? <UserPreferencesView metadata={metadata} user={preferencesTarget || user} onBack={() => { const target = preferencesTarget; setAccountPage(null); setPreferencesTarget(null); if (target) { setEntity("User"); setRecord(target as Row); } }} />
+        ? <AccountPreferences onBack={() => { setAccountPage(null); setPreferencesTarget(null); }} />
         : accountPage === "security"
-        ? <UserSecurityView metadata={metadata} user={user} onBack={() => setAccountPage(null)} onLogout={onLogout} />
+        ? <AccountSecurity onBack={() => setAccountPage(null)} onLogout={onLogout} />
         : lastViewedOpen
         ? <LastViewedView metadata={metadata} onBack={() => setLastViewedOpen(false)} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); setLastViewedOpen(false); }} />
         : notificationsOpen
