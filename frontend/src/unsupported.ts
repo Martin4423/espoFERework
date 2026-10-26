@@ -1,4 +1,4 @@
-import { t } from "./i18n/index.ts";
+
 import { cs } from "./i18n/cs.ts";
 import { en } from "./i18n/en.ts";
 
@@ -16,8 +16,6 @@ export const UNSUPPORTED_SCOPES: ReadonlyArray<{ scope: string; icon: string; la
 export function isUnsupportedScope(scope: string): boolean {
   return UNSUPPORTED_SCOPES.some((item) => item.scope === scope);
 }
-
-export function unsupportedTitle(): string { return t("unsupported.title"); }
 
 // The notice text in every language (used to recognise it in the page).
 export const UNSUPPORTED_TITLES: ReadonlySet<string> = new Set([cs["unsupported.title"], en["unsupported.title"]]);

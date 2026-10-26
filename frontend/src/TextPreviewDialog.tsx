@@ -3,7 +3,7 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { X } from "./Icons";
 
-/** Markdown preview matching EspoCRM complexText sanitization and link behavior. */
+/** Markdown preview matching ViaCRM complexText sanitization and link behavior. */
 export default function TextPreviewDialog({ text, onClose }: { text: string; onClose: () => void }) {
   const html = useMemo(() => {
     const clean = DOMPurify.sanitize(marked.parse(text || "") as string, {});

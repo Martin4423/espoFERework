@@ -13,7 +13,7 @@ export async function publicJson<T = any>(path: string, init: RequestInit = {}):
 }
 
 export type Branding = { appName: string; theme: "light" | "dark" | "auto"; logoUrl: string | null };
-export type LoginOptions = { passwordLogin: boolean; oidc: { enabled: boolean }; passwordRecovery: { enabled: boolean; minLength: number; maxLength: number } };
+type LoginOptions = { passwordLogin: boolean; oidc: { enabled: boolean }; passwordRecovery: { enabled: boolean; minLength: number; maxLength: number } };
 
 const DEFAULT_BRANDING: Branding = { appName: "ViaCRM", theme: "light", logoUrl: null };
 const DEFAULT_OPTIONS: LoginOptions = { passwordLogin: true, oidc: { enabled: false }, passwordRecovery: { enabled: false, minLength: 12, maxLength: 128 } };

@@ -1,26 +1,26 @@
 import { useEffect, useState } from "react";
 import { getSession, request } from "./api";
 
-export function parseEspoDateTime(value?: string) {
+export function parseServerDateTime(value?: string) {
   if (!value) return null;
   const normalized = value.trim().replace(" ", "T");
   const date = new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized) ? normalized : `${normalized}Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export function formatEspoDateTime(value: string | undefined, timeZone: string) {
+export function formatServerDateTime(value: string | undefined, timeZone: string) {
   if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const [year, month, day] = value.split("-").map(Number);
     return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, day)));
   }
-  const date = parseEspoDateTime(value);
+  const date = parseServerDateTime(value);
   if (!date) return value || "—";
   try { return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short", timeZone }).format(date); }
   catch { return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(date); }
 }
 
-export function formatEspoDateTimeShort(value: string | undefined, timeZone: string, now = new Date(), yesterdayLabel = "včera", hasSeconds = false) {
-  const date = parseEspoDateTime(value);
+export function formatServerDateTimeShort(value: string | undefined, timeZone: string, now = new Date(), yesterdayLabel = "včera", hasSeconds = false) {
+  const date = parseServerDateTime(value);
   if (!date) return value || "—";
   const dateParts = (input: Date) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(input).map((part) => [part.type, part.value]));
   try {
@@ -74,12 +74,12 @@ export function zonedWallTimeToUtc(year: number, month: number, day: number, hou
   return new Date(candidates.sort((a, b) => b.represented - a.represented || a.timestamp - b.timestamp)[0]?.timestamp ?? targetWallTime);
 }
 
-function toEspoUtcString(date: Date) {
+function toServerUtcString(date: Date) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}:${String(date.getUTCSeconds()).padStart(2, "0")}`;
 }
 
-export function formatEspoDateTimeInput(value: string | undefined, timeZone: string) {
-  const date = parseEspoDateTime(value);
+export function formatServerDateTimeInput(value: string | undefined, timeZone: string) {
+  const date = parseServerDateTime(value);
   if (!date) return "";
   try {
     const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date).map((part) => [part.type, part.value]));
@@ -87,10 +87,10 @@ export function formatEspoDateTimeInput(value: string | undefined, timeZone: str
   } catch { return date.toISOString().slice(0, 16); }
 }
 
-export function espocrmDateTimeFromInput(value: string, timeZone: string) {
+export function serverDateTimeFromInput(value: string, timeZone: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value);
   if (!match) return value;
-  try { return toEspoUtcString(zonedWallTimeToUtc(Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4]), Number(match[5]), 0, timeZone)); }
+  try { return toServerUtcString(zonedWallTimeToUtc(Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4]), Number(match[5]), 0, timeZone)); }
   catch { return value.replace("T", " "); }
 }
 
@@ -100,10 +100,10 @@ export function dateFilterBoundaryInTimeZone(value: string, timeZone: string, en
   const date = new Date(Date.UTC(year, month - 1, day + (endOfDay ? 1 : 0)));
   const result = zonedWallTimeToUtc(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), 0, 0, 0, timeZone);
   if (endOfDay) result.setTime(result.getTime() - 1000);
-  return toEspoUtcString(result);
+  return toServerUtcString(result);
 }
 
-export function useEspoTimeZone() {
+export function useServerTimeZone() {
   const [timeZone, setTimeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   useEffect(() => {
     const userId = getSession()?.user.id;
@@ -119,12 +119,12 @@ export function useEspoTimeZone() {
   return timeZone;
 }
 
-type EspoTimeSettings = { timeFormat: string; locale: string };
-const timeSettingsRequests = new Map<string, Promise<EspoTimeSettings>>();
+type TimeSettings = { timeFormat: string; locale: string };
+const timeSettingsRequests = new Map<string, Promise<TimeSettings>>();
 
-export function useEspoTimeSettings(defaultFormat = "HH:mm", defaultLanguage = "en") {
+export function useTimeSettings(defaultFormat = "HH:mm", defaultLanguage = "en") {
   const userId = getSession()?.user.id || "";
-  const [settings, setSettings] = useState<EspoTimeSettings>(() => ({ timeFormat: defaultFormat, locale: defaultLanguage.replace(/_/g, "-") }));
+  const [settings, setSettings] = useState<TimeSettings>(() => ({ timeFormat: defaultFormat, locale: defaultLanguage.replace(/_/g, "-") }));
   useEffect(() => {
     const fallback = { timeFormat: defaultFormat || "HH:mm", locale: (defaultLanguage || "en").replace(/_/g, "-") };
     if (!userId) { setSettings(fallback); return; }

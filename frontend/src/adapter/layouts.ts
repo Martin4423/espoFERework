@@ -4,7 +4,7 @@ import { keyOf, screenField } from "./names.ts";
 import type { DetailLayoutPanel, LayoutItem } from "../api";
 
 // ---- ViaCRM wire shape (docs/contract m4 section 2) ----
-export type ViaLayouts = {
+type ViaLayouts = {
   list: { custom: boolean; columns: string[]; sort?: string };
   detail: { custom: boolean; sections: Array<{ title: string; columns: number; rows: Array<Array<string | null>> }> };
 };

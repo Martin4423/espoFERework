@@ -3,7 +3,7 @@ import { cs } from "./cs.ts";
 import type { MessageKey } from "./cs.ts";
 import { en } from "./en.ts";
 
-export type Locale = "cs" | "en";
+type Locale = "cs" | "en";
 export type { MessageKey };
 
 const STORAGE_KEY = "via-locale";

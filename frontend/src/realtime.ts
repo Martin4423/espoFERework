@@ -2,7 +2,7 @@ import { auth } from "./http.ts";
 
 // Server-sent events of ViaCRM (/v1/events). The stream needs the Authorization header, which EventSource cannot send,
 // so it is read with fetch. Every event becomes a window event "via-realtime" with { event, data }.
-export type RealtimeEvent = { event: string; data: any };
+type RealtimeEvent = { event: string; data: any };
 
 // Splits an SSE text buffer into complete messages; returns the rest. Exported for the unit test.
 export function parseSse(buffer: string): { messages: Array<{ id?: string; event: string; data: string }>; rest: string } {

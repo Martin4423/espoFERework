@@ -47,7 +47,7 @@ export function parseBrackets(params: URLSearchParams, root: string): any[] {
   return tree;
 }
 
-// Espo sends the same list of where items as `where`, `whereGroup` or as bracketed query keys.
+// The old API sends the same list of where items as `where`, `whereGroup` or as bracketed query keys.
 function whereItems(params: URLSearchParams): WhereItem[] {
   const items: WhereItem[] = [];
   for (const name of ["where", "whereGroup"]) {

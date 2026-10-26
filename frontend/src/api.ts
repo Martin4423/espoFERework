@@ -171,7 +171,7 @@ export function getFormFields(metadata: Metadata, entity: string) {
 export function getEditorFields(metadata: Metadata, entity: string): [string, FieldDef][] {
   const fields = getFormFields(metadata, entity);
   if (entity === "User") {
-    // Espo's user editor renders these fields in its own panels, so the server
+    // legacy user editor renders these fields in its own panels, so the server
     // marks them layoutDetailDisabled even though they remain editable.
     const userPanelFields = new Set([
       "type", "isActive", "teams", "defaultTeam", "roles", "portals", "accounts",

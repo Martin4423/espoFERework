@@ -1,6 +1,6 @@
 # ViaCRM Client
 
-React + TypeScript klient pro **ViaCRM** (.NET backend `viacrm-be`). UI vzniklo jako klient EspoCRM a postupně se přepisuje na kontrakt ViaCRM; co backend zatím neumí, ukazuje hlášku „Ve ViaCRM zatím není k dispozici“. Plán a stav: [docs/MIGRATION-PLAN.md](docs/MIGRATION-PLAN.md), co se mění a proč: [docs/BACKEND-MIGRATION-ANALYSIS.md](docs/BACKEND-MIGRATION-ANALYSIS.md).
+React + TypeScript klient pro **ViaCRM** (.NET backend `viacrm-be`). UI se předělalo na kontrakt ViaCRM; co backend zatím neumí, ukazuje hlášku „Ve ViaCRM zatím není k dispozici“. Plán a stav: [docs/MIGRATION-PLAN.md](docs/MIGRATION-PLAN.md), co se mění a proč: [docs/BACKEND-MIGRATION-ANALYSIS.md](docs/BACKEND-MIGRATION-ANALYSIS.md).
 
 Větev `dot-net` (do `main` se zatím nemerguje).
 

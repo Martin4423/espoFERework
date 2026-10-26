@@ -11,7 +11,7 @@ export type FilterNode = Record<string, any>;
 // Attributes of the screens -> ViaCRM property names.
 const ATTRIBUTE: Record<string, string> = { assignedUserId: "ownerId", modifiedAt: "updatedAt", teamsIds: "teamIds", teamsId: "teamIds" };
 
-export function viaAttribute(attribute: string): string {
+function viaAttribute(attribute: string): string {
   return ATTRIBUTE[attribute] ?? attribute;
 }
 

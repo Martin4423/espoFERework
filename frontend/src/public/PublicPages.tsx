@@ -59,7 +59,7 @@ export function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
   </form>;
 }
 
-export function ResetPasswordPage({ token }: { token: string }) {
+function ResetPasswordPage({ token }: { token: string }) {
   useLocale();
   const options = useLoginOptions();
   const [state, setState] = useState<"checking" | "valid" | "invalid" | "done">("checking");
@@ -99,7 +99,7 @@ export function ResetPasswordPage({ token }: { token: string }) {
   </PublicShell>;
 }
 
-export function LeadConfirmPage({ token }: { token: string }) {
+function LeadConfirmPage({ token }: { token: string }) {
   useLocale();
   const [status, setStatus] = useState<"working" | "confirmed" | "already-confirmed" | "expired" | "invalid">("working");
   async function confirm() {
@@ -150,7 +150,7 @@ function toWire(field: FormField, value: unknown): unknown {
   return value;
 }
 
-export function LeadFormPage({ id }: { id: string }) {
+function LeadFormPage({ id }: { id: string }) {
   useLocale();
   const [form, setForm] = useState<FormDescription | null>(null);
   const [missing, setMissing] = useState(false);

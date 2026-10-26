@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, CalendarDays, X } from "./Icons";
 import { entityLabel, request } from "./api";
 import type { Metadata } from "./api";
-import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
+import { formatServerDateTime, useServerTimeZone } from "./timeZone";
 
 type PopupItem = { id?: string; data?: Record<string, any> };
 
 export default function PopupReminderToasts({ metadata, isPortalUser, onOpenRecord }: { metadata: Metadata; isPortalUser: boolean; onOpenRecord: (scope: string, id: string) => void }) {
-  const timeZone = useEspoTimeZone();
+  const timeZone = useServerTimeZone();
   const [items, setItems] = useState<PopupItem[]>([]);
   const [removing, setRemoving] = useState("");
   const seen = useRef(new Set<string>());
@@ -62,7 +62,7 @@ export default function PopupReminderToasts({ metadata, isPortalUser, onOpenReco
     const data = item.data || {};
     const scope = String(data.entityType || "");
     const id = String(data.id || "");
-    const date = data.dateField ? formatEspoDateTime(data.attributes?.[data.dateField], timeZone) : "";
+    const date = data.dateField ? formatServerDateTime(data.attributes?.[data.dateField], timeZone) : "";
     return <article className="popup-reminder-card surface" key={item.id} role="status">
       <div className="popup-reminder-icon"><CalendarDays size={17}/></div>
       <button className="popup-reminder-main" type="button" onClick={() => { if (!scope || !id) return; void dismiss(item); onOpenRecord(scope, id); }} disabled={!scope || !id}>

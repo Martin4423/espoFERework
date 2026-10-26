@@ -5,7 +5,7 @@ import { useDialogFocus } from "./useDialogFocus";
 
 type Row = Record<string, any>;
 
-/** Native OAuthAccount connection-panel behavior, backed by EspoCRM's OAuth API. */
+/** Native OAuthAccount connection-panel behavior, backed by the server's OAuth API. */
 export default function OAuthConnectionPanel({ record, onChanged }: { record: Row; onChanged: (record: Row) => void }) {
   const [current, setCurrent] = useState(record);
   const [busy, setBusy] = useState(false);

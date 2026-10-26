@@ -231,6 +231,6 @@ export default function MeetingScheduler({ metadata, userIds = [], userNames: su
         {loading && <div className="meeting-scheduler-loading" role="status"><span className="spinner"/> Načítám kalendáře…</div>}
         {!loading && !error && !hasRanges && <div className="meeting-scheduler-note">Pro vybrané účastníky nejsou dostupné kalendářové údaje.</div>}
       </>}
-    <footer className="meeting-scheduler-footer">Rozvrh se zobrazuje v časovém pásmu {timeZone}. Přístup k podrobnostem ostatních událostí určuje oprávnění v EspoCRM.</footer>
+    <footer className="meeting-scheduler-footer">Rozvrh se zobrazuje v časovém pásmu {timeZone}. Přístup k podrobnostem ostatních událostí určuje oprávnění v ViaCRM.</footer>
   </section>;
 }

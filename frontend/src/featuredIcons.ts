@@ -1,4 +1,4 @@
-/** Common, recognizable icons to surface before searching the full EspoCRM icon catalog. */
+/** Common, recognizable icons to surface before searching the full ViaCRM icon catalog. */
 export const featuredIconClasses = [
   "fas fa-building", "fas fa-user", "fas fa-users", "fas fa-briefcase", "fas fa-bullseye", "fas fa-star",
   "fas fa-phone", "fas fa-calendar-days", "fas fa-envelope", "fas fa-file-lines", "fas fa-book-open", "fas fa-globe",

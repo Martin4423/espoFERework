@@ -25,7 +25,7 @@ export default function CampaignMailMergeAction({ campaign, metadata }: { campai
     setBusy(true); setError("");
     try {
       const result = await request<{ id: string }>(`Campaign/${encodeURIComponent(campaign.id)}/generateMailMerge`, { method: "POST", body: JSON.stringify({ link }) });
-      if (!result?.id) throw new Error("EspoCRM nevydalo PDF soubor ke stažení.");
+      if (!result?.id) throw new Error("ViaCRM nevydalo PDF soubor ke stažení.");
       const safeName = (campaign.name || "kampan").replace(/[\\/:*?"<>|]+/g, "-").trim() || "kampan";
       await downloadAttachment(result.id, `${safeName}.pdf`);
       setOpen(false);

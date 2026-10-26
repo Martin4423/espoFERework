@@ -7,7 +7,7 @@ type Row = Record<string, any>;
 type Result = { list?: Row[]; total?: number };
 type Level = { id: string | null; name: string; rows: Row[] };
 
-/** Hierarchical category chooser backed by EspoCRM's listTree action. */
+/** Hierarchical category chooser backed by the server's listTree action. */
 export default function CategoryTreeDialog({ entity, metadata, multiple, selectedIds, selectedRows, onClose, onSelect }: { entity: string; metadata: Metadata; multiple: boolean; selectedIds: string[]; selectedRows: Row[]; onClose: () => void; onSelect: (rows: Row[]) => void }) {
   const [levels, setLevels] = useState<Level[]>([{ id: null, name: "Všechny kategorie", rows: [] }]);
   const [selected, setSelected] = useState<Map<string, Row>>(() => new Map(selectedRows.filter((row) => selectedIds.includes(row.id)).map((row) => [row.id, row])));

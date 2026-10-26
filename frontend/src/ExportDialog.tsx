@@ -91,10 +91,10 @@ export default function ExportDialog({ entity, metadata, selectedIds, total, sea
             await downloadAttachment(status.attachmentId, `${entity.toLowerCase()}-export.${formatDef.fileExtension || format}`);
             setDone(true); setProgress("Soubor je připraven."); completed = true; break;
           }
-          if (status.status === "Failed") throw new Error("EspoCRM nedokázalo dokončit export.");
+          if (status.status === "Failed") throw new Error("ViaCRM nedokázalo dokončit export.");
           setProgress(`Export běží na pozadí… (${Math.floor((attempt + 1) * 2 / 60)} min)`);
         }
-        if (!completed) setProgress("Export stále běží. Výsledek vám EspoCRM doručí oznámením.");
+        if (!completed) setProgress("Export stále běží. Výsledek vám ViaCRM doručí oznámením.");
       } else throw new Error("CRM nevrátilo soubor ani úlohu exportu.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Export se nepodařilo dokončit."); }
     finally { setBusy(false); }

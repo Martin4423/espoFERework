@@ -8,7 +8,7 @@ import { clearLookupCache } from "./lookup.ts";
 import type { FieldDef, Metadata, UserAcl } from "../api";
 
 // ---- ViaCRM wire shapes (docs/contract m1, m2) ----
-export type ViaFieldMeta = { key: string; type: string; label: string; required: boolean; readOnly: boolean; core: boolean; properties: Record<string, any>; defaultValue?: unknown };
+type ViaFieldMeta = { key: string; type: string; label: string; required: boolean; readOnly: boolean; core: boolean; properties: Record<string, any>; defaultValue?: unknown };
 export type ViaEntityMeta = { key: string; labelSingular: string; labelPlural: string; hasOwner: boolean; hasTeams: boolean; builtIn: boolean; fields: ViaFieldMeta[] };
 export type ViaEntities = { version: number; entities: ViaEntityMeta[] };
 export type ViaPermissions = {
@@ -45,7 +45,7 @@ function enumDef(base: FieldDef, entityKey: string, fieldKey: string, options: s
 }
 
 // One ViaCRM field -> the definition the screens expect. Returns the screen field name too (ownerId -> assignedUser ...).
-export function toFieldDef(field: ViaFieldMeta, entityKey = ""): [string, FieldDef] {
+function toFieldDef(field: ViaFieldMeta, entityKey = ""): [string, FieldDef] {
   const name = screenField(field.key);
   const p = field.properties ?? {};
   const base: FieldDef = { label: field.label, required: field.required, readOnly: field.readOnly };
@@ -177,7 +177,7 @@ export function buildMetadata(source: ViaEntities, perms: ViaPermissions): Metad
   return {
     scopes, entityDefs, clientDefs, labels, userAcl,
     fields: {}, logicDefs: {}, app: {},
-    appSettings: { applicationName: "ViaCRM", theme: "Espo", tabQuickSearch: false, globalSearchEntityList: [], quickCreateList: [], tabList },
+    appSettings: { applicationName: "ViaCRM", theme: "Standard", tabQuickSearch: false, globalSearchEntityList: [], quickCreateList: [], tabList },
     appParams: { isRestrictedMode: false, extensions: [] },
   } as Metadata;
 }

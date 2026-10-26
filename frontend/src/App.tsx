@@ -3,10 +3,10 @@ import AdminApp from "./admin/AdminApp.tsx";
 import { AccountPreferences, AccountSecurity } from "./account/AccountPages.tsx";
 import { Home } from "./home/Home.tsx";
 import { GlobalSearch } from "./home/GlobalSearch.tsx";
-import { publicRoute } from "./public/client.ts";
+import { publicRoute, useBranding } from "./public/client.ts";
 import { PublicPage } from "./public/PublicPages.tsx";
-import type { ChangeEvent, ComponentType, CSSProperties, DragEvent as ReactDragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, SyntheticEvent } from "react";
-import { Activity, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, Bell, BriefcaseBusiness, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, ClipboardList, Clock3, Copy, Database, ExternalLink, FileInput, FileText, Folder, Globe, GripVertical, Inbox as InboxIcon, Info, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Paperclip, Phone, Pencil, Plus, RefreshCw, Reply, ReplyAll, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Trash2, WandSparkles, UserRound, Users, Workflow, X, KeyRound, LogIn, SendHorizontal, Filter, ContactRound, Code2, Eye, type LucideIcon } from "./Icons";
+import type { ChangeEvent, ComponentType, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, SyntheticEvent } from "react";
+import { Activity, ArrowDown, ArrowLeft, ArrowRight, ArrowRightLeft, ArrowUp, ArrowUpDown, Bell, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsDown, ChevronsUp, Clock3, Copy, Database, ExternalLink, FileInput, FileText, Globe, Inbox as InboxIcon, Info, LayoutDashboard, Link2, Mail, MapPin, Menu, Network, Paperclip, Phone, Pencil, Plus, RefreshCw, Save, Search, Send, Settings, Shield, SlidersHorizontal, Star, Trash2, WandSparkles, UserRound, Users, Workflow, X, KeyRound, LogIn, Filter, Code2, Eye, type LucideIcon } from "./Icons";
 import LinkMultipleDisplay from "./LinkMultipleDisplay";
 import FileAttachmentDisplay from "./FileAttachmentDisplay";
 import DetailTextValue from "./DetailTextValue";
@@ -14,12 +14,12 @@ import { phoneCountryLabels, phoneCountryOptions } from "./phoneCountries";
 import DOMPurify from "dompurify";
 import cronstrue from "cronstrue";
 import "cronstrue/locales/cs";
-import EspoIcon from "./EspoIcon";
+import FaIcon from "./FaIcon";
 import type { KanbanGroup, KanbanLayoutItem } from "./KanbanBoard";
 import { conditionGroupMatches } from "./dynamicLogicRuntime";
 import { useDialogFocus } from "./useDialogFocus";
 import { portalEntities } from "./portalEntities";
-import { dateFilterBoundaryInTimeZone, espocrmDateTimeFromInput, formatEspoDateTime, formatEspoDateTimeInput, formatEspoDateTimeShort, useEspoTimeSettings, useEspoTimeZone, zonedWallTimeToUtc } from "./timeZone";
+import { dateFilterBoundaryInTimeZone, serverDateTimeFromInput, formatServerDateTime, formatServerDateTimeInput, formatServerDateTimeShort, useTimeSettings, zonedWallTimeToUtc } from "./timeZone";
 import { ApiError, aclLevel, canAccessEntity, canChangeEntity, canCreateEntity, canUsePermission, downloadAttachment, entityLabel, entityList, fetchLayout, fetchMetadata, fieldLabel, getAttachmentPreviewUrl, getEditorFields, getFormFields, getListFields, getSession, login, logout, request, restoreSession, uploadAttachment } from "./api";
 import { Lock } from "lucide-react";
 import { fieldErrorsText } from "./problem.ts";
@@ -33,14 +33,10 @@ import { t, useLocale } from "./i18n/index.ts";
 import type { DetailLayoutPanel, FieldDef, LayoutItem, Metadata, Session, User } from "./api";
 import AboutDialog from "./AboutDialog";
 import { useConfirmDialog } from "./ConfirmDialogProvider";
-
-const ImportCenter = lazy(() => import("./ImportCenter"));
-const PortalHome = lazy(() => import("./PortalHome"));
 const RecordStream = lazy(() => import("./RecordStream"));
 const RecordRelationships = lazy(() => import("./RecordRelationships"));
 const RelatedRecordsPage = lazy(() => import("./RecordRelationships").then((module) => ({ default: module.RelatedRecordsPage })));
 const WysiwygEditor = lazy(() => import("./WysiwygEditor"));
-const ExternalAccounts = lazy(() => import("./ExternalAccounts"));
 function lazyWithFallback<Props extends object>(loader: () => Promise<{ default: ComponentType<Props> }>) {
   const Component = lazy(loader);
   return function LazyFeature(props: Props) {
@@ -71,16 +67,9 @@ const BarcodeField = lazyWithFallback(() => import("./BarcodeField"));
 const PersonalDataDialog = lazyWithFallback(() => import("./PersonalDataDialog"));
 const FollowersDialog = lazyWithFallback(() => import("./FollowersDialog"));
 const MeetingScheduler = lazyWithFallback(() => import("./MeetingScheduler"));
-const AttachmentCenter = lazy(() => import("./AttachmentCenter"));
 const ExportDialog = lazy(() => import("./ExportDialog"));
 const LastViewedView = lazy(() => import("./LastViewedView"));
-const ActionHistoryCenter = lazy(() => import("./ActionHistoryCenter"));
-const AdminFieldManager = lazy(() => import("./AdminFieldManager"));
 const AdminLayoutManager = lazy(() => import("./AdminLayoutManager"));
-const AdminSystemTools = lazy(() => import("./AdminSystemTools"));
-const AdminEntityManager = lazy(() => import("./AdminEntityManager"));
-const AdminLinkManager = lazy(() => import("./AdminLinkManager"));
-const AdminLabelManager = lazy(() => import("./AdminLabelManager"));
 const KanbanBoard = lazy(() => import("./KanbanBoard"));
 const ActivityView = lazy(() => import("./SocialViews").then((module) => ({ default: module.ActivityView })));
 const GlobalStreamView = lazy(() => import("./SocialViews").then((module) => ({ default: module.GlobalStreamView })));
@@ -90,14 +79,7 @@ const NotificationPanel = lazy(() => import("./SocialViews").then((module) => ({
 const UserSecurityView = lazy(() => import("./UserAccount").then((module) => ({ default: module.UserSecurityView })));
 const RequiredTwoFactorGate = lazy(() => import("./UserAccount").then((module) => ({ default: module.RequiredTwoFactorGate })));
 const ExtensionLicenseDialog = lazy(() => import("./ExtensionLicenseDialog"));
-const PersonalDashboard = lazy(() => import("./PersonalDashboard"));
 const DashboardLayoutEditor = lazy(() => import("./DashboardLayoutEditor"));
-const AdminExtensions = lazy(() => import("./AdminPackages").then((module) => ({ default: module.AdminExtensions })));
-const AdminUpgrade = lazy(() => import("./AdminPackages").then((module) => ({ default: module.AdminUpgrade })));
-const AdminIntegrations = lazy(() => import("./AdminIntegrations"));
-const AdminFormulaSandbox = lazy(() => import("./AdminFormulaSandbox"));
-const AdminTemplateManager = lazy(() => import("./AdminTemplateManager"));
-const AdminAuthTokens = lazy(() => import("./AdminAuthTokens"));
 
 type Row = Record<string, any>;
 type AddressParts = { street?: string; city?: string; state?: string; postalCode?: string; country?: string };
@@ -163,12 +145,6 @@ function addressText(address: AddressParts): string {
   return [address.street, address.city, address.state, address.postalCode, address.country].map((part) => String(part || "").trim()).filter(Boolean).join(", ");
 }
 
-function espocrmLogoUrl(logoId: string, themeLogo: string) {
-  if (logoId) return `/?entryPoint=LogoImage&id=${encodeURIComponent(logoId)}&t=${encodeURIComponent(logoId)}`;
-  const logo = themeLogo || "client/img/logo.svg";
-  return /^(https?:|data:|blob:)/i.test(logo) ? logo : `/${logo.replace(/^\/+/, "")}`;
-}
-
 function remapAuthenticationProviderLogic(value: any): any {
   if (Array.isArray(value)) return value.map(remapAuthenticationProviderLogic);
   if (!value || typeof value !== "object") return value;
@@ -230,8 +206,8 @@ function GoogleAddressMap({ address, apiKey, mapId, height }: { address: Address
 const portalThemeColors: Record<string, Record<string, string>> = {
   Dark: { primary: "#486581", primaryDark: "#38516a", nav: "#23262a", canvas: "#18191d", surface: "#23262a", ink: "#dbdbdb", line: "#383b40" },
   Light: { primary: "#6f94d7", primaryDark: "#5d7fbd", nav: "#ffffff", canvas: "#fcfcfc", surface: "#ffffff", ink: "#0f0f0f", line: "#e5e7eb" },
-  Espo: { primary: "#6092d0", primaryDark: "#487bb8", nav: "#19243c", canvas: "#f1f3f5", surface: "#ffffff", ink: "#333333", line: "#e3e6e9" },
-  EspoRtl: { primary: "#6092d0", primaryDark: "#487bb8", nav: "#19243c", canvas: "#f1f3f5", surface: "#ffffff", ink: "#333333", line: "#e3e6e9" },
+  Standard: { primary: "#6092d0", primaryDark: "#487bb8", nav: "#19243c", canvas: "#f1f3f5", surface: "#ffffff", ink: "#333333", line: "#e3e6e9" },
+  StandardRtl: { primary: "#6092d0", primaryDark: "#487bb8", nav: "#19243c", canvas: "#f1f3f5", surface: "#ffffff", ink: "#333333", line: "#e3e6e9" },
   Sakura: { primary: "#6490b7", primaryDark: "#4f789d", nav: "#956289", canvas: "#eef1fc", surface: "#ffffff", ink: "#424242", line: "#e2dce8" },
   Violet: { primary: "#768ed2", primaryDark: "#5f76b7", nav: "#8d6199", canvas: "#d9e1ed", surface: "#ffffff", ink: "#424242", line: "#ddd7e5" },
   Hazyblue: { primary: "#537898", primaryDark: "#42647f", nav: "#5b7384", canvas: "#e5e9eb", surface: "#ffffff", ink: "#333333", line: "#d5dcdf" },
@@ -366,89 +342,16 @@ let metadataEntityIcons: Record<string, string> = {};
 function EntityIcon({ name, size = 16 }: { name: string; size?: number }) {
   const nativeIcon = metadataEntityIcons[name];
   if (nativeIcon && /\bfa-[a-z0-9-]+\b/.test(nativeIcon)) {
-    return <EspoIcon className={nativeIcon} size={size} />;
+    return <FaIcon className={nativeIcon} size={size} />;
   }
   const fallback = entityIcons[name] || (/Email|Mail/.test(name) ? "fas fa-envelope" : /User|Team|Role|Contact/.test(name) ? "fas fa-users" : /Calendar|Meeting|WorkingTime/.test(name) ? "fas fa-calendar-days" : /Job|Workflow/.test(name) ? "fas fa-gears" : /File|Document|Template|Attachment/.test(name) ? "fas fa-file-lines" : /Web|Url|Link/.test(name) ? "fas fa-link" : /Phone|Call/.test(name) ? "fas fa-phone" : /Log|History/.test(name) ? "fas fa-clock-rotate-left" : /Product|Order|Invoice|Quote/.test(name) ? "fas fa-box" : /Portal|OAuth|Auth/.test(name) ? "fas fa-shield-halved" : /Target|Campaign|Lead/.test(name) ? "fas fa-bullseye" : /Project|Task/.test(name) ? "fas fa-list-check" : /Country|Address|Map/.test(name) ? "fas fa-map-location-dot" : /Currency|Price|Amount/.test(name) ? "fas fa-coins" : /Secret|Token|Key/.test(name) ? "fas fa-key" : /Webhook|Integration|Provider/.test(name) ? "fas fa-plug" : /Import/.test(name) ? "fas fa-file-import" : /Notification|Reminder/.test(name) ? "fas fa-bell" : /Dashboard|Layout/.test(name) ? "fas fa-table-columns" : /Knowledge|Article/.test(name) ? "fas fa-book-open" : /Stream/.test(name) ? "fas fa-rss" : "fas fa-cube");
-  return <EspoIcon className={fallback} size={size} />;
+  return <FaIcon className={fallback} size={size} />;
 }
 
 
 function appPublicPath(path: string) {
   const base = import.meta.env.BASE_URL.endsWith("/") ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`;
   return `${base}${path.replace(/^\//, "")}`;
-}
-
-function serializeImportDefaultValues(metadata: Metadata, scope: string, names: string[], values: Row): Row {
-  const result: Row = {};
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  for (const name of names) {
-    const def = metadata.entityDefs?.[scope]?.fields?.[name] || {};
-    Object.assign(result, attributesFromFormField(scope, name, def, values));
-    if (def.type === "datetimeOptional") {
-      const date = String(values[name] || "");
-      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        const boundary = new Date(`${date}T00:00:00Z`);
-        if (def.isEnd) boundary.setUTCDate(boundary.getUTCDate() + 1);
-        const boundaryDate = `${boundary.getUTCFullYear()}-${String(boundary.getUTCMonth() + 1).padStart(2, "0")}-${String(boundary.getUTCDate()).padStart(2, "0")}`;
-        result[name] = dateFilterBoundaryInTimeZone(boundaryDate, timeZone);
-        result[`${name}Date`] = date;
-      } else {
-        result[name] = date || null;
-        result[`${name}Date`] = null;
-      }
-    }
-    if (def.type === "duration" && def.start && def.end && values.isAllDay) {
-      result[`${def.start}Date`] = values[`${def.start}Date`] || null;
-      result[`${def.end}Date`] = values[`${def.end}Date`] || null;
-    }
-  }
-  return result;
-}
-
-function renderImportDefaultField(metadata: Metadata, scope: string, name: string, def: FieldDef, value: any, currencyValue: string | undefined, onChange: (value: any) => void, onCurrencyChange: (currency: string) => void, onPatch: (patch: Row) => void, relatedContext: Row) {
-  if (["email", "phone"].includes(def.type || "")) {
-    const email = def.type === "email";
-    const valueKey = email ? "emailAddress" : "phoneNumber";
-    const existingRows = relatedContext[`${name}Data`];
-    const rows: Row[] = Array.isArray(existingRows) && existingRows.length
-      ? existingRows
-      : value ? [{ [valueKey]: value, primary: true, optOut: Boolean(relatedContext[`${name}IsOptedOut`]), invalid: Boolean(relatedContext[`${name}IsInvalid`]), ...(email ? { lower: String(value).toLowerCase() } : { type: def.defaultType || "Other" }) }] : [];
-    const scopeName = email ? "EmailAddress" : "PhoneNumber";
-    const optionDef = metadata.entityDefs?.[scopeName]?.fields?.type;
-    const maxCount = Number(def.maxCount || metadata.appParams?.[email ? "emailAddressMaxCount" : "phoneNumberMaxCount"] || 0);
-    const maxLength = Number(metadata.entityDefs?.[scopeName]?.fields?.name?.maxLength || 255);
-    return <MultipleContactField label={fieldLabel(name, def, scope, metadata)} email={email} rows={rows} options={(optionDef?.options || []).map(String).filter(Boolean)} phonePattern={getPhoneValidationPattern(metadata)} disabled={false} required={Boolean(def.required)} onlyPrimary={Boolean(def.onlyPrimary)} maxCount={maxCount} maxLength={maxLength} defaultOptOut={Boolean(metadata.appParams?.[email ? "emailAddressIsOptedOutByDefault" : "phoneNumberIsOptedOutByDefault"])} onChange={(nextRows) => {
-      const normalized: Row[] = nextRows.map((item): Row => ({ ...item, [valueKey]: String(item[valueKey] || "").trim(), ...(email ? { lower: String(item[valueKey] || "").trim().toLowerCase() } : {}) })).filter((item) => item[valueKey]);
-      let primaryIndex = normalized.findIndex((item) => item.primary);
-      if (primaryIndex < 0 && normalized.length) primaryIndex = 0;
-      const ordered: Row[] = normalized.map((item, index): Row => ({ ...item, primary: index === primaryIndex }));
-      if (primaryIndex > 0) { const [primary] = ordered.splice(primaryIndex, 1); ordered.unshift(primary); }
-      const primary = ordered[0];
-      onPatch({ [name]: primary?.[valueKey] || "", [`${name}Data`]: ordered, [`${name}IsOptedOut`]: primary ? Boolean(primary.optOut) : null, [`${name}IsInvalid`]: primary ? Boolean(primary.invalid) : null });
-    }}/>;
-  }
-  if (def.type === "duration") {
-    const startField = String(def.start || "");
-    const endField = String(def.end || "");
-    const isAllDay = Boolean(relatedContext.isAllDay);
-    const start = relatedContext[isAllDay ? `${startField}Date` : startField];
-    return <DurationFieldInput label={fieldLabel(name, def, scope, metadata)} value={Number(value) || Number(def.default) || 0} def={def} disabled={false} onChange={(seconds) => {
-      onChange(seconds);
-      if (start && endField) onPatch({ [isAllDay ? `${endField}Date` : endField]: dateAfterDuration(start, seconds, isAllDay) });
-    }}/>;
-  }
-  const handleChange = (next: any) => {
-    onChange(next);
-    const duration = Object.entries(metadata.entityDefs?.[scope]?.fields || {}).find(([, fieldDef]) => fieldDef.type === "duration" && (fieldDef as any).start === name);
-    if (duration) {
-      const [durationName, durationDef] = duration;
-      const endField = String((durationDef as any).end || "");
-      const isAllDay = Boolean(relatedContext.isAllDay);
-      const seconds = Number(relatedContext[durationName]);
-      if (endField && Number.isFinite(seconds)) onPatch({ [isAllDay ? `${endField}Date` : endField]: dateAfterDuration(next, seconds, isAllDay) });
-    }
-  };
-  return <FieldInput entity={scope} metadata={metadata} name={name} def={def} value={value} currencyValue={currencyValue} onCurrencyChange={onCurrencyChange} relatedContext={relatedContext} onChange={handleChange}/>;
 }
 
 // The links people get by mail open the public pages; everything else is the application.
@@ -565,29 +468,21 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   metadataEntityIcons = Object.fromEntries(Object.entries(metadata.clientDefs || {}).map(([scope, defs]) => [scope, String(defs.iconClass || "")]).filter(([, icon]) => Boolean(icon))) as Record<string, string>;
   const isPortalUser = user.type === "portal" || user.type === "portal-user";
   const searchShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘ K" : "Ctrl K";
-  const globalSearchEntities = Array.isArray(metadata.appSettings?.globalSearchEntityList) ? metadata.appSettings.globalSearchEntityList as string[] : [];
-  const globalSearchAvailable = (!isPortalUser && metadata.appSettings?.tabQuickSearch !== false) || globalSearchEntities.some((scope) => canAccessEntity(metadata, scope));
+  const globalSearchAvailable = !isPortalUser;
   const [requiredTwoFactor, setRequiredTwoFactor] = useState(() => Boolean(metadata.appParams?.auth2FARequired && user.auth2FA !== true && (!isPortalUser || metadata.appSettings?.auth2FAInPortal)));
   const extensionList = Array.isArray(metadata.appParams?.extensions) ? metadata.appParams.extensions : [];
   const [extensionLicenseOpen, setExtensionLicenseOpen] = useState(() => extensionList.some((item: Row) => item?.notify));
   const portalSettings = isPortalUser ? metadata.appSettings || {} : {};
   const portalName = String(portalSettings.applicationName || "Klientský portál");
-  const portalTheme = String(portalSettings.theme || "Espo");
+  const portalTheme = String(portalSettings.theme || "Standard");
   const portalNavbar = String(portalSettings.themeParams?.navbar || "side");
-  const portalColors = portalThemeColors[portalTheme] || portalThemeColors.Espo;
+  const portalColors = portalThemeColors[portalTheme] || portalThemeColors.Standard;
   const portalStyle = (isPortalUser ? { "--primary": portalColors.primary, "--primary-dark": portalColors.primaryDark, "--nav": portalColors.nav, "--canvas": portalColors.canvas, "--surface": portalColors.surface, "--ink": portalColors.ink, "--line": portalColors.line } : {}) as CSSProperties;
-  const portalLogoId = String(portalSettings.companyLogoId || "");
-  const themeDefs = (metadata as any).themes || {};
-  const portalLogoUrl = isPortalUser ? espocrmLogoUrl(portalLogoId, String(themeDefs[portalTheme]?.logo || "client/img/logo.svg")) : "";
-  const companyLogoId = String(metadata.appSettings?.companyLogoId || "");
-  const companyTheme = String(metadata.appSettings?.theme || "Espo");
-  const companyLogoUrl = !isPortalUser ? espocrmLogoUrl(companyLogoId, String(themeDefs[companyTheme]?.logo || "client/img/logo.svg")) : "";
-  const sidebarLogoUrl = isPortalUser ? portalLogoUrl : companyLogoUrl;
-  const portalDirection = portalTheme === "EspoRtl" ? "rtl" : "ltr";
+  const sidebarLogoUrl = useBranding().logoUrl ?? "";
+  const portalDirection = portalTheme === "StandardRtl" ? "rtl" : "ltr";
   const entities = useMemo(() => entityList(metadata), [metadata]);
-  const [portalVisibleScopes, setPortalVisibleScopes] = useState<string[] | null>(null);
+  const [portalVisibleScopes] = useState<string[] | null>(null);
   const [brandLogoFailed, setBrandLogoFailed] = useState(false);
-  const updatePortalScopes = useCallback((scopes: string[]) => setPortalVisibleScopes(scopes), []);
   useEffect(() => { setBrandLogoFailed(false); }, [sidebarLogoUrl]);
   const navEntities = isPortalUser ? portalVisibleScopes ?? portalEntities(metadata) : entities.filter((name) => name !== "User");
   const [entity, setEntity] = useState<string | null>(null);
@@ -619,7 +514,7 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   const [emailDraft, setEmailDraft] = useState<Row | null>(null);
   const [emailResultNotice, setEmailResultNotice] = useState("");
   const [emailFilterDraft, setEmailFilterDraft] = useState<Row | null>(null);
-  const [emailRefresh, setEmailRefresh] = useState(0);
+  const [, setEmailRefresh] = useState(0);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [quickCreateScope, setQuickCreateScope] = useState<string | null>(null);
@@ -910,67 +805,11 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
         : entity && (entity.startsWith("__") || isUnsupportedScope(entity))
         // Administration screens are connected one by one (step S8); the screens of the previous backend's entities have no counterpart.
         ? <NotAvailable title={entity.startsWith("__") ? undefined : entityLabel(metadata, entity, true)} />
-        : entity === "__settings__"
-        ? <AdminSettings metadata={metadata} onBack={openAdmin} />
-        : entity === "__extensions__"
-        ? <AdminExtensions metadata={metadata} onBack={openAdmin} onInstalled={() => void onRefreshMetadata()} />
-        : entity === "__integrations__"
-        ? <AdminIntegrations metadata={metadata} onBack={openAdmin} />
-        : entity === "__upgrade__"
-        ? <AdminUpgrade metadata={metadata} onBack={openAdmin} onUpgraded={() => void onRefreshMetadata()} />
-        : entity === "__auth-settings__"
-        ? <AdminAuthentication metadata={metadata} onBack={openAdmin} />
-        : entity === "__notification-settings__"
-        ? <AdminNotifications metadata={metadata} onBack={openAdmin} />
-        : entity === "__formula-sandbox__"
-        ? <AdminFormulaSandbox metadata={metadata} onBack={openAdmin} />
-        : entity === "__template-manager__"
-        ? <AdminTemplateManager metadata={metadata} onBack={openAdmin} />
-        : entity === "__auth-tokens__"
-        ? <AdminAuthTokens onBack={openAdmin} onOpenRecord={(row) => { openEntity("AuthToken"); setRecord(row); }} />
-        : entity === "__ui-settings__"
-        ? <AdminSettings metadata={metadata} onBack={openAdmin} focus="userInterface" />
-        : entity === "__outbound-settings__" || entity === "__inbound-settings__"
-        ? <AdminSettings metadata={metadata} onBack={openAdmin} focus={entity === "__outbound-settings__" ? "outboundEmails" : "inboundEmails"} />
-        : entity === "__jobs-settings__"
-        ? <AdminSettings metadata={metadata} onBack={openAdmin} focus="jobsSettings" />
-        : entity === "__api-users__"
-        ? <EntityView entity="User" metadata={metadata} onOpenRecord={setRecord} userType="api" title="API uživatelé" />
-        : entity === "__portal-users__"
-        ? <EntityView entity="User" metadata={metadata} onOpenRecord={setRecord} userType="portal" title="Uživatelé portálu" />
-        : entity === "__currency-settings__"
-        ? <AdminSettings metadata={metadata} onBack={openAdmin} focus="currency" />
-        : entity === "__sms-settings__"
-        ? <AdminSettings metadata={metadata} onBack={openAdmin} focus="sms" />
-        : entity === "__field-manager__"
-        ? <AdminFieldManager metadata={metadata} onBack={openAdmin} />
-        : entity === "__layout-manager__"
-        ? <AdminLayoutManager metadata={metadata} onBack={openAdmin} />
-        : entity === "__system-tools__"
-        ? <AdminSystemTools metadata={metadata} onBack={openAdmin} onRefreshMetadata={onRefreshMetadata} />
-        : entity === "__entity-manager__"
-        ? <AdminEntityManager metadata={metadata} onBack={openAdmin} />
-        : entity === "__link-manager__"
-        ? <AdminLinkManager metadata={metadata} onBack={openAdmin} />
-        : entity === "__label-manager__"
-        ? <AdminLabelManager metadata={metadata} onBack={openAdmin} onRefreshMetadata={onRefreshMetadata} />
-        : entity === "Import" || entity === "__import__"
-        ? <ImportCenter metadata={metadata} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} renderDefaultField={(scope, name, def, value, currencyValue, onChange, onCurrencyChange, onPatch, relatedContext) => renderImportDefaultField(metadata, scope, name, def, value, currencyValue, onChange, onCurrencyChange, onPatch, relatedContext)} serializeDefaultValues={(scope, names, values) => serializeImportDefaultValues(metadata, scope, names, values)} hydrateDefaultValues={(scope, names, values) => names.reduce<Row>((result, name) => ({ ...result, [name]: formFieldValueFromRecord(name, metadata.entityDefs?.[scope]?.fields?.[name] || {}, values) }), { ...values })} />
-        : entity === "Attachment"
-        ? <AttachmentCenter metadata={metadata} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} />
-        : entity === "ActionHistoryRecord"
-        ? <ActionHistoryCenter metadata={metadata} onBack={openAdmin} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} />
-        : entity === "ExternalAccount"
-        ? <ExternalAccounts metadata={metadata} userId={user.id} onBack={() => { const previous = externalAccountsReturn.current; externalAccountsReturn.current = null; setEntity(previous ? "User" : null); setRecord(previous); }} />
         : adminOpen
         ? <AdminApp currentUserId={user.id} onSchemaChanged={() => void onRefreshMetadata()} />
         : calendarOpen
         ? <CalendarView metadata={metadata} userId={calendarUser?.id} userName={calendarUser?.name || calendarUser?.userName} onOpenRecord={(name, row) => { setCalendarUser(null); setEntity(name); setRecord(row); }} />
-        : entity === "Email" && !record && !isPortalUser ? <EmailInbox metadata={metadata} refresh={emailRefresh} onCompose={() => setEmailDraft({})} onOpenRecord={(row) => { if (row.status === "Draft") setEmailDraft({ id: row.id, status: "Draft" }); else setRecord(row); }} />
-        : entity === "Email" && record && !isPortalUser ? <EmailDrawer record={record} metadata={metadata} canCreateDocument={canCreateEntity(metadata, "Document")} canCreateFilter={canCreateEntity(metadata, "EmailFilter")} onClose={() => setRecord(null)} onChanged={() => setEmailRefresh((n) => n + 1)} onReply={(draft) => setEmailDraft(draft)} onOpenRecord={(next) => setRecord(next)} onOpenEntityRecord={(scope, row) => { setEntityFixedWhere([]); setEntity(scope); setRecord(row); }} onCreateFilter={(address) => { setRecord(null); setEntityFixedWhere([]); setEntity("EmailFilter"); setEmailFilterDraft({ from: address, name: address }); }} />
         : entity ? <><div hidden={Boolean(recordDetail)}><EntityView key={entity} entity={entity} metadata={metadata} onOpenRecord={setRecord} onNavigateEntity={openEntity} fixedWhere={entityFixedWhere} routeAction={routeAction} routeActionId={routeActionId} reloadKey={entityRefreshKey} onEmailSaved={setEmailResultNotice} onEditorRouteChange={(action, id) => { setRouteAction(action); setRouteActionId(id || null); }} /></div>{recordDetail}</>
-        : isPortalUser && Array.isArray(portalSettings.dashboardLayout) && portalSettings.dashboardLayout.length ? <Dashboard entities={navEntities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} layoutOverride={portalSettings.dashboardLayout} optionsOverride={portalSettings.dashletsOptions} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openQuickCreate} onComposeEmail={() => {}} onOpenCalendar={() => {}} />
-        : isPortalUser ? <PortalHome metadata={metadata} user={user} portalName={portalName} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onAvailableChange={updatePortalScopes} />
         : <Home entities={navEntities} metadata={metadata} user={user} refreshKey={dashboardRefreshKey} onOpenEntity={openEntity} onOpenRecord={(name, row) => { setEntity(name); setRecord(row); }} onCreateRecord={openDashboardCreate} />}
       </Suspense></main>
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
@@ -984,1023 +823,9 @@ function Workspace({ metadata, user, onLogout, onRefreshMetadata }: { metadata: 
   </div>{requiredTwoFactor && <Suspense fallback={<div className="required-two-factor-backdrop"><div className="required-two-factor-loading" role="status"><span className="spinner"/>Připravuji nastavení zabezpečení…</div></div>}><RequiredTwoFactorGate metadata={metadata} user={user} onLogout={onLogout} onComplete={() => setRequiredTwoFactor(false)}/></Suspense>}{!requiredTwoFactor && extensionLicenseOpen && <Suspense fallback={null}><ExtensionLicenseDialog extensions={extensionList} messages={(metadata.labels as any)?.Global?.messages || {}} onClose={() => setExtensionLicenseOpen(false)}/></Suspense>}</>;
 }
 
-function useUnsavedChangesGuard(hasChanges: boolean, onLeave: () => void, message: string) {
-  const confirmDialog = useConfirmDialog();
-  useEffect(() => {
-    if (!hasChanges) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [hasChanges]);
-  return async () => { if (!hasChanges || await confirmDialog({ title: "Opustit bez uložení?", message, confirmLabel: "Odejít bez uložení", tone: "danger" })) onLeave(); };
-}
-
-function buildSettingsPatch(changes: Row, metadata: Metadata): Row {
-  const definitions = metadata.entityDefs.Settings?.fields || {};
-  const payload: Row = {};
-  for (const [name, value] of Object.entries(changes)) {
-    const def: FieldDef = definitions[name] || {};
-    if (def.type === "linkMultiple") {
-      payload[`${name}Ids`] = Array.isArray(value) ? value : [];
-      const columnsKey = `${name}Columns`;
-      if (columnsKey in changes) payload[columnsKey] = changes[columnsKey];
-      continue;
-    }
-    if (name.endsWith("Columns") && definitions[name.slice(0, -7)]?.type === "linkMultiple") {
-      payload[name] = value;
-      continue;
-    }
-    if (["jsonObject", "jsonArray"].includes(def.type || "") && typeof value === "string") {
-      try { payload[name] = JSON.parse(value); }
-      catch { throw new Error(`Pole „${fieldLabel(name, def, "Settings", metadata)}“ obsahuje neplatný JSON.`); }
-    } else if (["int", "float", "currency", "enumInt", "enumFloat"].includes(def.type || "") && value !== "" && value != null) {
-      payload[name] = Number(value);
-    } else if (["multiEnum", "array", "arrayInt", "urlMultiple", "checklist"].includes(def.type || "") && typeof value === "string") {
-      const items = value.split("\n").map((item: string) => item.trim()).filter(Boolean);
-      payload[name] = def.type === "arrayInt" ? items.map(Number).filter(Number.isFinite) : items;
-    } else {
-      payload[name] = value;
-    }
-  }
-  return payload;
-}
-
-function normalizeSettingsForEditor(data: Row, metadata: Metadata): Row {
-  const result = { ...data };
-  for (const [name, def] of Object.entries(metadata.entityDefs.Settings?.fields || {})) {
-    if (def.type !== "linkMultiple") continue;
-    const ids = data[`${name}Ids`];
-    result[name] = Array.isArray(ids) ? ids : Array.isArray(data[name]) ? data[name] : [];
-    const columns = data[`${name}Columns`];
-    if (columns && typeof columns === "object") result[`${name}Columns`] = columns;
-  }
-  return result;
-}
-
 function linkMultipleColumns(entity: string, name: string, def: FieldDef): Record<string, string> {
   if (def.columns && typeof def.columns === "object") return def.columns;
   return entity === "Settings" && name === "oidcTeams" ? { group: "group" } : {};
-}
-
-function AdminSettings({ metadata, onBack, focus = "all" }: { metadata: Metadata; onBack: () => void; focus?: "all" | "userInterface" | "authentication" | "notifications" | "outboundEmails" | "inboundEmails" | "jobsSettings" | "currency" | "sms" }) {
-  const [settings, setSettings] = useState<Row>({});
-  const [original, setOriginal] = useState<Row>({});
-  const [busy, setBusy] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [query, setQuery] = useState("");
-  const [settingsLayout, setSettingsLayout] = useState<DetailLayoutPanel[]>([]);
-  useEffect(() => { let live = true; const layoutName = focus === "all" ? "settings" : ["userInterface", "outboundEmails", "inboundEmails", "jobsSettings", "currency", "sms"].includes(focus) ? focus : ""; Promise.all([request<Row>("Settings"), layoutName ? fetchLayout<DetailLayoutPanel[]>("Settings", layoutName).catch(() => []) : Promise.resolve([])]).then(([data, layout]) => { if (live) { const seeded = normalizeSettingsForEditor(data, metadata); const names = [...(layout || []).flatMap((panel) => (panel.rows || []).flat()).map((item) => item && typeof item === "object" ? item.name : undefined), ...(focus === "outboundEmails" ? ["smtpServer", "smtpPort", "smtpSecurity", "smtpAuth", "smtpUsername", "smtpPassword", "smtpAuthMechanism"] : [])]; for (const name of names) { const def = name ? metadata.entityDefs.Settings.fields?.[name] : undefined; if (name && def && !(name in seeded)) seeded[name] = def.default ?? (def.type === "multiEnum" ? [] : def.type === "bool" ? false : def.type === "base" ? {} : ""); } setSettings(seeded); setOriginal(seeded); setSettingsLayout(layout); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Nastavení se nepodařilo načíst.")).finally(() => live && setBusy(false)); return () => { live = false; }; }, [focus, metadata]);
-  const changed = Object.fromEntries(Object.entries(settings).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(original[key])));
-  const leave = useUnsavedChangesGuard(Boolean(Object.keys(changed).length), onBack, "Máte neuložené změny nastavení. Opravdu chcete odejít?");
-  const layoutFieldNames = settingsLayout.flatMap((panel) => (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name ? [item.name] : []));
-  const fields = useMemo(() => { const available = getFormFields(metadata, "Settings").filter(([name]) => name in settings); const extraNames = [...layoutFieldNames, ...(focus === "outboundEmails" ? ["smtpServer", "smtpPort", "smtpSecurity", "smtpAuth", "smtpUsername", "smtpPassword", "smtpAuthMechanism"] : [])]; if (["currency", "sms", "outboundEmails", "userInterface"].includes(focus)) for (const name of extraNames) { const def = metadata.entityDefs.Settings.fields?.[name]; if (def && !def.readOnly && !available.some(([field]) => field === name)) available.push([name, def]); } if (focus === "all" && layoutFieldNames.includes("addressPreview") && metadata.entityDefs.Settings.fields?.addressPreview && !available.some(([field]) => field === "addressPreview")) available.push(["addressPreview", metadata.entityDefs.Settings.fields.addressPreview]); return available; }, [metadata, settings, focus, settingsLayout]);
-  const focusPattern = focus === "userInterface" ? /^(theme|logo|tab|navbar|dashboard|adminPanel|pageContentWidth|userThemes)/i : focus === "authentication" ? /^(auth|password|oauth|ldap|sso|2fa|login|apiKey|token)/i : focus === "notifications" ? /^(notification|emailNotifications|assignment|mention|stream)/i : focus === "outboundEmails" ? /^(smtp|outboundEmail|emailAddressLookup|emailAddressSelect|massEmail|emailScheduled)/i : focus === "inboundEmails" ? /^(emailMessageMaxSize|personalEmailMaxPortionSize|maxEmailAccountCount|inboundEmailMaxPortionSize)/i : focus === "jobsSettings" ? /^(job|cron|pool|queue|daemon)/i : focus === "currency" ? /^(currency|defaultCurrency|baseCurrency)/i : focus === "sms" ? /^(sms|outboundSms)/i : null;
-  const filteredFields = fields.filter(([name, def]) => (!focusPattern || focusPattern.test(name)) && (!query.trim() || `${fieldLabel(name, def, "Settings", metadata)} ${name}`.toLowerCase().includes(query.trim().toLowerCase())));
-  const restrictedMode = Boolean(metadata.appParams?.isRestrictedMode) && getSession()?.user.type !== "super-admin";
-  const settingsLogic = (metadata as any).logicDefs?.Settings || {};
-  const settingsUser = getSession()?.user as (User & { teamsIds?: string[] }) | undefined;
-  const logicAwareFields = filteredFields.flatMap(([name, originalDef]) => {
-    const rule = settingsLogic.fields?.[name] || {};
-    if (rule.visible?.conditionGroup && !conditionGroupMatches(rule.visible, settings, settingsUser)) return [];
-    const def: FieldDef = { ...originalDef };
-    if (rule.required?.conditionGroup && conditionGroupMatches(rule.required, settings, settingsUser)) def.required = true;
-    if (rule.readOnly?.conditionGroup && conditionGroupMatches(rule.readOnly, settings, settingsUser)) def.readOnly = true;
-    const optionRules = settingsLogic.options?.[name];
-    if (Array.isArray(optionRules)) {
-      const match = optionRules.find((item: Row) => conditionGroupMatches(item, settings, settingsUser));
-      if (match) def.options = match.optionList || [];
-    }
-    return [[name, def] as [string, FieldDef]];
-  });
-  const visibleFields = logicAwareFields.filter(([name]) => {
-    if (focus === "userInterface" && name === "themeParams") return false;
-    if (restrictedMode && focus === "all" && ["cronDisabled", "maintenanceMode"].includes(name)) return false;
-    if (focus === "all" && ["phoneNumberPreferredCountryList", "phoneNumberExtensions"].includes(name) && !settings.phoneNumberInternational) return false;
-    if (focus === "userInterface" && name === "tabColorsDisabled" && settings.scopeColorsDisabled) return false;
-    return (focus !== "jobsSettings" || name !== "jobPoolConcurrencyNumber" || Boolean(settings.jobRunInParallel)) && (focus !== "currency" || name !== "currencyRates" || (settings.currencyList || []).length > 1) && (focus !== "outboundEmails" || !["smtpPort", "smtpSecurity", "smtpAuth"].includes(name) || Boolean(settings.smtpServer)) && (focus !== "outboundEmails" || !["smtpUsername", "smtpPassword", "smtpAuthMechanism"].includes(name) || Boolean(settings.smtpServer && settings.smtpAuth));
-  });
-  function settingsFieldDef(name: string, def: FieldDef): FieldDef {
-    const restrictedFields = focus === "all" ? ["siteUrl", "useWebSocket"] : focus === "jobsSettings" ? ["jobRunInParallel", "jobMaxPortion", "jobPoolConcurrencyNumber", "daemonInterval", "daemonMaxProcessNumber", "daemonProcessTimeout"] : [];
-    return restrictedMode && restrictedFields.includes(name) ? { ...def, readOnly: true } : def;
-  }
-  const pageTitle = focus === "userInterface" ? "Uživatelské rozhraní" : focus === "authentication" ? "Přihlášení a zabezpečení" : focus === "notifications" ? "Upozornění" : focus === "outboundEmails" ? "Odchozí e-mail" : focus === "inboundEmails" ? "Příchozí e-mail" : focus === "jobsSettings" ? "Nastavení úloh" : focus === "currency" ? "Měny" : focus === "sms" ? "SMS" : "Nastavení systému";
-  const groupedFields = new Map<string, typeof filteredFields>();
-  for (const field of visibleFields) {
-    const name = field[0];
-    const group = /^(smtp|email|outbound|inbound|imap)/i.test(name) ? "E-mail" : /^(auth|password|oauth|ldap|sso|2fa)/i.test(name) ? "Přihlášení a zabezpečení" : /^(currency|defaultCurrency|currencyFormat)/i.test(name) ? "Měny" : /^(week|working|calendar|timeZone|dateFormat|timeFormat)/i.test(name) ? "Čas a kalendáře" : /^(theme|logo|tab|navbar|dashboard|adminPanel)/i.test(name) ? "Rozhraní" : /^(notification|emailNotifications|assignment|mention)/i.test(name) ? "Upozornění" : /^(job|cron|pool|queue|daemon)/i.test(name) ? "Plánované úlohy" : /^(export|import|attachment|upload|maxFile|recordsPerPage)/i.test(name) ? "Data a limity" : "Obecné";
-    groupedFields.set(group, [...(groupedFields.get(group) || []), field]);
-  }
-  const settingsGroups = settingsLayout.length ? settingsLayout.map((panel, index) => {
-    const names = (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name ? [item.name] : []);
-    const group = names.flatMap((name) => visibleFields.filter(([fieldName]) => fieldName === name));
-    return { title: (metadata.labels as any)?.Settings?.labels?.[panel.label || ""] || (metadata.labels as any)?.Admin?.labels?.[panel.label || ""] || panel.label || (index ? `Další nastavení ${index + 1}` : "Nastavení"), group };
-  }).filter((item) => item.group.length) : [...groupedFields].map(([title, group]) => ({ title, group }));
-  if (focus === "outboundEmails") {
-    const smtpNames = new Set(["smtpServer", "smtpPort", "smtpSecurity", "smtpAuth", "smtpUsername", "smtpPassword", "smtpAuthMechanism"]);
-    const alreadyPlaced = new Set(settingsGroups.flatMap((item) => item.group.map(([name]) => name)));
-    const smtpGroup = visibleFields.filter(([name]) => smtpNames.has(name) && !alreadyPlaced.has(name));
-    if (smtpGroup.length) settingsGroups.unshift({ title: "SMTP server", group: smtpGroup });
-  }
-  async function save() {
-    if (settings.thousandSeparator && settings.decimalMark && settings.thousandSeparator === settings.decimalMark) { setError((metadata.labels as any)?.Admin?.messages?.thousandSeparatorEqualsDecimalMark || "Oddělovač tisíců nesmí být stejný jako oddělovač desetinných míst."); return; }
-    if (focus === "currency") {
-      const rates = settings.currencyRates && typeof settings.currencyRates === "object" ? settings.currencyRates as Record<string, unknown> : {};
-      const invalidRate = Object.entries(rates).find(([, rate]) => rate !== "" && (!Number.isFinite(Number(rate)) || Number(rate) <= 0));
-      if (invalidRate) { setError(`Kurz měny ${invalidRate[0]} musí být kladné číslo větší než nula.`); return; }
-    }
-    if (focus === "outboundEmails" && settings.smtpServer && (!Number.isInteger(Number(settings.smtpPort)) || Number(settings.smtpPort) < 1 || Number(settings.smtpPort) > 65535)) { setError("Zadejte platný SMTP port od 1 do 65535."); return; }
-    if (focus === "outboundEmails" && settings.smtpServer && settings.smtpAuth && !String(settings.smtpUsername || "").trim()) { setError("Při zapnutém SMTP ověřování je uživatelské jméno povinné."); return; }
-    const emailAddressPattern = /^[-!#$%&'*+/=?^_`{|}~A-Za-z0-9]+(?:\.[-!#$%&'*+/=?^_`{|}~A-Za-z0-9]+)*@([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]$/;
-    if (focus === "outboundEmails") for (const name of ["outboundEmailFromAddress", "outboundEmailBccAddress"]) {
-      const value = String(settings[name] || "").trim();
-      if (value && !emailAddressPattern.test(value)) { setError(`${fieldLabel(name, metadata.entityDefs.Settings.fields?.[name], "Settings", metadata)}: zadejte platnou e-mailovou adresu.`); return; }
-    }
-    let payload: Row;
-    try { payload = buildSettingsPatch(changed, metadata); }
-    catch (e) { setError(e instanceof Error ? e.message : "Nastavení obsahuje neplatnou hodnotu."); return; }
-    setSaving(true); setError(""); setSaved(false);
-    try { await request("Settings", { method: "PATCH", body: JSON.stringify(payload) }); const fresh = normalizeSettingsForEditor(await request<Row>("Settings"), metadata); setSettings(fresh); setOriginal(fresh); setSaved(true); if (focus === "userInterface" && ("theme" in changed || JSON.stringify(original.themeParams?.navbar) !== JSON.stringify(fresh.themeParams?.navbar))) window.location.reload(); }
-    catch (e) { setError(e instanceof Error ? e.message : "Nastavení se nepodařilo uložit."); }
-    finally { setSaving(false); }
-  }
-  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={leave}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">KONFIGURACE</div><h1>{pageTitle}</h1><p>{focus === "all" ? "Změňte výchozí chování a formáty CRM." : focus === "outboundEmails" || focus === "inboundEmails" ? "Nastavení vychází z nativního rozložení EspoCRM 9.1.7." : "Upravitelná nastavení načtená z instalace EspoCRM."}</p></div><button className="button primary" onClick={() => void save()} disabled={busy || saving || !Object.keys(changed).length}><Save size={15}/>{saving ? "Ukládám…" : "Uložit změny"}</button></div>
-    {error && <div className="table-error">{error}<button onClick={() => { setBusy(true); request<Row>("Settings").then((data) => { const fresh = normalizeSettingsForEditor(data, metadata); setSettings(fresh); setOriginal(fresh); }).catch(() => {}).finally(() => setBusy(false)); }}>Zkusit znovu</button></div>}{saved && <div className="save-confirm"><Check size={15}/> Nastavení bylo uloženo.</div>}
-    {!busy && <label className="admin-settings-search"><Search size={15}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filtrovat nastavení podle názvu…"/><span>{visibleFields.length} / {fields.length}</span></label>}
-    {busy ? <div className="surface table-loading"><span className="spinner"/> Načítám nastavení…</div> : <div className="settings-sections">{settingsGroups.map(({ title, group }) => <section className="surface settings-card" key={title}><div className="settings-card-head"><h2>{title}</h2><p>{group.length} položek nastavení</p></div><div className="settings-fields">{group.map(([name, def]) => name === "currencyRates" ? <CurrencyRatesEditor key={name} metadata={metadata} currencies={settings.currencyList || []} baseCurrency={settings.baseCurrency} value={settings.currencyRates} onChange={(value) => setSettings((old) => ({ ...old, currencyRates: value }))}/> : name === "addressPreview" ? <AddressFormatPreview key={name} format={settings.addressFormat}/> : name === "dashboardLayout" ? <div className="field-input dashboard-layout-field" key={name}><span>{fieldLabel(name, def, "Settings", metadata)}</span><DashboardLayoutEditor value={settings.dashboardLayout} options={settings.dashletsOptions || {}} metadata={metadata} onChange={(dashboardLayout) => setSettings((old) => ({ ...old, dashboardLayout }))} onOptionsChange={(dashletsOptions) => setSettings((old) => ({ ...old, dashletsOptions }))}/></div> : focus === "userInterface" && name === "tabList" ? <div className="field-input admin-tab-list-field" key={name}><span>{fieldLabel(name, def, "Settings", metadata)}</span><AdminTabListEditor value={Array.isArray(settings.tabList) ? settings.tabList : []} metadata={metadata} onChange={(tabList) => setSettings((old) => ({ ...old, tabList }))}/></div> : focus === "outboundEmails" && ["outboundEmailFromAddress", "outboundEmailBccAddress"].includes(name) ? <SettingsEmailAddressField key={name} name={name} metadata={metadata} value={settings[name] || ""} suggestInbound={name === "outboundEmailFromAddress"} onChange={(value) => setSettings((old) => ({ ...old, [name]: value }))}/> : <FieldInput key={name} entity="Settings" metadata={metadata} name={name} def={settingsFieldDef(name, focus === "currency" && ["defaultCurrency", "baseCurrency"].includes(name) ? { ...def, options: settings.currencyList || [] } : focus === "sms" && name === "smsProvider" ? { ...def, options: [...new Set([...(Object.keys((metadata.app as any)?.smsProviders || {})), settings.smsProvider].filter(Boolean))] } : focus === "outboundEmails" && name === "smtpPort" && settings.smtpServer ? { ...def, required: true } : focus === "outboundEmails" && name === "smtpUsername" && settings.smtpServer && settings.smtpAuth ? { ...def, required: true } : def)} value={settings[name]} columns={settings[`${name}Columns`] || {}} onColumnsChange={def.type === "linkMultiple" ? (columns) => setSettings((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} themeParamsValue={settings.themeParams} onThemeParamsChange={(themeParams) => setSettings((old) => ({ ...old, themeParams }))} onChange={(value) => setSettings((old) => focus === "outboundEmails" && name === "smtpSecurity" ? { ...old, smtpSecurity: value, smtpPort: value === "SSL" ? 465 : value === "TLS" ? 587 : 25 } : { ...old, [name]: value })}/>)}</div></section>)}{!visibleFields.length && <div className="surface table-loading">Žádné nastavení neodpovídá filtru.</div>}</div>}
-  </div>;
-}
-
-function AdminAuthentication({ metadata, onBack }: { metadata: Metadata; onBack: () => void }) {
-  const [settings, setSettings] = useState<Row>({});
-  const [original, setOriginal] = useState<Row>({});
-  const [authLayout, setAuthLayout] = useState<DetailLayoutPanel[]>([]);
-  const [active, setActive] = useState("general");
-  const [busy, setBusy] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const authMethods = (metadata as any).authenticationMethods || {};
-  const methods = Object.entries(authMethods).filter(([, method]: [string, any]) => method?.settings?.isAvailable && method.settings.fieldList?.length) as Array<[string, any]>;
-  const selectedAuthMethod = String(settings.authenticationMethod || "Espo");
-  const selectedMethods = methods.filter(([name]) => name === selectedAuthMethod);
-  useEffect(() => { let live = true; Promise.all([request<Row>("Settings"), fetchLayout<DetailLayoutPanel[]>("Settings", "authentication")]).then(([data, layout]) => { if (live) { const normalized = normalizeSettingsForEditor(data, metadata); setSettings(normalized); setOriginal(normalized); setAuthLayout(layout || []); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Nastavení nelze načíst.")).finally(() => live && setBusy(false)); return () => { live = false; }; }, [metadata]);
-  useEffect(() => { if (active !== "general" && active !== selectedAuthMethod) setActive("general"); }, [active, selectedAuthMethod]);
-  const allGeneralFields = useMemo(() => getFormFields(metadata, "Settings").filter(([name]) => /^(authenticationMethod|auth|password|login|apiKey|token)/i.test(name) && name in settings), [metadata, settings]);
-  const generalFields = useMemo(() => { const byName = new Map(allGeneralFields.map((item) => [item[0], item] as [string, [string, FieldDef]])); const ordered = authLayout.flatMap((panel) => (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name && byName.has(item.name) ? [byName.get(item.name)!] : [])); return ordered.length ? ordered : allGeneralFields; }, [allGeneralFields, authLayout]);
-  const currentMethod = methods.find(([name]) => name === active);
-  const methodFieldNames: string[] = currentMethod ? [...new Set([...(currentMethod[1].settings.layout?.rows || []).flat().map((item: any) => item && typeof item === "object" ? item.name : undefined).filter(Boolean), ...(currentMethod[1].settings.fieldList || [])])] : [];
-  const methodFields: Array<[string, FieldDef]> = currentMethod ? methodFieldNames.map((name) => [name, metadata.entityDefs.Settings?.fields?.[name] || { type: "varchar" }]) : [];
-  const nativeAuthLogic: Row = { fields: { authIpAddressWhitelist: { visible: { conditionGroup: [{ attribute: "authIpAddressCheck", type: "isTrue" }] }, required: { conditionGroup: [{ attribute: "authIpAddressCheck", type: "isTrue" }] } }, authIpAddressCheckExcludedUsers: { visible: { conditionGroup: [{ attribute: "authIpAddressCheck", type: "isTrue" }] } } } };
-  const restrictedMode = Boolean(metadata.appParams?.isRestrictedMode) && getSession()?.user.type !== "super-admin";
-  const visibleAuthFields = (list: Array<[string, FieldDef]>, logic: Row, general = false): Array<[string, FieldDef]> => list.flatMap(([name, originalDef]) => {
-    if (general && ["authIpAddressWhitelist", "authIpAddressCheckExcludedUsers"].includes(name) && !settings.authIpAddressCheck) return [];
-    if (general && ["auth2FAForced", "auth2FAMethodList", "auth2FAInPortal"].includes(name) && !settings.auth2FA) return [];
-    if (general && ["passwordRecoveryForAdminDisabled", "passwordRecoveryForInternalUsersDisabled", "passwordRecoveryNoExposure"].includes(name) && settings.passwordRecoveryDisabled) return [];
-    const rule = logic.fields?.[name] || {};
-    if (rule.visible?.conditionGroup && !conditionGroupMatches(rule.visible, settings)) return [];
-    const def: FieldDef = { ...originalDef };
-    if (general && name === "auth2FAMethodList" && settings.auth2FA) def.required = true;
-    if (rule.required?.conditionGroup && conditionGroupMatches(rule.required, settings)) def.required = true;
-    if ((rule.readOnly?.conditionGroup && conditionGroupMatches(rule.readOnly, settings)) || (general && restrictedMode && ["authIpAddressCheck", "authIpAddressWhitelist", "authIpAddressCheckExcludedUsers"].includes(name))) def.readOnly = true;
-    const optionRules = logic.options?.[name];
-    if (Array.isArray(optionRules)) { const match = optionRules.find((item: Row) => conditionGroupMatches(item, settings)); if (match) def.options = match.optionList || []; }
-    return [[name, def]];
-  });
-  const changed = Object.fromEntries(Object.entries(settings).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(original[key])));
-  const leave = useUnsavedChangesGuard(Boolean(Object.keys(changed).length), onBack, "Máte neuložené změny přihlášení. Opravdu chcete odejít?");
-  async function save() {
-    let payload: Row;
-    try { payload = buildSettingsPatch(changed, metadata); }
-    catch (e) { setError(e instanceof Error ? e.message : "Nastavení obsahuje neplatnou hodnotu."); return; }
-    setSaving(true); setError(""); setNotice("");
-    try { await request("Settings", { method: "PATCH", body: JSON.stringify(payload) }); const fresh = normalizeSettingsForEditor(await request<Row>("Settings"), metadata); setSettings(fresh); setOriginal(fresh); setNotice("Nastavení autentizace bylo uloženo."); }
-    catch (e) { setError(e instanceof Error ? e.message : "Nastavení nelze uložit."); } finally { setSaving(false); }
-  }
-  async function testLdap() {
-    setTesting(true); setError(""); setNotice("");
-    try { await request("Ldap/action/testConnection", { method: "POST", body: JSON.stringify({ host: settings.ldapHost, port: settings.ldapPort, useSsl: settings.ldapSecurity, useStartTls: settings.ldapSecurity, username: settings.ldapUsername, password: settings.ldapPassword, bindRequiresDn: settings.ldapBindRequiresDn, accountDomainName: settings.ldapAccountDomainName, accountDomainNameShort: settings.ldapAccountDomainNameShort, accountCanonicalForm: settings.ldapAccountCanonicalForm }) }); setNotice("Připojení k LDAP serveru funguje."); }
-    catch (e) { setError(e instanceof Error ? e.message : "LDAP připojení se nezdařilo."); } finally { setTesting(false); }
-  }
-  const fields = visibleAuthFields(active === "general" ? generalFields : methodFields, active === "general" ? nativeAuthLogic : currentMethod?.[1].settings.dynamicLogic || {}, active === "general");
-  const authGroups = active === "general" ? authLayout.map((panel, index) => {
-    const names = (panel.rows || []).flat().flatMap((item) => item && typeof item === "object" && item.name ? [item.name] : []);
-    return { id: `${panel.label || "panel"}-${index}`, title: (metadata.labels as any)?.Settings?.labels?.[panel.label || ""] || (metadata.labels as any)?.Admin?.labels?.[panel.label || ""] || panel.label || "Nastavení", fields: names.flatMap((name) => fields.filter(([fieldName]) => fieldName === name)) };
-  }).filter((group) => group.fields.length) : [{ id: active, title: active === "Espo" ? "EspoCRM" : active, fields }];
-  function renderAuthField([name, def]: [string, FieldDef]) {
-    if (name === "testConnection" && active === "LDAP") return <div className="field-input auth-test-connection" key={name}><span /><button type="button" className="button subtle" onClick={() => void testLdap()} disabled={testing}><Network size={14}/>{testing ? "Testuji…" : "Test připojení"}</button></div>;
-    return <FieldInput key={name} entity="Settings" metadata={metadata} name={name} def={def} value={settings[name]} columns={settings[`${name}Columns`] || {}} onColumnsChange={def.type === "linkMultiple" ? (columns) => setSettings((old) => ({ ...old, [`${name}Columns`]: columns })) : undefined} onChange={(value) => setSettings((old) => ({ ...old, [name]: value }))}/>;
-  }
-  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={leave}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">PŘÍSTUP A ZABEZPEČENÍ</div><h1>Autentizace</h1><p>Nastavení přihlášení, metod ověření a zásad hesel podle konfigurace EspoCRM.</p></div><button className="button primary" onClick={() => void save()} disabled={busy || saving || !Object.keys(changed).length}><Save size={15}/>{saving ? "Ukládám…" : "Uložit změny"}</button></div>
-    {error && <div className="table-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
-    <div className="surface integration-nav auth-method-nav"><button className={active === "general" ? "active" : ""} onClick={() => setActive("general")}><Shield size={15}/><span>Obecné a hesla</span></button>{selectedMethods.map(([name]) => <button key={name} className={active === name ? "active" : ""} onClick={() => setActive(name)}><KeyRound size={15}/><span>{name === "Espo" ? "EspoCRM" : name}</span></button>)}</div>
-    {busy ? <div className="surface table-loading"><span className="spinner"/> Načítám nastavení…</div> : <section className="surface settings-card auth-settings-card"><div className="settings-card-head"><h2>{active === "general" ? "Přihlášení a zásady hesel" : `${active === "Espo" ? "EspoCRM" : active} – konfigurace`}</h2></div><div className="auth-settings-groups">{authGroups.map((group) => <div className="auth-settings-group" key={group.id}>{active === "general" && <h3>{group.title}</h3>}<div className="settings-fields">{group.fields.map(renderAuthField)}</div></div>)}</div>{!fields.length && <p className="empty-state">Tato metoda nemá další lokální nastavení.</p>}</section>}
-  </div>;
-}
-
-function AdminNotifications({ metadata, onBack }: { metadata: Metadata; onBack: () => void }) {
-  const [settings, setSettings] = useState<Row>({});
-  const [original, setOriginal] = useState<Row>({});
-  const [layout, setLayout] = useState<DetailLayoutPanel[]>([]);
-  const [systemNotices, setSystemNotices] = useState<Array<{ id: string; type: string; message: string }>>([]);
-  const [busy, setBusy] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  useEffect(() => {
-    let live = true;
-    Promise.allSettled([request<Row>("Settings"), fetchLayout<DetailLayoutPanel[]>("Settings", "notifications"), request<Array<{ id: string; type: string; message: string }>>("Admin/action/adminNotificationList")]).then(([settingsResult, layoutResult, noticeResult]) => {
-      if (!live) return;
-      if (settingsResult.status === "fulfilled") { setSettings(settingsResult.value); setOriginal(settingsResult.value); } else setError(settingsResult.reason instanceof Error ? settingsResult.reason.message : "Nastavení nelze načíst.");
-      if (layoutResult.status === "fulfilled") setLayout(layoutResult.value || []);
-      if (noticeResult.status === "fulfilled") setSystemNotices(noticeResult.value || []);
-    }).finally(() => live && setBusy(false));
-    return () => { live = false; };
-  }, []);
-  const panels = layout.map((panel) => ({ ...panel, fields: (panel.rows || []).flatMap((row) => row.filter((item): item is Exclude<LayoutItem, false> & { name: string } => Boolean(item && typeof item === "object" && "name" in item && item.name)).map((item) => [item.name, metadata.entityDefs.Settings?.fields?.[item.name] || { type: "varchar" }] as [string, FieldDef])) }));
-  const changed = Object.fromEntries(Object.entries(settings).filter(([name, value]) => JSON.stringify(value) !== JSON.stringify(original[name])));
-  const leave = useUnsavedChangesGuard(Boolean(Object.keys(changed).length), onBack, "Máte neuložené změny oznámení. Opravdu chcete odejít?");
-  function visible(name: string) {
-    if (name === "assignmentEmailNotificationsEntityList") return Boolean(settings.assignmentEmailNotifications);
-    if (["adminNotificationsNewVersion", "adminNotificationsNewExtensionVersion"].includes(name)) return Boolean(settings.adminNotifications);
-    if (["streamEmailNotificationsEntityList", "streamEmailNotificationsTypeList"].includes(name)) return Boolean(settings.streamEmailNotifications || settings.portalStreamEmailNotifications);
-    return true;
-  }
-  async function save() {
-    const fields = new Set(panels.flatMap((panel) => panel.fields.map(([name]) => name)));
-    let payload: Row;
-    try { payload = buildSettingsPatch(Object.fromEntries(Object.entries(changed).filter(([name]) => fields.has(name))), metadata); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Nastavení obsahuje neplatnou hodnotu."); return; }
-    setSaving(true); setError(""); setNotice("");
-    try { await request("Settings", { method: "PATCH", body: JSON.stringify(payload) }); const fresh = await request<Row>("Settings"); setSettings(fresh); setOriginal(fresh); setNotice("Nastavení oznámení bylo uloženo."); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Nastavení oznámení nelze uložit."); } finally { setSaving(false); }
-  }
-  return <div className="admin-view"><div className="entity-heading"><div><button className="back-link" onClick={leave}><ArrowLeft size={14}/> Administrace</button><div className="eyebrow">UDÁLOSTI A UPOZORNĚNÍ</div><h1>Oznámení</h1><p>Nastavte, které události CRM doručuje v aplikaci a e-mailem.</p></div><button className="button primary" onClick={() => void save()} disabled={busy || saving || !Object.keys(changed).length}><Save size={15}/>{saving ? "Ukládám…" : "Uložit změny"}</button></div>
-    {error && <div className="table-error">{error}</div>}{notice && <div className="save-confirm"><Check size={15}/>{notice}</div>}
-    {busy ? <div className="surface table-loading"><span className="spinner"/> Načítám oznámení…</div> : <div className="settings-sections">{panels.map((panel, index) => { const rawLabel = (panel.label || "").replace(/^\$label:/, ""); const title = (metadata.labels as any)?.Settings?.labels?.[rawLabel] || (metadata.labels as any)?.Admin?.labels?.[rawLabel] || rawLabel || "Oznámení"; return <section className="surface settings-card" key={`${rawLabel || "notifications"}-${index}`}><div className="settings-card-head"><h2>{title}</h2><span>{panel.fields.filter(([name]) => visible(name)).length} nastavení</span></div><div className="settings-fields">{panel.fields.filter(([name]) => visible(name)).map(([name, def]) => <FieldInput key={name} entity="Settings" metadata={metadata} name={name} def={def} value={settings[name]} onChange={(value) => setSettings((old) => ({ ...old, [name]: value }))}/>)}</div></section>; })}{systemNotices.length > 0 && <section className="surface settings-card"><div className="settings-card-head"><div><h2>Systémová oznámení</h2><p>Aktuální upozornění administrace EspoCRM</p></div><span>{systemNotices.length}</span></div><div className="system-check-list">{systemNotices.map((item) => <div className="system-check-row" key={item.id}><span className={`requirement-dot ${/error|fail|critical/i.test(item.type) ? "fail" : "unknown"}`}/><span className="system-check-label"><small>{item.type}</small><strong>{item.message}</strong></span></div>)}</div></section>}</div>}
-  </div>;
-}
-
-type QuickSearchTab = { label: string; target: string; admin?: boolean };
-const quickAdminTargets: Record<string, string> = { users: "User", teams: "Team", roles: "Role", entityManager: "__entity-manager__", groupEmailAccounts: "EmailAccount", personalEmailAccounts: "EmailAccount", portalUsers: "__portal-users__", workingTimeCalendar: "WorkingTimeCalendar" };
-function GlobalSearchOverlay({ metadata, tabs, isAdmin, onClose, onSelect, onNavigate }: { metadata: Metadata; tabs: any[]; isAdmin: boolean; onClose: () => void; onSelect: (entity: string, record: Row) => void; onNavigate: (target: string) => void }) {
-  const dialogRef = useRef<HTMLElement | null>(null);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Row[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [searchRetry, setSearchRetry] = useState(0);
-  const quickTabs = useMemo<QuickSearchTab[]>(() => {
-    const items: QuickSearchTab[] = [];
-    const add = (label: string, target: string, admin = false) => { if (label && !items.some((item) => item.target === target || item.label.toLocaleLowerCase() === label.toLocaleLowerCase())) items.push({ label, target, admin }); };
-    const hasTabAccess = (scopeName: string) => {
-      const scope = metadata.scopes?.[scopeName] as any;
-      if (!scope || scope.disabled) return false;
-      if (scope.acl) return canAccessEntity(metadata, scopeName);
-      if (scope.tabAclPermission) { const level = metadata.userAcl?.[scope.tabAclPermission]; return Boolean(level && level !== "no"); }
-      return true;
-    };
-    const walk = (list: any[]) => list.forEach((item) => {
-      if (typeof item === "string") {
-        if (item === "Home") add("Přehled", "__dashboard__");
-        else if (item === "Calendar") add("Kalendář", "__calendar__");
-        else if (item.startsWith("_") || !metadata.scopes?.[item]?.tab || !hasTabAccess(item)) return;
-        else add(entityLabel(metadata, item, true), item);
-      } else if (item?.type === "url") add(String(item.text || item.url || "Odkaz").replace(/^\$/, ""), `url:${item.url}`);
-      else if (Array.isArray(item?.itemList)) walk(item.itemList);
-    });
-    walk(tabs);
-    if (isAdmin) Object.values((metadata.app as any)?.adminPanel || {}).flatMap((panel: any) => panel?.itemList || []).filter((item: any) => item.tabQuickSearch && item.label && item.url).forEach((item: any) => {
-      const route = String(item.url).match(/^#Admin\/([^/?#]+)/)?.[1];
-      const target = route ? quickAdminTargets[route] : String(item.url).match(/^#([^/?#]+)$/)?.[1];
-      if (!target) return;
-      const labelKey = String(item.label).replace(/^\$label:/, "");
-      const label = (metadata.labels as any)?.Admin?.labels?.[labelKey] || labelKey;
-      add(label, `admin:${target}`, true);
-    });
-    return items;
-  }, [metadata, tabs, isAdmin]);
-  const matchingTabs = useMemo(() => {
-    if (metadata.appSettings?.tabQuickSearch === false) return [];
-    const normalize = (value: string) => value.toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const normalized = normalize(query.trim());
-    if (!normalized) return [];
-    const matches = (item: QuickSearchTab) => { const label = normalize(item.label); return label.startsWith(normalized) || label.split(/\s+/).some((word) => word.startsWith(normalized)); };
-    return quickTabs.filter(matches).sort((a, b) => Number(!normalize(a.label).startsWith(normalized)) - Number(!normalize(b.label).startsWith(normalized)) || a.label.length - b.label.length || a.label.localeCompare(b.label)).slice(0, 8);
-  }, [query, quickTabs, metadata.appSettings?.tabQuickSearch]);
-  const selectableCount = matchingTabs.length + results.length;
-  useEffect(() => {
-    const normalized = query.trim();
-    setResults([]); setSelectedIndex(0);
-    setError("");
-    if (normalized.length < 2) { setResults([]); setBusy(false); return; }
-    setBusy(true);
-    let live = true;
-    const timer = window.setTimeout(() => {
-      setBusy(true); setError("");
-      const configuredMaxSize = Number(metadata.appSettings?.globalSearchMaxSize);
-      const maxSize = Number.isFinite(configuredMaxSize) && configuredMaxSize > 0 ? Math.floor(configuredMaxSize) : 10;
-      const params = new URLSearchParams({ q: normalized, maxSize: String(maxSize) });
-      request<PageResult>(`GlobalSearch?${params}`).then((result) => { if (live) { setResults(result.list || []); setSelectedIndex(0); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Vyhledávání selhalo.")).finally(() => live && setBusy(false));
-    }, 240);
-    return () => { live = false; window.clearTimeout(timer); };
-  }, [query, searchRetry, metadata.appSettings?.globalSearchMaxSize]);
-  useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const dialog = dialogRef.current;
-    dialog?.querySelector<HTMLInputElement>("input")?.focus();
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { onClose(); return; }
-      if (event.key !== "Tab" || !dialog) return;
-      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('input:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'));
-      if (!focusable.length) { event.preventDefault(); return; }
-      const first = focusable[0]; const last = focusable[focusable.length - 1];
-      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
-    };
-    window.addEventListener("keydown", handler);
-    return () => { window.removeEventListener("keydown", handler); if (previousFocus?.isConnected) previousFocus.focus(); };
-  }, [onClose]);
-  function selectResult(index: number) {
-    const record = results[index];
-    if (!record) return;
-    const scope = record.entityType || record.scope || record._scope || "";
-    if (scope) onSelect(scope, record);
-    else setError("Výsledku chybí typ záznamu.");
-  }
-  function selectItem(index: number) {
-    if (index < matchingTabs.length) {
-      const target = matchingTabs[index].target;
-      if (target.startsWith("url:")) window.location.assign(target.slice(4));
-      else if (target.startsWith("admin:")) onNavigate(target.slice(6));
-      else onNavigate(target);
-      return;
-    }
-    selectResult(index - matchingTabs.length);
-  }
-  function handleSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
-    if (event.key === "ArrowDown" && selectableCount) { event.preventDefault(); setSelectedIndex((index) => (index + 1) % selectableCount); }
-    else if (event.key === "ArrowUp" && selectableCount) { event.preventDefault(); setSelectedIndex((index) => (index - 1 + selectableCount) % selectableCount); }
-    else if (event.key === "Enter" && selectableCount) { event.preventDefault(); selectItem(Math.min(selectedIndex, selectableCount - 1)); }
-  }
-  return <div className="global-search-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-    <section ref={dialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-label="Vyhledávání v CRM">
-      <div className="global-search-input">
-        <Search size={19}/>
-        <input autoFocus type="search" role="combobox" aria-autocomplete="list" aria-expanded={query.trim().length > 0} aria-controls="global-search-results" aria-activedescendant={selectableCount ? `global-search-result-${selectedIndex}` : undefined} value={query} onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }} onKeyDown={handleSearchKeyDown} placeholder="Hledat moduly, administraci a záznamy…"/>
-        <kbd>ESC</kbd><button className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={17}/></button>
-      </div>
-      {query.trim().length < 1 ? <div className="global-search-hint">Začněte psát název modulu, administrace nebo záznamu.</div> : <div className="global-search-results" id="global-search-results" role="listbox" aria-busy={busy}>
-        {matchingTabs.length > 0 && <>
-          <div className="global-search-section-label" role="presentation">Rychlé přechody</div>
-          {matchingTabs.map((item, index) => <button id={`global-search-result-${index}`} role="option" aria-selected={selectedIndex === index} className={`global-search-result ${selectedIndex === index ? "active" : ""}`} key={item.target} onMouseEnter={() => setSelectedIndex(index)} onClick={() => selectItem(index)}><span className="global-result-icon"><ArrowRight size={15}/></span><span><strong>{item.label}</strong><small>{item.admin ? "Administrace" : item.target.startsWith("url:") ? "Odkaz" : "Modul"}</small></span><ArrowRight size={14}/></button>)}
-        </>}
-        {query.trim().length >= 2 && <>
-          <div className="global-search-section-label" role="presentation">Záznamy</div>
-          {busy ? <div className="global-search-state" role="status"><span className="spinner"/>Hledám v CRM…</div> : error ? <div className="global-search-state error" role="alert"><span>{error}</span><button className="button subtle" onClick={() => setSearchRetry((count) => count + 1)}>Zkusit znovu</button></div> : results.length ? results.map((record, index) => {
-            const scope = record.entityType || record.scope || record._scope || "";
-            const itemIndex = matchingTabs.length + index;
-            return <button id={`global-search-result-${itemIndex}`} role="option" aria-selected={selectedIndex === itemIndex} className={`global-search-result ${selectedIndex === itemIndex ? "active" : ""}`} key={`${scope}-${record.id}-${index}`} onMouseEnter={() => setSelectedIndex(itemIndex)} onClick={() => selectItem(itemIndex)}><span className="global-result-icon"><EntityIcon name={scope} size={15}/></span><span><strong>{recordFieldDisplayValue(scope, "name", record) || record.subject || "Záznam"}</strong><small>{entityLabel(metadata, scope)}{record.accountName ? ` · ${record.accountName}` : ""}</small></span><ArrowRight size={14}/></button>;
-          }) : <div className="global-search-state" role="status">Nenalezli jsme žádné odpovídající záznamy.</div>}
-        </>}
-      </div>}
-      <footer className="global-search-footer"><span><kbd>↵</kbd> otevřít vybranou položku</span><span>Vyhledávání respektuje oprávnění účtu</span></footer>
-  </section></div>;
-}
-
-type MailFolder = { id: string; name: string; entityId?: string; unread?: number };
-const systemMailFolders: MailFolder[] = [
-  { id: "inbox", name: "Doručené" }, { id: "important", name: "S hvězdičkou" },
-  { id: "sent", name: "Odeslané" }, { id: "drafts", name: "Koncepty" },
-  { id: "archive", name: "Archiv" }, { id: "trash", name: "Koš" }, { id: "all", name: "Všechny zprávy" },
-];
-
-function shiftDateOnly(value: string, amount: number) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return value;
-  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  if (date.getUTCFullYear() !== Number(match[1]) || date.getUTCMonth() !== Number(match[2]) - 1 || date.getUTCDate() !== Number(match[3])) return value;
-  date.setUTCDate(date.getUTCDate() + amount);
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
-}
-
-function EmailInbox({ metadata, refresh, onCompose, onOpenRecord }: { metadata: Metadata; refresh: number; onCompose: () => void; onOpenRecord: (record: Row) => void }) {
-  const confirmDialog = useConfirmDialog();
-  const timeZone = useEspoTimeZone();
-  const [emailFilters, setEmailFilters] = useState({ from: "", subject: "", dateFrom: "", dateTo: "" });
-  const [filterDraft, setFilterDraft] = useState({ from: "", subject: "", dateFrom: "", dateTo: "" });
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [importEmlOpen, setImportEmlOpen] = useState(false);
-  const [folders, setFolders] = useState<MailFolder[]>([]);
-  const [groupFolders, setGroupFolders] = useState<MailFolder[]>([]);
-  const [folderReload, setFolderReload] = useState(0);
-  const [folderEditor, setFolderEditor] = useState<{ entity: "EmailFolder" | "GroupEmailFolder"; record?: Row } | null>(null);
-  const [folderPicker, setFolderPicker] = useState<{ ids: string[]; groupOnly: boolean; allowArchive: boolean; allResults?: boolean; total?: number } | null>(null);
-  const [folderPickerSearch, setFolderPickerSearch] = useState("");
-  const [attachmentEmail, setAttachmentEmail] = useState<Row | null>(null);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [folderId, setFolderId] = useState("inbox");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [allResultsSelected, setAllResultsSelected] = useState(false);
-  const [draggingIds, setDraggingIds] = useState<string[]>([]);
-  const [dropTarget, setDropTarget] = useState("");
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
-  const [busy, setBusy] = useState(true);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const pageSize = 30;
-  const selectionQueryKey = JSON.stringify([folderId, search, emailFilters]);
-  const previousSelectionQueryKey = useRef(selectionQueryKey);
-  useEffect(() => {
-    if (previousSelectionQueryKey.current !== selectionQueryKey) {
-      previousSelectionQueryKey.current = selectionQueryKey;
-      setSelected([]); setAllResultsSelected(false);
-    }
-  }, [selectionQueryKey]);
-  const buildInboxWhere = useCallback((): Row[] => {
-    const where: Row[] = [{ type: "inFolder", attribute: "folderId", value: folderId }];
-    if (emailFilters.from.trim()) where.push({ type: "contains", attribute: "fromAddress", value: emailFilters.from.trim() });
-    if (emailFilters.subject.trim()) where.push({ type: "contains", attribute: "subject", value: emailFilters.subject.trim() });
-    if (emailFilters.dateFrom) where.push({ type: "after", attribute: "dateSent", value: shiftDateOnly(emailFilters.dateFrom, -1), dateTime: true, timeZone });
-    if (emailFilters.dateTo) where.push({ type: "before", attribute: "dateSent", value: shiftDateOnly(emailFilters.dateTo, 1), dateTime: true, timeZone });
-    return where;
-  }, [folderId, emailFilters, timeZone]);
-  useEffect(() => {
-    const handleComposeShortcut = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.code !== "Space" || event.isComposing) return;
-      if (target?.closest("input, textarea, select, button, [contenteditable='true'], [role='dialog']")) return;
-      if (!canCreateEntity(metadata, "Email") || metadata.clientDefs?.Email?.createDisabled) return;
-      event.preventDefault();
-      event.stopPropagation();
-      onCompose();
-    };
-    window.addEventListener("keydown", handleComposeShortcut);
-    return () => window.removeEventListener("keydown", handleComposeShortcut);
-  }, [metadata, onCompose]);
-  useEffect(() => {
-    let live = true;
-    const groupFolderRequest = canAccessEntity(metadata, "GroupEmailFolder") ? request<PageResult>("GroupEmailFolder?maxSize=200&offset=0&orderBy=order&order=asc").catch(() => ({ list: [], total: 0 })) : Promise.resolve({ list: [], total: 0 });
-    Promise.all([request<{ list: MailFolder[] }>("EmailFolder/action/listAll?maxSize=200"), request<Record<string, number>>("Email/inbox/notReadCounts"), groupFolderRequest]).then(([folderData, countData, groupFolderData]) => {
-      if (!live) return;
-      setFolders((folderData.list || []).filter((folder) => !systemMailFolders.some((system) => system.id === folder.id)));
-      setGroupFolders((groupFolderData.list || []).map((folder) => ({ id: `group:${folder.id}`, entityId: folder.id, name: folder.name })));
-      setCounts(countData || {});
-    }).catch((e) => live && setError(e instanceof Error ? e.message : "Složky schránky se nepodařilo načíst."));
-    return () => { live = false; };
-  }, [refresh, folderReload, metadata]);
-  const load = useCallback(async () => {
-    setBusy(true); setError("");
-    const where = buildInboxWhere();
-    const params = new URLSearchParams({ maxSize: String(pageSize), offset: String(offset), orderBy: "dateSent", order: "desc", where: JSON.stringify(where) });
-    if (search) params.set("textFilter", search);
-    try { const result = await request<PageResult>(`Email?${params}`); setRows(result.list || []); setTotal(result.total > 0 ? result.total : 0); }
-    catch (e) { setRows([]); setError(e instanceof Error ? e.message : "E-maily se nepodařilo načíst."); }
-    finally { setBusy(false); }
-  }, [folderId, offset, search, emailFilters, refresh, allResultsSelected, buildInboxWhere]);
-  useEffect(() => { void load(); }, [load]);
-  async function sendDraft(row: Row) {
-    if (!row.id || row.status !== "Draft" || row.createdById !== getSession()?.user.id) return;
-    if (!await confirmDialog({ title: "Odeslat koncept?", message: `E-mail „${row.subject || "(bez předmětu)"}“ bude předán k odeslání.`, confirmLabel: "Odeslat e-mail", tone: "primary" })) return;
-    try { await request(`Email/${encodeURIComponent(row.id)}`, { method: "PUT", body: JSON.stringify({ status: "Sending" }) }); await load(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Koncept se nepodařilo odeslat."); }
-  }
-  async function removeEmail(row: Row) {
-    if (!row.id || !canChangeEntity(metadata, "Email", "delete")) return;
-    if (!await confirmDialog({ title: "Trvale odstranit e-mail?", message: `E-mail „${row.subject || "(bez předmětu)"}“ bude odstraněn z CRM.`, confirmLabel: "Trvale odstranit", tone: "danger" })) return;
-    try { await request(`Email/${encodeURIComponent(row.id)}`, { method: "DELETE" }); await load(); request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {}); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "E-mail se nepodařilo odstranit."); }
-  }
-  async function bulkAction(kind: "read" | "unread" | "important" | "unimportant" | "trash" | "archive") {
-    if (!selected.length || allResultsSelected) return;
-    const endpoint = kind === "read" || kind === "unread" ? "Email/inbox/read" : kind === "important" || kind === "unimportant" ? "Email/inbox/important" : kind === "trash" ? "Email/inbox/inTrash" : "Email/inbox/folders/archive";
-    const method = ["unread", "unimportant"].includes(kind) || kind === "trash" && selectedRows.length > 0 && selectedRows.every(isEmailInTrash) ? "DELETE" : "POST";
-    try { await request(endpoint, { method, body: JSON.stringify({ ids: selected }) }); setSelected([]); await load(); request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {}); }
-    catch (e) { setError(e instanceof Error ? e.message : "Hromadnou akci se nepodařilo provést."); }
-  }
-  async function rowAction(row: Row, kind: "read" | "unread" | "trash" | "retrieve" | "archive" | "move", destination = "") {
-    if (kind === "move" && destination) { await moveMessages([row.id], destination); return; }
-    try {
-      if (kind === "read" || kind === "unread") await request("Email/inbox/read", { method: kind === "read" ? "POST" : "DELETE", body: JSON.stringify({ id: row.id }) });
-      else if (kind === "trash") await request("Email/inbox/inTrash", { method: "POST", body: JSON.stringify({ id: row.id }) });
-      else if (kind === "retrieve") await request("Email/inbox/inTrash", { method: "DELETE", body: JSON.stringify({ id: row.id }) });
-      else if (kind === "archive") await request("Email/inbox/folders/archive", { method: "POST", body: JSON.stringify({ id: row.id }) });
-      await load();
-      request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {});
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Akci se zprávou se nepodařilo provést."); }
-  }
-  async function markAllAsRead() {
-    if (!await confirmDialog({ title: "Označit všechny zprávy jako přečtené?", message: "Změna se týká všech e-mailových zpráv v CRM.", confirmLabel: "Označit jako přečtené", tone: "primary" })) return;
-    try { await request("Email/inbox/read", { method: "POST", body: JSON.stringify({ all: true }) }); setSelected([]); setAllResultsSelected(false); await load(); request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {}); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Zprávy se nepodařilo označit jako přečtené."); }
-  }
-  async function moveMessages(ids: string[], destination: string, allResults = false) {
-    if (!destination || (!ids.length && !allResults)) return;
-    if (allResults && !await confirmDialog({ title: `Přesunout všech ${total} e-mailů?`, message: "Přesunou se všechny zprávy odpovídající aktuální složce a filtrům.", confirmLabel: "Přesunout zprávy", tone: "primary" })) return;
-    setError(""); setNotice("");
-    try {
-      if (allResults) {
-        const result = await request<Row>("MassAction", { method: "POST", body: JSON.stringify({ entityType: "Email", action: "moveToFolder", params: { where: buildInboxWhere(), searchParams: { textFilter: search || undefined, orderBy: "dateSent", order: "desc" } }, data: { folderId: destination } }) });
-        const count = typeof result?.count === "number" && Number.isFinite(result.count) ? result.count : total;
-        const targetName = [...systemMailFolders, ...folders, ...groupFolders].find((folder) => folder.id === destination)?.name || "cílové složky";
-        setNotice(`${count} ${count === 1 ? "zpráva přesunuta" : "zpráv přesunuto"} do složky „${targetName}“.`);
-      } else {
-        if (folderId === "trash") await request("Email/inbox/inTrash", { method: "DELETE", body: JSON.stringify({ ids }) });
-        await request(`Email/inbox/folders/${encodeURIComponent(destination)}`, { method: "POST", body: JSON.stringify({ ids }) });
-        setNotice(`${ids.length} ${ids.length === 1 ? "zpráva přesunuta" : "zprávy přesunuty"}.`);
-      }
-      setFolderPicker(null); setFolderPickerSearch(""); setSelected([]); setAllResultsSelected(false);
-      await load();
-      request<Record<string, number>>("Email/inbox/notReadCounts").then(setCounts).catch(() => {});
-    } catch (e) { setError(e instanceof Error ? e.message : "Zprávy se nepodařilo přesunout."); }
-  }
-  function canDropTo(destination: string) {
-    if (!destination || folderId === "drafts" || ["sent", "drafts"].includes(destination)) return false;
-    if (folderId === "sent" && destination === "inbox") return false;
-    if (folderId === "all") return destination.startsWith("group:");
-    if (destination === "all") return folderId.startsWith("group:");
-    if (folderId.startsWith("group:")) return ["archive", "trash"].includes(destination) || destination.startsWith("group:");
-    return true;
-  }
-  function folderDropProps(destination: string) {
-    return {
-      onDragOver: (event: ReactDragEvent<HTMLElement>) => { if (!canDropTo(destination)) return; event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTarget(destination); },
-      onDragLeave: (event: ReactDragEvent<HTMLElement>) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget((current) => current === destination ? "" : current); },
-      onDrop: (event: ReactDragEvent<HTMLElement>) => {
-        event.preventDefault();
-        const ids = (() => { try { const value = JSON.parse(event.dataTransfer.getData("application/x-viacrm-email-ids")); return Array.isArray(value) ? value.map(String) : []; } catch { return []; } })();
-        setDropTarget(""); setDraggingIds([]);
-        if (ids.length && canDropTo(destination)) void dropMessagesOnFolder(ids, destination);
-      },
-    };
-  }
-  async function dropMessagesOnFolder(ids: string[], destination: string) {
-    if (destination === "important") {
-      try { await request("Email/inbox/important", { method: "POST", body: JSON.stringify({ ids }) }); await load(); }
-      catch (cause) { setError(cause instanceof Error ? cause.message : "Zprávy se nepodařilo označit jako důležité."); }
-      return;
-    }
-    if (destination === "trash") {
-      if (folderId === "trash") return;
-      try { await request("Email/inbox/inTrash", { method: "POST", body: JSON.stringify({ ids }) }); await load(); }
-      catch (cause) { setError(cause instanceof Error ? cause.message : "Zprávy se nepodařilo přesunout do koše."); }
-      return;
-    }
-    await moveMessages(ids, destination === "all" ? "inbox" : destination);
-  }
-  function startEmailDrag(event: ReactDragEvent<HTMLButtonElement>, row: Row) {
-    const ids = selected.includes(row.id) && selected.length > 1 ? selected : [row.id];
-    setDraggingIds(ids); event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("application/x-viacrm-email-ids", JSON.stringify(ids));
-    event.dataTransfer.setData("text/plain", ids.length === 1 ? row.subject || "E-mail" : `${ids.length} e-maily`);
-  }
-  async function reorderFolder(entity: "EmailFolder" | "GroupEmailFolder", id: string, direction: "Up" | "Down") {
-    try { await request(`${entity}/action/move${direction}`, { method: "POST", body: JSON.stringify({ id }) }); setFolderReload((value) => value + 1); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Pořadí složek se nepodařilo změnit."); }
-  }
-  async function deleteFolder(entity: "EmailFolder" | "GroupEmailFolder", folder: MailFolder) {
-    if (!await confirmDialog({ title: "Odstranit e-mailovou složku?", message: `Složka „${folder.name}“ bude odstraněna. Zprávy v CRM zůstanou zachované.`, confirmLabel: "Odstranit složku", tone: "danger" })) return;
-    try { await request(`${entity}/${encodeURIComponent(folder.entityId || folder.id)}`, { method: "DELETE" }); if (folder.id === folderId) setFolderId("inbox"); setFolderReload((value) => value + 1); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Složku se nepodařilo odstranit."); }
-  }
-  const currentFolder = [...systemMailFolders, ...folders, ...groupFolders].find((folder) => folder.id === folderId);
-  const customFolders = [...folders, ...groupFolders].filter((folder) => folder.id !== folderId);
-  const moveFolderOptions = [
-    { id: "inbox", name: "Doručené", icon: <InboxIcon size={17}/> },
-    ...(folderPicker?.allowArchive ? [{ id: "archive", name: "Archiv", icon: <Archive size={17}/> }] : []),
-    ...(folderPicker?.groupOnly ? groupFolders : customFolders).map((folder) => ({ id: folder.id, name: folder.name, icon: folder.id.startsWith("group:") ? <Users size={17}/> : <Mail size={17}/> })),
-  ].filter((folder) => folder.id !== folderId && folder.name.toLocaleLowerCase("cs-CZ").includes(folderPickerSearch.trim().toLocaleLowerCase("cs-CZ")));
-  const selectedRows = rows.filter((row) => selected.includes(row.id));
-  const markAsReadKind = selectedRows.length && selectedRows.every((row) => row.isRead) ? "unread" : "read";
-  const markImportantKind = selectedRows.length && selectedRows.every((row) => row.isImportant) ? "unimportant" : "important";
-  const isEmailInTrash = (row: Row) => row.groupFolderId ? row.groupStatusFolder === "Trash" : Boolean(row.inTrash);
-  const isEmailInArchive = (row: Row) => row.groupFolderId ? row.groupStatusFolder === "Archive" : Boolean(row.inArchive);
-  const allSelectedRowsLoaded = selectedRows.length === selected.length;
-  const canBulkMarkRead = allSelectedRowsLoaded && selectedRows.length > 0 && selectedRows.every((row) => row.isUsers) && (folderId !== "all" || markAsReadKind === "read");
-  const canBulkMarkImportant = allSelectedRowsLoaded && selectedRows.length > 0 && selectedRows.every((row) => row.isUsers) && (!['all', 'important'].includes(folderId) || markImportantKind === "unimportant");
-  const canBulkTrash = allSelectedRowsLoaded && selectedRows.length > 0 && folderId !== "all" && selectedRows.every((row) => row.isUsers || row.groupFolderId);
-  const canMoveEmailFolder = (row: Row) => Boolean(row.isUsers || row.groupFolderId || row.status === "Archived") && !(row.groupFolderId && isEmailInTrash(row));
-  useEffect(() => {
-    const onShortcut = (event: KeyboardEvent) => {
-      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.isComposing) return;
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input:not([type='checkbox']), textarea, select, button, [contenteditable='true'], [role='dialog']")) return;
-      const key = event.key.toLowerCase();
-      const hasSelection = selected.length > 0 && !allResultsSelected && allSelectedRowsLoaded;
-      if (key === "q") {
-        event.preventDefault(); event.stopPropagation();
-        if (hasSelection && canBulkMarkRead) void bulkAction("read");
-        else if (!selected.length || allResultsSelected) void markAllAsRead();
-        return;
-      }
-      if (!hasSelection) return;
-      if (key === "i" && canBulkMarkImportant) { event.preventDefault(); event.stopPropagation(); void bulkAction(markImportantKind); return; }
-      if (event.key === "Delete" && canBulkTrash && folderId !== "trash" && selectedRows.every((row) => !isEmailInTrash(row))) { event.preventDefault(); event.stopPropagation(); void bulkAction("trash"); return; }
-      if (event.key === "Backspace" && canChangeEntity(metadata, "Email", "edit") && !["all", "trash", "archive", "drafts"].includes(folderId) && selectedRows.every((row) => (row.isUsers || row.groupFolderId) && !isEmailInArchive(row))) { event.preventDefault(); event.stopPropagation(); void bulkAction("archive"); return; }
-      if (key === "m" && canChangeEntity(metadata, "Email", "edit") && selectedRows.every(canMoveEmailFolder)) { event.preventDefault(); event.stopPropagation(); setFolderPicker({ ids: selected, groupOnly: folderId.startsWith("group:") || folderId === "all", allowArchive: folderId !== "all" }); setFolderPickerSearch(""); }
-    };
-    window.addEventListener("keydown", onShortcut);
-    return () => window.removeEventListener("keydown", onShortcut);
-  }, [selected, allResultsSelected, allSelectedRowsLoaded, canBulkMarkRead, canBulkMarkImportant, canBulkTrash, folderId, selectedRows, markImportantKind, metadata, canMoveEmailFolder, bulkAction, markAllAsRead, isEmailInTrash, isEmailInArchive]);
-  const renderCustomFolder = (folder: MailFolder, entityName: "EmailFolder" | "GroupEmailFolder", index: number, list: MailFolder[]) => {
-    const canEdit = canChangeEntity(metadata, entityName, "edit");
-    const canDelete = canChangeEntity(metadata, entityName, "delete");
-    const entityId = folder.entityId || folder.id;
-    return <div className="mail-folder-row" key={`${entityName}-${folder.id}`}><button {...folderDropProps(folder.id)} className={`mail-folder ${folder.id === folderId ? "active" : ""} ${dropTarget === folder.id ? "drop-target" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{entityName === "GroupEmailFolder" ? <Users size={14}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>{(canEdit || canDelete) && <div className="mail-folder-actions">{canEdit && <><button className="icon-button" title="Posunout nahoru" aria-label={`Posunout složku ${folder.name} nahoru`} disabled={index === 0} onClick={() => void reorderFolder(entityName, entityId, "Up")}><ArrowUp size={12}/></button><button className="icon-button" title="Posunout dolů" aria-label={`Posunout složku ${folder.name} dolů`} disabled={index === list.length - 1} onClick={() => void reorderFolder(entityName, entityId, "Down")}><ArrowDown size={12}/></button><button className="icon-button" title="Upravit složku" aria-label={`Upravit složku ${folder.name}`} onClick={() => setFolderEditor({ entity: entityName, record: { ...folder, id: entityId } })}><Pencil size={12}/></button></>}{canDelete && <button className="icon-button danger-ghost" title="Odstranit složku" aria-label={`Odstranit složku ${folder.name}`} onClick={() => void deleteFolder(entityName, folder)}><Trash2 size={12}/></button>}</div>}</div>;
-  };
-  return <div className="mail-page">
-    <header className="mail-page-heading"><div><div className="eyebrow">KOMUNIKACE</div><h1>E-mail</h1><p>Schránka, složky a zprávy propojené se záznamy CRM.</p></div><div className="mail-heading-actions">{canCreateEntity(metadata, "Email") && <button type="button" className="button subtle" onClick={() => setImportEmlOpen(true)}><FileInput size={14}/>Importovat EML</button>}{canCreateEntity(metadata, "Email") && !metadata.clientDefs?.Email?.createDisabled && <button type="button" className="button primary" onClick={() => { setNotice(""); onCompose(); }} aria-keyshortcuts="Control+Space" title="Napsat e-mail (Ctrl + mezerník)"><Plus size={15}/>Napsat e-mail</button>}</div></header>
-    <section className="mail-surface surface"><aside className="mail-sidebar"><div className="mail-sidebar-title">SCHRÁNKY</div>{systemMailFolders.map((folder) => <button {...folderDropProps(folder.id)} key={folder.id} className={`mail-folder ${folder.id === folderId ? "active" : ""} ${dropTarget === folder.id ? "drop-target" : ""}`} onClick={() => { setFolderId(folder.id); setOffset(0); }}><span className="mail-folder-icon">{folder.id === "inbox" ? <InboxIcon size={16}/> : folder.id === "important" ? <Star size={15}/> : folder.id === "sent" ? <Send size={15}/> : folder.id === "drafts" ? <FileText size={15}/> : folder.id === "archive" ? <Archive size={15}/> : folder.id === "trash" ? <Trash2 size={15}/> : <Mail size={15}/>}</span><span>{folder.name}</span>{counts[folder.id] ? <b>{counts[folder.id]}</b> : null}</button>)}
-      {(folders.length > 0 || canAccessEntity(metadata, "EmailFolder")) && <><div className="mail-sidebar-title custom-folders-title">VLASTNÍ SLOŽKY</div>{folders.map((folder, index) => renderCustomFolder(folder, "EmailFolder", index, folders))}</>}
-      {(groupFolders.length > 0 || canAccessEntity(metadata, "GroupEmailFolder")) && <><div className="mail-sidebar-title custom-folders-title">SKUPINOVÉ SLOŽKY</div>{groupFolders.map((folder, index) => renderCustomFolder(folder, "GroupEmailFolder", index, groupFolders))}</>}
-      <div className="mail-sidebar-foot">{folders.length} osobních · {groupFolders.length} skupinových složek</div>
-      <div className="mail-folder-management">{canCreateEntity(metadata, "EmailFolder") && <button type="button" onClick={() => setFolderEditor({ entity: "EmailFolder" })}><Plus size={12}/>Nová osobní složka</button>}{canCreateEntity(metadata, "GroupEmailFolder") && <button type="button" onClick={() => setFolderEditor({ entity: "GroupEmailFolder" })}><Plus size={12}/>Nová skupinová složka</button>}</div>
-    </aside><div className="mail-main"><div className="mail-toolbar"><div className="mail-folder-title"><h2>{currentFolder?.name || "E-mail"}</h2><span>{total ? total.toLocaleString("cs-CZ") : rows.length} zpráv</span></div><form className="mail-search" onSubmit={(e) => { e.preventDefault(); setOffset(0); setSearch(query.trim()); }}><Search size={15}/><input placeholder="Hledat ve zprávách" value={query} onChange={(e) => setQuery(e.target.value)}/><button type="submit" aria-label="Hledat"><ArrowRight size={14}/></button></form><button type="button" className={`mail-filter-toggle ${filtersOpen ? "active" : ""}`} onClick={() => setFiltersOpen((open) => !open)}><SlidersHorizontal size={14}/>Filtry{Object.values(emailFilters).some(Boolean) && <i/>}</button>{Boolean(counts[folderId]) && <button type="button" className="mail-mark-all-read" onClick={() => void markAllAsRead()}><Check size={13}/>Označit vše jako přečtené</button>}<button className="icon-button" title="Obnovit" onClick={() => void load()}><RefreshCw size={15}/></button></div>
-      <details className="mail-shortcut-guide"><summary>Klávesové zkratky</summary><div><span><kbd>Ctrl</kbd> + <kbd>Q</kbd><span>Označit jako přečtené</span></span><span><kbd>Ctrl</kbd> + <kbd>I</kbd><span>Přepnout důležitost výběru</span></span><span><kbd>Ctrl</kbd> + <kbd>⌫</kbd><span>Archivovat výběr</span></span><span><kbd>Ctrl</kbd> + <kbd>Del</kbd><span>Přesunout do koše</span></span><span><kbd>Ctrl</kbd> + <kbd>M</kbd><span>Přesunout do složky</span></span></div></details>
-      {filtersOpen && <form className="mail-filter-panel" onSubmit={(event) => { event.preventDefault(); if (filterDraft.dateFrom && filterDraft.dateTo && filterDraft.dateFrom > filterDraft.dateTo) { setError("Datum od musí být před datem do."); return; } setError(""); setOffset(0); setEmailFilters({ ...filterDraft }); }}><label>Odesílatel<input value={filterDraft.from} onChange={(event) => setFilterDraft((current) => ({ ...current, from: event.target.value }))} placeholder="e-mailová adresa"/></label><label>Předmět<input value={filterDraft.subject} onChange={(event) => setFilterDraft((current) => ({ ...current, subject: event.target.value }))} placeholder="část předmětu"/></label><label>Od data<input type="date" value={filterDraft.dateFrom} onChange={(event) => setFilterDraft((current) => ({ ...current, dateFrom: event.target.value }))}/></label><label>Do data<input type="date" value={filterDraft.dateTo} onChange={(event) => setFilterDraft((current) => ({ ...current, dateTo: event.target.value }))}/></label><div><button type="button" className="button subtle" onClick={() => { const empty = { from: "", subject: "", dateFrom: "", dateTo: "" }; setFilterDraft(empty); setEmailFilters(empty); setOffset(0); }}>Vymazat</button><button type="submit" className="button primary">Použít filtry</button></div></form>}
-      {(selected.length > 0 || allResultsSelected) && <div className="mail-bulkbar"><span>{allResultsSelected ? `${total} výsledků vybráno` : `${selected.length} vybráno`}</span>{!allResultsSelected && canChangeEntity(metadata, "Email", "edit") && rows.length > 0 && rows.every((row) => selected.includes(row.id)) && folderId !== "all" && total > rows.length && <button className="mail-select-all-results" onClick={() => { setSelected([]); setAllResultsSelected(true); }}>Vybrat všech {total} výsledků</button>}{canChangeEntity(metadata, "Email", "edit") && !allResultsSelected && <>{canBulkMarkRead && <button onClick={() => void bulkAction(markAsReadKind)}>{markAsReadKind === "read" ? "Označit jako přečtené" : "Označit jako nepřečtené"}</button>}{canBulkMarkImportant && <button onClick={() => void bulkAction(markImportantKind)}><Star size={14}/>{markImportantKind === "important" ? "Označit důležité" : "Odebrat důležitost"}</button>}</>}{canChangeEntity(metadata, "Email", "edit") && <>{allResultsSelected ? <button type="button" onClick={() => { setFolderPicker({ ids: [], allResults: true, total, groupOnly: folderId.startsWith("group:") || folderId === "all", allowArchive: folderId !== "all" }); setFolderPickerSearch(""); }}><Folder size={14}/>Přesunout všech {total}…</button> : <>{selectedRows.every(canMoveEmailFolder) && <button type="button" onClick={() => { setFolderPicker({ ids: selected, groupOnly: folderId.startsWith("group:") || folderId === "all", allowArchive: folderId !== "all" }); setFolderPickerSearch(""); }}><Folder size={14}/>Přesunout do…</button>}{canBulkTrash && <button className="mail-trash-action" onClick={() => void bulkAction("trash")}><Trash2 size={14}/>{selectedRows.every(isEmailInTrash) ? "Obnovit" : "Koš"}</button>}</>}</>}{<button className="bulk-clear" onClick={() => { setSelected([]); setAllResultsSelected(false); }}>Zrušit výběr</button>}</div>}
-      {notice && <div className="save-confirm" role="status" aria-live="polite"><Check size={13}/>{notice}</div>}{error && <div className="table-error" role="alert">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
-      <div className="mail-list-head"><label><input type="checkbox" aria-label="Vybrat všechny zprávy na stránce" checked={allResultsSelected || rows.length > 0 && rows.every((row) => selected.includes(row.id))} onChange={(e) => { setAllResultsSelected(false); setSelected(e.target.checked ? [...new Set([...selected, ...rows.map((row) => row.id)])] : selected.filter((id) => !rows.some((row) => row.id === id))); }}/></label><span aria-hidden="true"/><span aria-hidden="true"/><span>ZPRÁVA</span><span>OD / VZTAH</span><span>DATUM</span></div>
-      <div className="mail-list">{busy ? <div className="mail-loading"><span className="spinner"/>Načítám zprávy…</div> : rows.length ? rows.map((row) => <div className={`mail-row ${row.isRead !== undefined && !row.isRead ? "unread" : ""} ${allResultsSelected || selected.includes(row.id) ? "selected" : ""} ${draggingIds.includes(row.id) ? "dragging" : ""}`} key={row.id} onDragEnd={() => { setDraggingIds([]); setDropTarget(""); }}>
-        <label className="mail-check" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={allResultsSelected || selected.includes(row.id)} onChange={(e) => { if (allResultsSelected) { setAllResultsSelected(false); setSelected(e.target.checked ? rows.map((item) => item.id) : rows.filter((item) => item.id !== row.id).map((item) => item.id)); } else setSelected((old) => e.target.checked ? [...new Set([...old, row.id])] : old.filter((id) => id !== row.id)); }}/></label>
-        <button type="button" className="mail-drag-handle" draggable={canChangeEntity(metadata, "Email", "edit") && folderId !== "drafts" && !allResultsSelected} aria-label={`Přesunout zprávu ${row.subject || "bez předmětu"}; pro přesun klávesnicí použijte akci složky`} title="Přetáhnout do složky" onDragStart={(event) => startEmailDrag(event, row)} onClick={() => { const groupOnly = Boolean(row.groupFolderId) || !row.isUsers; setFolderPicker({ ids: [row.id], groupOnly, allowArchive: Boolean(row.groupFolderId) || Boolean(row.isUsers) }); setFolderPickerSearch(""); }}><GripVertical size={15}/></button>
-        {row.isUsers && (row.isImportant || !isEmailInTrash(row)) && <button className="mail-star" aria-label={row.isImportant ? "Odebrat důležitost" : "Označit jako důležité"} title={row.isImportant ? "Odebrat důležitost" : "Označit jako důležité"} onClick={async () => { try { await request("Email/inbox/important", { method: row.isImportant ? "DELETE" : "POST", body: JSON.stringify({ id: row.id }) }); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Změna se nepodařila."); } }}><Star size={15} fill={row.isImportant ? "currentColor" : "none"}/></button>}
-        <div className="mail-row-main"><span className="mail-subject"><button type="button" className={`mail-subject-link ${row.isImportant ? "mail-subject-important" : isEmailInTrash(row) ? "mail-subject-trash" : isEmailInArchive(row) ? "mail-subject-archive" : ""}`} onClick={() => onOpenRecord(row)}>{row.subject || "(bez předmětu)"}</button>{row.hasAttachment && <button type="button" className="mail-attachment-trigger" title="Zobrazit přílohy" aria-label={`Zobrazit přílohy e-mailu ${row.subject || "bez předmětu"}`} onClick={() => setAttachmentEmail(row)}><Paperclip size={13}/></button>}</span><span className="mail-preview"><span className="mail-preview-sender">{row.personStringData || row.fromString || row.fromName || "Neznámý odesílatel"}</span>{row.isReplied && <span className="mail-replied-indicator" title="Na tento e-mail již bylo odpovězeno" aria-label="Na tento e-mail již bylo odpovězeno"><Reply size={12}/></span>}</span></div>
-        <button className="mail-related" onClick={() => onOpenRecord(row)}>{row.parentName || row.parent?.name || row.fromAddress || row.fromString || "—"}</button>
-        <div className="mail-date-actions"><button className="mail-date" onClick={() => onOpenRecord(row)}>{row.dateSent ? formatEspoDateTimeShort(row.dateSent, timeZone) : row.status === "Draft" ? "Koncept" : "—"}</button>{canChangeEntity(metadata, "Email", "edit") && <div className="mail-row-actions">{row.isUsers && !row.isRead && <button type="button" title="Označit jako přečtené" aria-label="Označit jako přečtené" onClick={() => void rowAction(row, "read")}><Check size={13}/></button>}{(row.isUsers || row.groupFolderId) && !isEmailInArchive(row) && <button type="button" title="Archivovat" aria-label="Archivovat zprávu" onClick={() => void rowAction(row, "archive")}><Archive size={13}/></button>}{(row.isUsers || row.groupFolderId) && (isEmailInTrash(row) ? <button type="button" title="Obnovit z koše" aria-label="Obnovit zprávu z koše" onClick={() => void rowAction(row, "retrieve")}><RefreshCw size={13}/></button> : <button type="button" title="Přesunout do koše" aria-label="Přesunout zprávu do koše" onClick={() => void rowAction(row, "trash")}><Trash2 size={13}/></button>)}{canMoveEmailFolder(row) && <button type="button" title="Přesunout do složky" aria-label={`Přesunout zprávu ${row.subject || "bez předmětu"} do složky`} onClick={() => { const groupOnly = Boolean(row.groupFolderId) || !row.isUsers; setFolderPicker({ ids: [row.id], groupOnly, allowArchive: Boolean(row.groupFolderId) || Boolean(row.isUsers) }); setFolderPickerSearch(""); }}><Folder size={13}/></button>}</div>}{canChangeEntity(metadata, "Email", "delete") && <button type="button" className="mail-row-delete" title="Trvale odstranit z CRM" aria-label={`Trvale odstranit e-mail ${row.subject || "bez předmětu"}`} onClick={() => void removeEmail(row)}><X size={13}/></button>}{row.status === "Draft" && row.createdById === getSession()?.user.id && !row.inTrash && <button className="mail-draft-send" title="Odeslat koncept" aria-label={`Odeslat koncept ${row.subject || "bez předmětu"}`} onClick={() => void sendDraft(row)}><SendHorizontal size={13}/></button>}{row.status === "Draft" && canChangeEntity(metadata, "Email", "edit") && <button className="mail-draft-edit" title="Upravit koncept" aria-label={`Upravit koncept ${row.subject || "bez předmětu"}`} onClick={() => onOpenRecord(row)}><Pencil size={12}/></button>}</div>
-      </div>) : <div className="mail-empty"><Mail size={25}/><strong>Žádné zprávy</strong><span>Ve složce „{currentFolder?.name || "E-mail"}“ zatím nic není.</span></div>}</div>
-      <div className="mail-pagination"><span>{rows.length ? `${offset + 1}–${offset + rows.length}` : "0"}{total ? ` z ${total}` : " zpráv"}</span><div><button disabled={!offset || busy} onClick={() => setOffset(Math.max(0, offset - pageSize))}><ChevronLeft size={15}/></button><button disabled={busy || total > 0 && offset + rows.length >= total || rows.length < pageSize} onClick={() => setOffset(offset + pageSize)}><ChevronRight size={15}/></button></div></div>
-    </div></section>
-    {folderPicker && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setFolderPicker(null)}><section className="record-modal mail-folder-picker" role="dialog" aria-modal="true" aria-labelledby="mail-folder-picker-title"><div className="modal-heading"><div><span className="eyebrow">PŘESUN ZPRÁV</span><h2 id="mail-folder-picker-title">Vybrat cílovou složku</h2><p>{folderPicker.allResults ? `Všech ${folderPicker.total || total} zpráv odpovídajících aktuální složce a filtrům bude přesunuto.` : folderPicker.ids.length === 1 ? "Zpráva bude přesunuta do zvolené složky." : `${folderPicker.ids.length} zpráv bude přesunuto do zvolené složky.`}</p></div><button type="button" className="icon-button" onClick={() => setFolderPicker(null)} aria-label="Zavřít"><X size={16}/></button></div><label className="mail-folder-picker-search"><Search size={16}/><input autoFocus value={folderPickerSearch} onChange={(event) => setFolderPickerSearch(event.target.value)} placeholder="Filtrovat složky…"/></label><div className="mail-folder-picker-options">{moveFolderOptions.length ? moveFolderOptions.map((folder) => <button type="button" key={folder.id} onClick={() => void moveMessages(folderPicker.ids, folder.id, Boolean(folderPicker.allResults))}><span className="mail-folder-picker-icon">{folder.icon}</span><span>{folder.name}</span><ArrowRight size={15}/></button>) : <div className="mail-empty"><Folder size={23}/><strong>Žádné cílové složky</strong><span>Zkuste upravit hledaný výraz.</span></div>}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setFolderPicker(null)}>Zrušit</button></div></section></div>}
-    {attachmentEmail && <EmailAttachmentsDialog email={attachmentEmail} onClose={() => setAttachmentEmail(null)}/>}
-    {folderEditor && <RecordEditor entity={folderEditor.entity} fields={getEditorFields(metadata, folderEditor.entity)} metadata={metadata} record={folderEditor.record} onClose={() => setFolderEditor(null)} onSaved={() => { setFolderEditor(null); setFolderReload((value) => value + 1); }}/ >}{importEmlOpen && <EmailEmlImportDialog onClose={() => setImportEmlOpen(false)} onImported={(id) => { setImportEmlOpen(false); onOpenRecord({ id }); void load(); }}/ >}
-  </div>;
-}
-
-function EmailAttachmentsDialog({ email, onClose }: { email: Row; onClose: () => void }) {
-  const dialogRef = useDialogFocus<HTMLElement>(onClose);
-  const [record, setRecord] = useState<Row | null>(null);
-  const [busy, setBusy] = useState(true);
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
-  useEffect(() => {
-    let live = true;
-    setBusy(true); setError(""); setRecord(null);
-    request<Row>(`Email/${encodeURIComponent(email.id)}`).then((result) => { if (live) setRecord(result); })
-      .catch((cause) => live && setError(cause instanceof Error ? cause.message : "Přílohy se nepodařilo načíst."))
-      .finally(() => live && setBusy(false));
-    return () => { live = false; };
-  }, [email.id, retry]);
-  const ids: string[] = Array.isArray(record?.attachmentsIds) ? record.attachmentsIds : Array.isArray(record?.attachments) ? record.attachments.map((item: Row) => item.id) : [];
-  const names: Record<string, string> = record?.attachmentsNames || {};
-  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={dialogRef} className="record-modal email-attachment-dialog" role="dialog" aria-modal="true" aria-labelledby="email-attachments-title" tabIndex={-1}><div className="modal-heading"><div><span className="eyebrow">E-MAIL · PŘÍLOHY</span><h2 id="email-attachments-title">Přílohy zprávy</h2><p className="email-attachment-subject">{email.subject || "(bez předmětu)"}</p></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={16}/></button></div>{busy ? <div className="email-attachment-state" role="status"><span className="spinner"/>Načítám přílohy…</div> : error ? <div className="email-attachment-state error" role="alert"><span>{error}</span><button type="button" className="button subtle" onClick={() => setRetry((value) => value + 1)}><RefreshCw size={13}/>Zkusit znovu</button></div> : ids.length ? <div className="email-attachment-list">{ids.map((id) => <div className="email-attachment-item" key={id}><span className="email-attachment-icon"><Paperclip size={15}/></span><span className="email-attachment-name" title={names[id] || "Příloha"}>{names[id] || "Příloha"}</span><button type="button" className="button subtle" onClick={() => void downloadAttachment(id, names[id] || "priloha")}><ArrowDown size={14}/>Stáhnout</button></div>)}</div> : <div className="email-attachment-state"><Paperclip size={18}/><span>Tato zpráva už nemá dostupné přílohy.</span></div>}<div className="modal-footer"><button type="button" className="button subtle" onClick={onClose}>Zavřít</button></div></section></div>;
-}
-
-function EmailEmlImportDialog({ onClose, onImported }: { onClose: () => void; onImported: (id: string) => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function importFile() {
-    if (!file || !/\.eml$/i.test(file.name)) { setError("Vyberte soubor s příponou .eml."); return; }
-    setBusy(true); setError("");
-    try {
-      const attachment = await uploadAttachment(file, "ImportEml", "file");
-      const result = await request<{ id: string }>("Email/importEml", { method: "POST", body: JSON.stringify({ fileId: attachment.id }) });
-      if (!result.id) throw new Error("Importovaný e-mail se nepodařilo otevřít.");
-      onImported(result.id);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Soubor EML se nepodařilo importovat."); }
-    finally { setBusy(false); }
-  }
-  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && onClose()}><section className="record-modal email-eml-dialog"><div className="modal-heading"><div><span className="eyebrow">IMPORT ZPRÁVY</span><h2>Importovat EML</h2><p>Načtěte zprávu ze souboru EML do schránky CRM.</p></div><button type="button" className="icon-button" onClick={onClose} disabled={busy} aria-label="Zavřít"><X size={16}/></button></div><label className="email-eml-picker"><span>Soubor EML</span><input type="file" accept=".eml,message/rfc822" disabled={busy} onChange={(event) => { const selected = event.target.files?.[0] || null; setFile(selected); setError(""); }}/>{file && <small>{file.name} · {(file.size / 1024).toLocaleString("cs-CZ", { maximumFractionDigits: 0 })} kB</small>}</label>{error && <div className="inline-error">{error}</div>}<div className="modal-footer"><button type="button" className="button subtle" disabled={busy} onClick={onClose}>Zrušit</button><button type="button" className="button primary" disabled={busy || !file} onClick={() => void importFile()}>{busy ? "Importuji…" : "Importovat zprávu"}<FileInput size={14}/></button></div></section></div>;
-}
-
-type EmailThreadEntry = { id: string; subject?: string; fromString?: string; personStringData?: string; dateSent?: string; status?: string; repliedId?: string; threadDepth?: number };
-
-async function loadEmailThread(start: Row): Promise<EmailThreadEntry[]> {
-  const select = "id,subject,fromString,personStringData,dateSent,status,repliedId";
-  const visited = new Set<string>();
-  let root: EmailThreadEntry = start as EmailThreadEntry;
-  while (root.repliedId && !visited.has(root.repliedId)) {
-    visited.add(root.id);
-    const parentId = root.repliedId;
-    root = await request<EmailThreadEntry>(`Email/${encodeURIComponent(parentId)}?select=${encodeURIComponent(select)}`);
-  }
-  const byId = new Map<string, EmailThreadEntry>([[root.id, root]]);
-  const queue = [root.id];
-  while (queue.length) {
-    const parents = queue.splice(0, queue.length).filter((id) => !visited.has(`replies:${id}`));
-    if (!parents.length) break;
-    parents.forEach((id) => visited.add(`replies:${id}`));
-    const childLists = await Promise.all(parents.map(async (id) => {
-      const result: EmailThreadEntry[] = [];
-      const pageSize = 100;
-      for (let offset = 0; ; offset += pageSize) {
-        const params = new URLSearchParams({ maxSize: String(pageSize), offset: String(offset), orderBy: "dateSent", order: "asc", select });
-        const page = await request<{ list?: EmailThreadEntry[]; total?: number }>(`Email/${encodeURIComponent(id)}/replies?${params}`);
-        const current = page.list || [];
-        result.push(...current);
-        if (current.length < pageSize || typeof page.total === "number" && page.total >= 0 && offset + current.length >= page.total) break;
-      }
-      return result;
-    }));
-    for (const children of childLists) for (const child of children) {
-      if (!child.id || byId.has(child.id)) continue;
-      byId.set(child.id, child);
-      queue.push(child.id);
-    }
-  }
-  // Keep the selected message in the thread even if its parent relation is not readable.
-  if (start.id && !byId.has(start.id)) byId.set(start.id, start as EmailThreadEntry);
-  const result: EmailThreadEntry[] = [];
-  const appended = new Set<string>([root.id]);
-  const append = (parentId: string, depth: number) => {
-    const children = [...byId.values()].filter((row) => row.repliedId === parentId).sort((a, b) => String(a.dateSent || "").localeCompare(String(b.dateSent || "")));
-    for (const child of children) {
-      if (appended.has(child.id)) continue;
-      appended.add(child.id);
-      result.push({ ...child, threadDepth: depth });
-      append(child.id, depth + 1);
-    }
-  };
-  result.push(root);
-  append(root.id, 1);
-  return result;
-}
-
-function EmailDrawer({ record: initial, metadata, onClose, onChanged, onReply, onCreateFilter, onOpenRecord, onOpenEntityRecord, canCreateFilter, canCreateDocument }: { record: Row; metadata: Metadata; onClose: () => void; onChanged: () => void; onReply: (draft: Row) => void; onCreateFilter: (address: string) => void; onOpenRecord: (record: Row) => void; onOpenEntityRecord: (entity: string, record: Row) => void; canCreateFilter: boolean; canCreateDocument: boolean }) {
-  const timeZone = useEspoTimeZone();
-  const [record, setRecord] = useState(initial);
-  const [eventCreateInitial, setEventCreateInitial] = useState<Row | null>(null);
-  const [thread, setThread] = useState<EmailThreadEntry[]>([]);
-  const [threadBusy, setThreadBusy] = useState(true);
-  const [threadError, setThreadError] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(true);
-  const [documentBusy, setDocumentBusy] = useState(false);
-  const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
-  const [documentDraft, setDocumentDraft] = useState<Row | null>(null);
-  const [relatedDraft, setRelatedDraft] = useState<{ entity: string; values: Row } | null>(null);
-  const [createdFromEmail, setCreatedFromEmail] = useState<Record<string, boolean>>({});
-  const [moveTargets, setMoveTargets] = useState<Row[] | null>(null);
-  const [moveSearch, setMoveSearch] = useState("");
-  const canCreateRelatedEmail = (entity: string) => canCreateEntity(metadata, entity) && !metadata.clientDefs?.[entity]?.createDisabled;
-  useEffect(() => {
-    let live = true;
-    setBusy(true);
-    request<Row>(`Email/${initial.id}`).then(async (data) => { if (!live) return; setRecord(data); if (!data.isRead && data.status !== "Draft") { await request("Email/inbox/read", { method: "POST", body: JSON.stringify({ id: initial.id }) }); if (!live) return; setRecord((old) => ({ ...old, isRead: true })); onChanged(); } }).catch((e) => live && setError(e instanceof Error ? e.message : "Zprávu se nepodařilo načíst.")).finally(() => live && setBusy(false));
-    return () => { live = false; };
-  }, [initial.id]);
-  useEffect(() => {
-    let live = true;
-    setThreadBusy(true); setThreadError("");
-    request<Row>(`Email/${initial.id}`).then((message) => loadEmailThread(message)).then((items) => { if (live) setThread(items); })
-      .catch((cause) => live && setThreadError(cause instanceof Error ? cause.message : "Konverzaci se nepodařilo načíst."))
-      .finally(() => live && setThreadBusy(false));
-    return () => { live = false; };
-  }, [initial.id]);
-  async function action(path: string, method = "POST") { setError(""); try { await request(path, { method, body: JSON.stringify({ id: record.id }) }); onChanged(); if (path.includes("inTrash")) { const movedToTrash = method === "POST"; setRecord((old) => ({ ...old, inTrash: movedToTrash, ...(old.groupFolderId ? { groupStatusFolder: movedToTrash ? "Trash" : null } : {}) })); if (movedToTrash) onClose(); } if (path.includes("important")) setRecord((old) => ({ ...old, isImportant: method === "POST" })); if (path.includes("folders/archive")) setRecord((old) => ({ ...old, inArchive: true, ...(old.groupFolderId ? { groupStatusFolder: "Archive" } : {}) })); } catch (e) { setError(e instanceof Error ? e.message : "Akci se nepodařilo provést."); } }
-  async function openMovePicker() {
-    setError(""); setMoveSearch("");
-    try {
-      const result = await request<{ list: Row[] }>("EmailFolder/action/listAll");
-      const groupOnly = Boolean(record.groupFolderId) || !record.isUsers;
-      const noArchive = !record.groupFolderId && !record.isUsers;
-      const builtIn = new Set(["all", "inbox", "important", "sent", "drafts", "trash", "archive"]);
-      const currentId = record.inTrash ? "trash" : record.inArchive ? "archive" : record.groupFolderId ? `group:${record.groupFolderId}` : record.folderId || "inbox";
-      const options: Row[] = [{ id: "inbox", name: groupOnly ? "Všechny zprávy" : "Doručené" }];
-      if (!noArchive) options.push({ id: "archive", name: "Archiv" });
-      options.push(...(result.list || []).filter((item) => !builtIn.has(item.id) && (!groupOnly || String(item.id).startsWith("group:"))));
-      setMoveTargets(options.filter((item) => item.id !== currentId));
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Složky se nepodařilo načíst."); }
-  }
-  async function moveDetail(destination: string) {
-    setBusy(true); setError("");
-    try {
-      await request(`Email/inbox/folders/${encodeURIComponent(destination)}`, { method: "POST", body: JSON.stringify({ id: record.id }) });
-      const updated = await request<Row>(`Email/${encodeURIComponent(record.id)}`);
-      setRecord(updated); setMoveTargets(null); onChanged();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Zprávu se nepodařilo přesunout."); }
-    finally { setBusy(false); }
-  }
-  function replyDraft(mode: "reply" | "replyAll" | "forward") {
-    const reply = mode === "reply" || mode === "replyAll";
-    const subject = String(record.subject || "");
-    const safeBody = DOMPurify.sanitize(String(record.body || ""), { USE_PROFILES: { html: true } });
-    const plainBody = record.bodyPlain || new DOMParser().parseFromString(safeBody, "text/html").body.textContent || "";
-    const isHtml = Boolean(record.isHtml);
-    const dateLabel = record.dateSent ? formatEspoDateTimeShort(record.dateSent, timeZone) : "Původní zpráva";
-    const replyHead = `${dateLabel}${record.fromName ? `, ${record.fromName}` : ""}:`;
-    const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character] || character));
-    const forwardHead = `------ Přeposlaná zpráva ------${isHtml ? "<br>" : "\n"}Od: ${isHtml ? escapeHtml(String(record.fromString || record.fromAddress || "")) : record.fromString || record.fromAddress || ""}${isHtml ? "<br>" : "\n"}Datum: ${dateLabel}${isHtml ? "<br>" : "\n"}Předmět: ${isHtml ? escapeHtml(subject) : subject}${isHtml ? "<br><br>" : "\n\n"}`;
-    const body = mode === "forward"
-      ? isHtml ? `${forwardHead}${safeBody}` : `\n\n${forwardHead}${plainBody}`
-      : isHtml ? `<p data-quote-start="true"><br></p><p>${escapeHtml(replyHead)}</p><blockquote>${safeBody}</blockquote>` : `\n\n${replyHead}\n${String(plainBody).split("\n").map((line: string) => `> ${line}`).join("\n")}\n`;
-    const sessionUser = getSession()?.user as (User & Row) | undefined;
-    const parseAddresses = (value: unknown): string[] => {
-      const parts = Array.isArray(value) ? value.flatMap((item) => typeof item === "string" ? [item] : item && typeof item === "object" ? [String((item as Row).emailAddress || (item as Row).address || "")] : []) : [String(value || "")];
-      return parts.flatMap((part) => part.split(/[;,]/)).map((part) => (part.match(/<([^<>]+)>/)?.[1] || part).trim()).filter((item) => item.includes("@") && !item.startsWith("ERASED:"));
-    };
-    const ownAddresses = new Set<string>([
-      ...parseAddresses(sessionUser?.emailAddress),
-      ...parseAddresses(sessionUser?.emailAddressList),
-      ...parseAddresses(sessionUser?.userEmailAddressList),
-      ...parseAddresses(sessionUser?.emailAddressData),
-    ].map((address) => address.toLowerCase()));
-    const replyToAddresses = parseAddresses(record.replyTo || record.replyToString);
-    const senderAddresses = parseAddresses(record.from || record.fromAddress || record.fromString);
-    const sentByCurrentUser = senderAddresses.some((address) => ownAddresses.has(address.toLowerCase()));
-    let replyAddresses = replyToAddresses.length ? replyToAddresses : sentByCurrentUser ? [] : senderAddresses;
-    let ccAddresses: string[] = [];
-    if (mode === "replyAll") {
-      ccAddresses = parseAddresses(record.cc || record.ccEmailAddresses);
-      const originalToAddresses = parseAddresses(record.to || record.toEmailAddresses);
-      if (sentByCurrentUser && !replyToAddresses.length) replyAddresses = [...replyAddresses, ...originalToAddresses];
-      else ccAddresses.push(...originalToAddresses);
-      const excludedAddresses = new Set([...ownAddresses, ...replyAddresses].map((address) => address.toLowerCase()));
-      const seenCc = new Set<string>();
-      ccAddresses = ccAddresses.filter((address) => {
-        const normalized = address.toLowerCase();
-        if (excludedAddresses.has(normalized) || seenCc.has(normalized)) return false;
-        seenCc.add(normalized);
-        return true;
-      });
-      const excluded = sessionUser?.excludeFromReplyEmailAddressList;
-      if (Array.isArray(excluded)) ccAddresses = ccAddresses.filter((address) => !excluded.some((item) => String(item).toLowerCase() === address.toLowerCase()));
-    }
-    onReply({ to: reply ? [...new Set(replyAddresses)].join("; ") : "", cc: ccAddresses.join("; "), subject: `${mode === "forward" ? "Fwd" : "Re"}: ${subject.replace(/^(re|fwd):\s*/i, "")}`, body, isHtml, ...(record.parentId && record.parentType ? { parentId: record.parentId, parentType: record.parentType, parentName: record.parentName } : {}), ...(record.nameHash ? { nameHash: record.nameHash } : {}), ...(reply ? { repliedId: record.id, inReplyTo: record.messageId } : {}) });
-  }
-  const attachmentIds: string[] = Array.isArray(record.attachmentsIds) ? record.attachmentsIds : Array.isArray(record.attachments) ? record.attachments.map((item: Row) => item.id) : [];
-  const attachmentNames: Record<string, string> = record.attachmentsNames || {};
-  const emailInTrash = record.groupFolderId ? record.groupStatusFolder === "Trash" : Boolean(record.inTrash);
-  const emailInArchive = record.groupFolderId ? record.groupStatusFolder === "Archive" : Boolean(record.inArchive);
-  const hasMailboxActions = Boolean(record.isUsers || record.groupFolderId);
-  async function createDocumentFromAttachment(id: string) {
-    setDocumentBusy(true); setError(""); setDocumentPickerOpen(false);
-    try {
-      const copied = await request<Row>(`Attachment/copy/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify({ relatedType: "Document", field: "file" }) });
-      const name = copied.name || attachmentNames[id] || "Dokument";
-      const initialValues: Row = { name, file: { id: copied.id, name }, fileId: copied.id, fileName: name };
-      if (record.accountId) {
-        initialValues.accounts = [record.accountId];
-        initialValues.accountsIds = [record.accountId];
-        initialValues.accountsNames = { [record.accountId]: record.accountName || "" };
-      }
-      setDocumentDraft(initialValues);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Přílohu e-mailu se nepodařilo uložit jako dokument."); }
-    finally { setDocumentBusy(false); }
-  }
-  function senderValues(): Row {
-    const reply = String(record.replyToString || "").split(";")[0].trim();
-    const sender = reply || String(record.fromString || record.fromName || record.from || record.fromAddress || "").trim();
-    const address = (sender.match(/<(.*)>/)?.[1] || sender).trim();
-    let name = sender.includes("<") ? sender.replace(/<(.*)>/, "").trim() : "";
-    if (name.startsWith('"') && name.endsWith('"')) name = name.slice(1, -1);
-    const [firstName = "", ...lastParts] = name.split(/\s+/).filter(Boolean);
-    return { emailAddress: address, ...(name ? { firstName, lastName: lastParts.join(" ") } : {}), originalEmailId: record.id };
-  }
-  function startRelatedCreate(entity: "Lead" | "Contact" | "Task") {
-    const values: Row = entity === "Task" ? {
-      parentId: record.parentId || null, parentName: record.parentName || null, parentType: record.parentType || null,
-      originalEmailId: record.id, name: record.subject || record.name || "",
-      description: `[E-mail: ${record.subject || record.name || ""}](#Email/view/${record.id})\n`,
-    } : senderValues();
-    setRelatedDraft({ entity, values });
-  }
-  async function startCaseCreate() {
-    const values: Row = {
-      originalEmailId: record.id, name: record.subject || record.name || "",
-      description: record.bodyPlain || "",
-    };
-    if (record.parentId) {
-      if (record.parentType === "Account") Object.assign(values, { accountId: record.parentId, accountName: record.parentName });
-      else if (record.parentType === "Contact") Object.assign(values, {
-        contactId: record.parentId, contactName: record.parentName,
-        contactsIds: [record.parentId], contactsNames: { [record.parentId]: record.parentName || "" },
-        ...(record.accountId ? { accountId: record.accountId, accountName: record.accountName || record.accountId } : {}),
-      });
-      else if (record.parentType === "Lead") Object.assign(values, { leadId: record.parentId, leadName: record.parentName });
-    }
-    if (attachmentIds.length) {
-      setDocumentBusy(true); setError("");
-      try {
-        const copied = await request<Row>(`Email/${encodeURIComponent(record.id)}/attachments/copy`, { method: "POST", body: JSON.stringify({ parentType: "Case", field: "attachments" }) });
-        values.attachmentsIds = copied.ids || [];
-        values.attachmentsNames = copied.names || {};
-      } catch (cause) { setError(cause instanceof Error ? cause.message : "Přílohy e-mailu se nepodařilo připojit k případu."); return; }
-      finally { setDocumentBusy(false); }
-    }
-    setRelatedDraft({ entity: "Case", values });
-  }
-  function createCalendarEvent() {
-    const eventData = record.icsEventData || {};
-    const attributes: Row = { ...(eventData.valueMap || {}) };
-    attributes.parentId = record.parentId || null;
-    attributes.parentType = record.parentType || null;
-    attributes.parentName = record.parentName || null;
-    const fromAddress = record.from;
-    const fromId = record.idHash?.[fromAddress];
-    const fromType = record.typeHash?.[fromAddress];
-    const fromName = record.nameHash?.[fromAddress];
-    const attendeeField = fromType === "User" ? "users" : fromType === "Contact" ? "contacts" : fromType === "Lead" ? "leads" : "";
-    if (attendeeField && fromId && canAccessEntity(metadata, fromType)) {
-      const idsKey = `${attendeeField}Ids`;
-      const namesKey = `${attendeeField}Names`;
-      attributes[idsKey] = [...new Set([...(attributes[idsKey] || []), fromId])];
-      attributes[namesKey] = { ...(attributes[namesKey] || {}), [fromId]: fromName || fromAddress };
-    }
-    setEventCreateInitial(attributes);
-  }
-  const safeHtml = DOMPurify.sanitize(String(record.body || ""), { USE_PROFILES: { html: true } });
-  return <><article className="record-page email-detail-page">
-    <div className="drawer-top record-page-top"><button type="button" className="record-page-back" onClick={onClose}><ArrowLeft size={15}/>Zpět na e-maily</button><span className="eyebrow">E-MAIL · ZPRÁVA</span><div>
-      {record.isUsers && <button className="icon-button" title={record.isImportant ? "Odebrat důležitost" : "Označit jako důležité"} aria-label={record.isImportant ? "Odebrat důležitost" : "Označit jako důležité"} onClick={() => void action("Email/inbox/important", record.isImportant ? "DELETE" : "POST")}><Star size={15} fill={record.isImportant ? "currentColor" : "none"}/></button>}
-      {canChangeEntity(metadata, "Email", "edit") && (!record.groupFolderId || !emailInTrash) && <button className="icon-button" title="Přesunout do složky" aria-label="Přesunout e-mail do složky" onClick={() => void openMovePicker()}><Folder size={15}/></button>}
-      {record.isUsers && !emailInArchive || record.groupFolderId && !emailInArchive && !emailInTrash ? <button className="icon-button" title="Archivovat" aria-label="Archivovat e-mail" onClick={() => void action("Email/inbox/folders/archive")}><Archive size={15}/></button> : null}
-      {hasMailboxActions && <button className="icon-button danger-ghost" title={emailInTrash ? "Obnovit ze smazaných" : "Přesunout do koše"} aria-label={emailInTrash ? "Obnovit e-mail ze smazaných" : "Přesunout e-mail do koše"} onClick={() => void action("Email/inbox/inTrash", emailInTrash ? "DELETE" : "POST")}><Trash2 size={15}/></button>}
-    </div></div>
-    {error && <div className="inline-error">{error}</div>}
-    {busy ? <div className="table-loading"><span className="spinner"/> Načítám zprávu…</div> : <>
-      <div className="email-detail-heading">
-        <div className="email-detail-actions">
-          <button className="button primary" onClick={() => replyDraft("reply")}><Reply size={14}/>Odpovědět</button>
-          <button className="button" onClick={() => replyDraft("replyAll")}><ReplyAll size={14}/>Všem</button>
-          <button className="button" onClick={() => replyDraft("forward")}><ArrowRight size={14}/>Přeposlat</button>
-          {record.status === "Archived" && !record.parentId && canCreateRelatedEmail("Lead") && !createdFromEmail.Lead && <button className="button subtle" onClick={() => startRelatedCreate("Lead")}><Plus size={14}/>Vytvořit zájemce</button>}
-          {record.status === "Archived" && !record.parentId && canCreateRelatedEmail("Contact") && !createdFromEmail.Contact && <button className="button subtle" onClick={() => startRelatedCreate("Contact")}><ContactRound size={14}/>Vytvořit kontakt</button>}
-          {record.status !== "Draft" && canCreateRelatedEmail("Task") && !createdFromEmail.Task && <button className="button subtle" onClick={() => startRelatedCreate("Task")}><ClipboardList size={14}/>Vytvořit úkol</button>}
-          {record.status !== "Draft" && record.parentType !== "Case" && canCreateRelatedEmail("Case") && !createdFromEmail.Case && <button className="button subtle" onClick={() => void startCaseCreate()} disabled={documentBusy}><BriefcaseBusiness size={14}/>{documentBusy ? "Kopíruji přílohy…" : "Vytvořit případ"}</button>}
-          {canCreateDocument && attachmentIds.length > 0 && <button className="button subtle" onClick={() => attachmentIds.length === 1 ? void createDocumentFromAttachment(attachmentIds[0]) : setDocumentPickerOpen(true)} disabled={documentBusy}><FileText size={14}/>{documentBusy ? "Připravuji dokument…" : "Uložit přílohu jako dokument"}</button>}
-        </div>
-        <h2>{record.subject || "(bez předmětu)"}</h2>
-        <div className="email-detail-meta">
-          <span><b>Od</b>{record.fromString || record.fromAddress || "—"}{canCreateFilter && record.fromAddress && <button type="button" className="email-create-filter-link" onClick={() => onCreateFilter(String(record.fromAddress))}><SlidersHorizontal size={11}/>Vytvořit filtr</button>}</span>
-          <span><b>Komu</b>{record.to || record.toEmailAddresses || "—"}</span>
-          {record.cc && <span><b>Kopie</b>{record.cc}</span>}
-          <span><b>Datum</b>{formatEspoDateTimeShort(record.dateSent, timeZone)}</span>
-          {record.parentName && <span><b>Záznam</b>{record.parentName}</span>}
-        </div>
-      </div>
-      <EmailEventPanel record={record} metadata={metadata} timeZone={timeZone} onCreate={createCalendarEvent} onOpenRecord={onOpenEntityRecord}/>
-      {(threadBusy || threadError || thread.length > 1) && <section className="email-thread-panel"><div className="email-thread-head"><div><strong>Konverzace</strong><small>{threadBusy ? "Načítám návazné zprávy…" : threadError || `${thread.length} zpráv`}</small></div>{threadBusy && <span className="spinner"/>}</div>{!threadBusy && thread.map((item) => <button type="button" className={`email-thread-item${item.id === record.id ? " active" : ""}`} key={item.id} style={{ marginLeft: `${Math.min(item.threadDepth || 0, 6) * 12}px` }} aria-current={item.id === record.id ? "page" : undefined} onClick={() => item.id !== record.id && onOpenRecord(item as Row)}><span className="email-thread-dot"/><span className="email-thread-copy"><strong>{item.subject || "(bez předmětu)"}</strong><small>{item.personStringData || item.fromString || "E-mail"}</small></span><time>{item.dateSent ? formatEspoDateTimeShort(item.dateSent, timeZone) : item.status === "Draft" ? "Koncept" : "—"}</time></button>)}</section>}
-      {attachmentIds.length > 0 && <div className="email-attachments">{attachmentIds.map((id) => <button key={id} onClick={() => void downloadAttachment(id, attachmentNames[id] || "priloha")}><Paperclip size={14}/>{attachmentNames[id] || "Příloha"}<span>Stáhnout</span></button>)}</div>}
-      {record.isHtml ? <div className="email-body-html" dangerouslySetInnerHTML={{ __html: safeHtml }}/> : <pre className="email-body-plain">{record.bodyPlain || record.body || ""}</pre>}
-    </>}
-    <div className="drawer-meta"><span>Stav</span><b>{record.status === "Draft" ? "Koncept" : record.isRead ? "Přečteno" : "Nepřečteno"}</b><span>Odesláno</span><b>{formatEspoDateTime(record.dateSent, timeZone)}</b></div>
-  </article>
-    {moveTargets && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setMoveTargets(null)}><section className="record-modal mail-folder-picker" role="dialog" aria-modal="true" aria-labelledby="email-detail-folder-title"><div className="modal-heading"><div><span className="eyebrow">PŘESUN E-MAILU</span><h2 id="email-detail-folder-title">Vybrat cílovou složku</h2><p>Zpráva bude přesunuta do zvolené složky.</p></div><button type="button" className="icon-button" onClick={() => setMoveTargets(null)} aria-label="Zavřít"><X size={16}/></button></div><label className="mail-folder-picker-search"><Search size={16}/><input autoFocus value={moveSearch} onChange={(event) => setMoveSearch(event.target.value)} placeholder="Filtrovat složky…"/></label><div className="mail-folder-picker-options">{moveTargets.filter((folder) => String(folder.name || "").toLocaleLowerCase("cs-CZ").includes(moveSearch.trim().toLocaleLowerCase("cs-CZ"))).map((folder) => <button type="button" key={folder.id} disabled={busy} onClick={() => void moveDetail(folder.id)}><span className="mail-folder-picker-icon">{folder.id === "inbox" ? <InboxIcon size={17}/> : folder.id === "archive" ? <Archive size={17}/> : String(folder.id).startsWith("group:") ? <Users size={17}/> : <Mail size={17}/>}</span><span>{folder.name}</span><ArrowRight size={15}/></button>)}{moveTargets.every((folder) => !String(folder.name || "").toLocaleLowerCase("cs-CZ").includes(moveSearch.trim().toLocaleLowerCase("cs-CZ"))) && <div className="mail-empty"><Folder size={23}/><strong>Žádné cílové složky</strong><span>Zkuste upravit hledaný výraz.</span></div>}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setMoveTargets(null)} disabled={busy}>Zrušit</button></div></section></div>}
-    {documentPickerOpen && <div className="modal-backdrop attachment-choice-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setDocumentPickerOpen(false)}><section className="record-modal attachment-choice-modal" role="dialog" aria-modal="true" aria-label="Vybrat přílohu pro dokument"><div className="modal-heading"><div><span className="eyebrow">PŘÍLOHY E-MAILU</span><h2>Vyberte soubor</h2></div><button type="button" className="icon-button" aria-label="Zavřít" onClick={() => setDocumentPickerOpen(false)}><X size={16}/></button></div><div className="attachment-choice-list">{attachmentIds.map((id) => <button key={id} type="button" onClick={() => void createDocumentFromAttachment(id)}><Paperclip size={15}/><span>{attachmentNames[id] || "Příloha"}</span><ArrowRight size={14}/></button>)}</div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setDocumentPickerOpen(false)}>Zrušit</button></div></section></div>}
-    {eventCreateInitial && <RecordEditor key={`${record.id}-ics-event`} entity="Meeting" fields={getEditorFields(metadata, "Meeting")} metadata={metadata} initialValues={eventCreateInitial} onClose={() => setEventCreateInitial(null)} onSaved={() => { setEventCreateInitial(null); onChanged(); void request<Row>(`Email/${encodeURIComponent(record.id)}`).then(setRecord).catch((cause) => setError(cause instanceof Error ? cause.message : "E-mail se schůzkou se nepodařilo obnovit.")); }}/ >}
-    {documentDraft && <RecordEditor entity="Document" fields={getEditorFields(metadata, "Document")} metadata={metadata} initialValues={documentDraft} onClose={() => setDocumentDraft(null)} onSaved={() => { setDocumentDraft(null); onChanged(); }}/ >}
-    {relatedDraft && <RecordEditor key={`${record.id}-${relatedDraft.entity}`} entity={relatedDraft.entity} fields={getEditorFields(metadata, relatedDraft.entity)} metadata={metadata} initialValues={relatedDraft.values} onClose={() => setRelatedDraft(null)} onSaved={() => { setCreatedFromEmail((old) => ({ ...old, [relatedDraft.entity]: true })); setRelatedDraft(null); onChanged(); void request<Row>(`Email/${encodeURIComponent(record.id)}`).then(setRecord).catch(() => {}); }}/ >}
-  </>;
-}
-
-function Dashboard({ entities, metadata, user, refreshKey, onOpenEntity, onOpenRecord, onCreateRecord, onComposeEmail, onOpenCalendar, layoutOverride, optionsOverride }: { entities: string[]; metadata: Metadata; user: User; refreshKey: number; onOpenEntity: (name: string) => void; onOpenRecord: (name: string, row: Row) => void; onCreateRecord: (scope: string) => void; onComposeEmail: () => void; onOpenCalendar: () => void; layoutOverride?: unknown; optionsOverride?: Row }) {
-  const renderCalendarDashlet = useCallback((options: Row, refreshIndex: number) => <CalendarView metadata={metadata} onOpenRecord={onOpenRecord} embedded embeddedOptions={options} reloadKey={refreshIndex + refreshKey} onOpenCalendar={onOpenCalendar}/>, [metadata, onOpenRecord, onOpenCalendar, refreshKey]);
-  return <PersonalDashboard user={user} metadata={metadata} refreshKey={refreshKey} onOpenRecord={onOpenRecord} onCreateRecord={onCreateRecord} onComposeEmail={onComposeEmail} renderCalendarDashlet={renderCalendarDashlet} layoutOverride={layoutOverride} optionsOverride={optionsOverride} fallback={<ClassicDashboard entities={entities} metadata={metadata} onOpenEntity={onOpenEntity} onOpenRecord={onOpenRecord}/>} />;
-}
-
-function ClassicDashboard({ entities, metadata, onOpenEntity, onOpenRecord }: { entities: string[]; metadata: Metadata; onOpenEntity: (name: string) => void; onOpenRecord: (name: string, row: Row) => void }) {
-  const timeZone = useEspoTimeZone();
-  const [stats, setStats] = useState<{ name: string; count: number | string; entity: string; tone: string }[]>([]);
-  const [recent, setRecent] = useState<{ entity: string; row: Row }[]>([]);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let live = true;
-    const names = ["Account", "Contact", "Lead", "Opportunity"].filter((n) => entities.includes(n));
-    Promise.all(names.map(async (entity) => {
-      const result = await request<PageResult>(`${entity}?maxSize=5&offset=0&orderBy=modifiedAt&order=desc`);
-      return { entity, result };
-    })).then((values) => {
-      if (!live) return;
-      setStats(values.map(({ entity, result }, i) => ({ name: entityLabel(metadata, entity, true), count: typeof result.total === "number" && result.total >= 0 ? result.total : "—", entity, tone: ["blue", "violet", "amber", "green"][i] })));
-      setRecent(values.flatMap(({ entity, result }) => result.list.slice(0, 4).map((row) => ({ entity, row }))).sort((a, b) => String(b.row.modifiedAt || b.row.createdAt || "").localeCompare(String(a.row.modifiedAt || a.row.createdAt || ""))).slice(0, 7));
-    }).catch((e) => live && setError(e instanceof Error ? e.message : "Dashboard se nepodařilo načíst."));
-    return () => { live = false; };
-  }, [entities]);
-
-  const today = new Intl.DateTimeFormat("cs-CZ", { weekday: "long", day: "numeric", month: "long", timeZone }).format(new Date());
-  return <div className="dashboard-view">
-    <div className="welcome-row"><div><span className="eyebrow">{today.toLocaleUpperCase("cs-CZ")}</span><h1>Dobrý den, <span>vítáme vás.</span></h1><p>Tady je přehled toho, co se děje ve vašem CRM.</p></div><div className="welcome-art"><div className="art-orbit orbit-one"/><div className="art-orbit orbit-two"/><span>v</span><i>✦</i></div></div>
-    {error && <div className="inline-error">{error}</div>}
-    <div className="section-head"><div><h2>Váš přehled</h2><p>Aktuální stav důležitých záznamů</p></div><span className="live-label"><i/> AKTUÁLNÍ DATA</span></div>
-    <div className="stat-grid">{stats.map((item) => <button className="stat-card" key={item.entity} onClick={() => onOpenEntity(item.entity)}><span className={`stat-icon ${item.tone}`}><EntityIcon name={item.entity} size={17}/></span><span className="stat-label">{item.name}</span><strong>{item.count}</strong><span className="stat-foot">Zobrazit záznamy <b><ArrowRight size={13}/></b></span></button>)}</div>
-    <div className="dashboard-grid">
-      <section className="surface recent-card"><div className="card-heading"><div><h2>Nedávná aktivita</h2><p>Poslední změněné záznamy napříč CRM</p></div><span className="activity-mark"><Activity size={15}/></span></div>
-        {recent.length ? <div className="recent-list">{recent.map(({ entity, row }, i) => <button className="recent-row" key={`${entity}-${row.id}-${i}`} onClick={() => onOpenRecord(entity, row)}><span className={`recent-icon tone-${i % 4}`}><EntityIcon name={entity} size={15}/></span><span className="recent-info"><strong>{row.name || row.subject || [row.firstName, row.lastName].filter(Boolean).join(" ") || "Bez názvu"}</strong><small>{entityLabel(metadata, entity)}{row.accountName ? ` · ${row.accountName}` : ""}</small></span><span className="recent-date">{formatEspoDateTimeShort(row.modifiedAt || row.createdAt, timeZone)}</span><span className="row-arrow"><ArrowRight size={14}/></span></button>)}</div> : <EmptyState label="Zatím tu nejsou žádné záznamy" />}
-        {entities.includes("Account") && <button className="text-link" onClick={() => onOpenEntity("Account")}>Otevřít firmy <span>→</span></button>}
-      </section>
-      <section className="surface shortcuts-card"><div className="card-heading"><div><h2>Rychlý přístup</h2><p>Pokračujte tam, kde pracujete</p></div><span className="activity-mark"><Clock3 size={15}/></span></div><div className="shortcut-list">{entities.slice(0, 7).map((entity) => <button key={entity} className="shortcut" onClick={() => onOpenEntity(entity)}><span className="shortcut-icon"><EntityIcon name={entity} size={14}/></span><span>{entityLabel(metadata, entity, true)}</span><b><ArrowRight size={13}/></b></button>)}</div></section>
-    </div>
-    <div className="powered-line">Propojeno s EspoCRM <span>·</span> Data zůstávají ve vašem CRM</div>
-  </div>;
 }
 
 type ActivityEvent = { id: string; recordId: string; scope: string; title?: string; name?: string; dateStart?: string; dateEnd?: string; dateStartDate?: string; dateEndDate?: string; isWorkingRange?: boolean; isNonWorkingRange?: boolean; isBusyRange?: boolean; status?: string; [key: string]: any };
@@ -2010,11 +835,11 @@ function calendarZonedDateTime(date: Date, timeZone: string) {
   return zonedWallTimeToUtc(target.year, target.month, target.day, target.hour, target.minute, target.second, timeZone);
 }
 
-function espocrmDateTime(value: Date) {
+function serverDateTime(value: Date) {
   return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")} ${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}:${String(value.getUTCSeconds()).padStart(2, "0")}`;
 }
 
-function parseEspoCalendarDateTime(value: string) {
+function parseServerCalendarDateTime(value: string) {
   const normalized = value.replace(" ", "T");
   return new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized) ? normalized : `${normalized}Z`);
 }
@@ -2140,8 +965,8 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
     const [year, month, day] = calendarTodayKey.split("-").map(Number);
     return new Date(year, month - 1, day);
   };
-  const from = espocrmDateTime(calendarZonedDateTime(range.start, calendarTimeZone));
-  const to = espocrmDateTime(calendarZonedDateTime(range.end, calendarTimeZone));
+  const from = serverDateTime(calendarZonedDateTime(range.start, calendarTimeZone));
+  const to = serverDateTime(calendarZonedDateTime(range.end, calendarTimeZone));
   const scopeParam = activeScopes.join(",");
   const userIdList = calendarUsers.map((item) => item.id).join(",");
   const teamIdList = calendarTeams.map((item) => item.id).join(",");
@@ -2256,7 +1081,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
     }
   }, [viewMode, calendarScrollHour, calendarSlotDuration]);
   const rangeLabel = new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).formatRange(calendarWallDateAsUtc(range.start), calendarWallDateAsUtc(new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate() - 1)));
-  const eventDate = (event: ActivityEvent) => event.dateStartDate ? new Date(`${event.dateStartDate}T00:00:00`) : parseEspoCalendarDateTime(String(event.dateStart || ""));
+  const eventDate = (event: ActivityEvent) => event.dateStartDate ? new Date(`${event.dateStartDate}T00:00:00`) : parseServerCalendarDateTime(String(event.dateStart || ""));
   const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   const calendarDayBounds = (day: Date) => {
     const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
@@ -2265,15 +1090,15 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
   };
   const eventSegmentForDay = (event: ActivityEvent, day: Date) => {
     const key = dayKey(day);
-    const startDateKey = event.dateStartDate || (event.dateStart ? dateKeyInTimeZone(parseEspoCalendarDateTime(event.dateStart), calendarTimeZone) : "");
-    const endDateKey = event.dateEndDate || (event.dateEnd ? dateKeyInTimeZone(parseEspoCalendarDateTime(event.dateEnd), calendarTimeZone) : startDateKey);
+    const startDateKey = event.dateStartDate || (event.dateStart ? dateKeyInTimeZone(parseServerCalendarDateTime(event.dateStart), calendarTimeZone) : "");
+    const endDateKey = event.dateEndDate || (event.dateEnd ? dateKeyInTimeZone(parseServerCalendarDateTime(event.dateEnd), calendarTimeZone) : startDateKey);
     if (event.dateStartDate || event.dateEndDate) {
       if (!startDateKey || key < startDateKey || key > (endDateKey || startDateKey)) return null;
       return calendarDayBounds(day);
     }
-    const start = event.dateStart ? parseEspoCalendarDateTime(event.dateStart).getTime() : NaN;
+    const start = event.dateStart ? parseServerCalendarDateTime(event.dateStart).getTime() : NaN;
     if (!Number.isFinite(start)) return null;
-    const explicitEnd = event.dateEnd ? parseEspoCalendarDateTime(event.dateEnd).getTime() : NaN;
+    const explicitEnd = event.dateEnd ? parseServerCalendarDateTime(event.dateEnd).getTime() : NaN;
     const end = Number.isFinite(explicitEnd) && explicitEnd > start ? explicitEnd : start + 30 * 60 * 1000;
     const bounds = calendarDayBounds(day);
     const visibleStart = Math.max(start, bounds.start);
@@ -2285,7 +1110,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
   const prettyTimeForDay = (event: ActivityEvent, day: Date) => {
     const segment = eventSegmentForDay(event, day);
     if (!segment || event.dateStartDate) return prettyTime(event);
-    const start = event.dateStart ? parseEspoCalendarDateTime(event.dateStart).getTime() : NaN;
+    const start = event.dateStart ? parseServerCalendarDateTime(event.dateStart).getTime() : NaN;
     return Number.isFinite(start) && segment.start > start ? "Pokračuje" : prettyTime(event);
   };
   const eventTone: Record<string, string> = { Meeting: "meeting", Call: "call", Task: "task" };
@@ -2307,8 +1132,8 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
       const endWallDate = new Date(`${startWall}:00Z`);
       endWallDate.setUTCMinutes(endWallDate.getUTCMinutes() + (createContext.time ? 30 : 60));
       const endWall = endWallDate.toISOString().slice(0, 16);
-      if (fieldDefs.dateStart) values.dateStart = espocrmDateTimeFromInput(startWall, calendarTimeZone);
-      if (fieldDefs.dateEnd) values.dateEnd = espocrmDateTimeFromInput(endWall, calendarTimeZone);
+      if (fieldDefs.dateStart) values.dateStart = serverDateTimeFromInput(startWall, calendarTimeZone);
+      if (fieldDefs.dateEnd) values.dateEnd = serverDateTimeFromInput(endWall, calendarTimeZone);
       if (!fieldDefs.dateEnd && fieldDefs.dateEndDate) values.dateEndDate = createContext.date;
       if (fieldDefs.isAllDay) values.isAllDay = false;
     }
@@ -2354,21 +1179,21 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
     };
     const shiftedDateTime = (value?: string) => {
       if (!value) return undefined;
-      const localInput = formatEspoDateTimeInput(value, calendarTimeZone);
+      const localInput = formatServerDateTimeInput(value, calendarTimeZone);
       if (!localInput) return value;
       const localDate = shiftedDate(localInput);
-      return localDate ? espocrmDateTimeFromInput(`${localDate}${localInput.slice(10)}`, calendarTimeZone) : value;
+      return localDate ? serverDateTimeFromInput(`${localDate}${localInput.slice(10)}`, calendarTimeZone) : value;
     };
     const payload: Row = {};
     if (event.dateStartDate) payload.dateStartDate = targetDate;
-    if (event.dateStart) payload.dateStart = targetTime ? espocrmDateTimeFromInput(`${targetDate}T${targetTime}`, calendarTimeZone) : shiftedDateTime(event.dateStart);
+    if (event.dateStart) payload.dateStart = targetTime ? serverDateTimeFromInput(`${targetDate}T${targetTime}`, calendarTimeZone) : shiftedDateTime(event.dateStart);
     if (event.dateEndDate) payload.dateEndDate = shiftedDate(event.dateEndDate);
     if (event.dateEnd) {
       if (targetTime && payload.dateStart) {
-        const previousStart = parseEspoCalendarDateTime(String(event.dateStart)).getTime();
-        const previousEnd = parseEspoCalendarDateTime(String(event.dateEnd)).getTime();
+        const previousStart = parseServerCalendarDateTime(String(event.dateStart)).getTime();
+        const previousEnd = parseServerCalendarDateTime(String(event.dateEnd)).getTime();
         payload.dateEnd = Number.isFinite(previousStart) && Number.isFinite(previousEnd) && previousEnd > previousStart
-          ? espocrmDateTime(new Date(parseEspoCalendarDateTime(String(payload.dateStart)).getTime() + previousEnd - previousStart))
+          ? serverDateTime(new Date(parseServerCalendarDateTime(String(payload.dateStart)).getTime() + previousEnd - previousStart))
           : shiftedDateTime(event.dateEnd);
       } else payload.dateEnd = shiftedDateTime(event.dateEnd);
     }
@@ -2390,8 +1215,8 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
     {busy && <div className="calendar-timeline-loading" style={{ gridColumn: "2 / -1", gridRow: `2 / -1` }}><span className="spinner"/> Načítám události…</div>}
     {!busy && days.flatMap((day, dayIndex) => availabilityRanges.flatMap((range, rangeIndex) => {
       if (!range.dateStart || !range.dateEnd) return [];
-      const rangeStart = parseEspoCalendarDateTime(String(range.dateStart));
-      const rangeEnd = parseEspoCalendarDateTime(String(range.dateEnd));
+      const rangeStart = parseServerCalendarDateTime(String(range.dateStart));
+      const rangeEnd = parseServerCalendarDateTime(String(range.dateEnd));
       const timelineStart = new Date(day); timelineStart.setHours(0, 0, 0, 0);
       const timelineEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1); timelineEnd.setHours(0, 0, 0, 0);
       const visibleStart = Math.max(rangeStart.getTime(), calendarZonedDateTime(timelineStart, calendarTimeZone).getTime());
@@ -2417,7 +1242,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
       if (visibleEnd <= visibleStart) return null;
       const startSlot = Math.max(0, Math.min(timelineSlots - 1, Math.floor((visibleStart - windowStart) / (timelineMinutesPerSlot * 60000))));
       const endSlot = Math.max(startSlot + 1, Math.min(timelineSlots, Math.ceil((visibleEnd - windowStart) / (timelineMinutesPerSlot * 60000))));
-      const startMs = event.dateStart ? parseEspoCalendarDateTime(String(event.dateStart)).getTime() : NaN;
+      const startMs = event.dateStart ? parseServerCalendarDateTime(String(event.dateStart)).getTime() : NaN;
       const timeLabel = event.dateStartDate ? "Celý den" : Number.isFinite(startMs) && visibleStart > startMs ? "Pokračuje" : new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit", timeZone: calendarTimeZone }).format(new Date(visibleStart));
       return <button draggable={canChangeEntity(metadata, event.scope, "edit")} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-timeline-event ${eventTone[event.scope] || "other"}`} key={`${event.scope}-${event.recordId || event.id}-${dayKey(day)}`} style={{ gridColumn: dayIndex + 2, gridRow: `${startSlot + 3} / ${endSlot + 3}`, ...calendarEventStyle(event) }} title={`${timeLabel} ${event.title || event.name || ""}`} onClick={() => onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name })}><time>{timeLabel}</time><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}</small></button>;
     }))}
@@ -2431,7 +1256,7 @@ function CalendarView({ metadata, onOpenRecord, userId, userName, embedded = fal
       <div className={`calendar-filters${embedded ? " is-hidden" : ""}`}>{scopes.map((scope) => <button key={scope} className={`calendar-filter ${activeScopes.includes(scope) ? "selected" : ""} ${eventTone[scope] || "other"}`} style={calendarColors[scope] ? ({ "--calendar-event-color": calendarColors[scope] } as CSSProperties) : undefined} onClick={() => setActiveScopes((current) => current.includes(scope) ? current.filter((item) => item !== scope) : [...current, scope])}><i/>{entityLabel(metadata, scope, true)}</button>)}</div>
       {error && <div className="table-error">{error}<button onClick={() => setAnchor(new Date(anchor))}>Zkusit znovu</button></div>}
       {["day", "week", "timeline"].includes(viewMode) ? timelineGrid : <div className={`calendar-week-grid calendar-${viewMode}-grid`}>{viewMode === "month" && weekdayLabels.map((day) => <div className="calendar-month-weekday" key={day}>{day}</div>)}{days.map((day) => <section className={`calendar-day ${dayKey(day) === calendarTodayKey ? "today" : ""} ${viewMode === "month" && day.getMonth() !== anchor.getMonth() ? "outside-month" : ""} ${draggedEvent ? "calendar-drop-target" : ""}`} key={dayKey(day)} onDragOver={(event) => { if (draggedEvent) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; } }} onDrop={(event) => { event.preventDefault(); const moving = draggedEvent; setDraggedEvent(null); if (moving) void moveCalendarEvent(moving, day); }}><header><span>{new Intl.DateTimeFormat("cs-CZ", { weekday: viewMode === "month" ? "short" : "long", timeZone: "UTC" }).format(calendarWallDateAsUtc(day))}</span><b>{day.getDate()}</b></header><div className={`calendar-day-events ${creatableActivityScopes.length ? "calendar-day-events-creatable" : ""}`} onClick={() => !busy && beginCreateAt(dayKey(day))} title={creatableActivityScopes.length ? "Kliknutím vytvoříte aktivitu pro tento den" : undefined}>{busy ? <div className="calendar-day-loading"/> : dayEvents(day).length ? dayEvents(day).map((event) => <button draggable={!movingEvent && canChangeEntity(metadata, event.scope, "edit")} onDragStart={(nativeEvent) => { setDraggedEvent(event); nativeEvent.dataTransfer.effectAllowed = "move"; nativeEvent.dataTransfer.setData("text/plain", event.recordId || event.id); }} onDragEnd={() => setDraggedEvent(null)} className={`calendar-event ${eventTone[event.scope] || "other"}`} style={calendarEventStyle(event)} key={`${event.scope}-${event.recordId || event.id}`} onClick={(nativeEvent) => { nativeEvent.stopPropagation(); onOpenRecord(event.scope, { ...event, id: event.recordId || event.id, name: event.title || event.name }); }}><span>{prettyTimeForDay(event, day)}</span><strong>{event.title || event.name || "Bez názvu"}</strong><small>{entityLabel(metadata, event.scope)}{event.status ? ` · ${event.status}` : ""}</small></button>) : <span className="calendar-empty">—</span>}</div></section>)}</div>}
-      <div className="calendar-footer"><span>{busy ? "Načítám aktivity…" : `${calendarActivityCount} aktivit v období`}</span><span title={`Časová zóna účtu EspoCRM: ${calendarTimeZone}`}>{movingEvent ? "Přesouvám událost…" : `Událost přetáhněte na jiný den. Časy podle nastavení účtu EspoCRM · ${calendarTimeZone}.`}</span></div>
+      <div className="calendar-footer"><span>{busy ? "Načítám aktivity…" : `${calendarActivityCount} aktivit v období`}</span><span title={`Časová zóna účtu ViaCRM: ${calendarTimeZone}`}>{movingEvent ? "Přesouvám událost…" : `Událost přetáhněte na jiný den. Časy podle nastavení účtu ViaCRM · ${calendarTimeZone}.`}</span></div>
     </section>
     {createEntity && <RecordEditor entity={createEntity} fields={getEditorFields(metadata, createEntity)} metadata={metadata} initialValues={createInitialValues} onClose={() => setCreateEntity(null)} onSaved={() => { setCreateEntity(null); setCreateInitialValues({}); setRefreshIndex((n) => n + 1); }} />}
     {sharedViewEditor && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !sharedViewsBusy && setSharedViewEditor(null)}><section className="record-modal" role="dialog" aria-modal="true" aria-labelledby="shared-calendar-title"><div className="modal-heading"><div><span className="eyebrow">KALENDÁŘ · TÝMOVÉ SDÍLENÍ</span><h2 id="shared-calendar-title">{sharedViewEditor.id ? "Upravit sdílený pohled" : "Vytvořit sdílený pohled"}</h2><p>Pohled zobrazí kalendářní aktivity vybraných týmů.</p></div><button type="button" className="icon-button" aria-label="Zavřít" onClick={() => setSharedViewEditor(null)}><X size={16}/></button></div><label className="field-input"><span>Název</span><input autoFocus value={sharedViewEditor.name} onChange={(event) => setSharedViewEditor((current) => current ? { ...current, name: event.target.value } : current)} required/></label><label className="field-input"><span>Zobrazení</span><select value={sharedViewEditor.mode} onChange={(event) => setSharedViewEditor((current) => current ? { ...current, mode: event.target.value } : current)}>{sharedViewModes.map((mode) => <option key={mode} value={mode}>{sharedModeLabels[mode] || mode}</option>)}</select></label><div className="field-input"><span>Týmy</span><button type="button" className="button subtle" onClick={() => setCalendarFilterPicker("shared-teams")}>{sharedViewEditor.teams.length ? sharedViewEditor.teams.map((team) => team.name).join(", ") : "Vybrat týmy…"}</button></div><div className="modal-footer"><button type="button" className="button subtle" onClick={() => setSharedViewEditor(null)} disabled={sharedViewsBusy}>Zrušit</button><button type="button" className="button primary" onClick={() => void saveSharedCalendarView()} disabled={sharedViewsBusy || !sharedViewEditor.name.trim() || !sharedViewEditor.teams.length}><Save size={14}/> Uložit pohled</button></div></section></div>}
@@ -2491,9 +1316,9 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
   const nativeCollection = metadata.entityDefs?.[entity]?.collection || {};
   const defaultOrderBy = ["EmailFolder", "GroupEmailFolder"].includes(entity) ? "order" : entity === "User" && userType === "portal" ? "createdAt" : String(nativeCollection.orderBy || "modifiedAt");
   const defaultOrder = ["EmailFolder", "GroupEmailFolder"].includes(entity) ? "asc" : nativeCollection.order === "asc" || nativeCollection.order === "desc" ? nativeCollection.order : "desc";
-  const hiddenColumnsStorageKey = `espo-listHiddenColumns-${listLayoutName}-${entity}-${currentUserId}`;
-  const columnWidthsStorageKey = `espo-listColumnsWidths-${listLayoutName}-${entity}-${currentUserId}`;
-  const columnResizeStorageKey = `espo-listColumnResize-${listLayoutName}-${entity}-${currentUserId}`;
+  const hiddenColumnsStorageKey = `via-listHiddenColumns-${listLayoutName}-${entity}-${currentUserId}`;
+  const columnWidthsStorageKey = `via-listColumnsWidths-${listLayoutName}-${entity}-${currentUserId}`;
+  const columnResizeStorageKey = `via-listColumnResize-${listLayoutName}-${entity}-${currentUserId}`;
   const columnOrderStorageKey = `via:list-columns:${currentUserId}:${entity}:${userType || ""}`;
   const [sortOrder, setSortOrder] = useState<{ key: string; orderBy: string; order: "asc" | "desc" }>(() => {
     try { const stored = JSON.parse(localStorage.getItem(sortPreferenceKey) || "null"); return stored && typeof stored.orderBy === "string" && ["asc", "desc"].includes(stored.order) ? { key: sortPreferenceKey, orderBy: stored.orderBy, order: stored.order } : { key: sortPreferenceKey, orderBy: defaultOrderBy, order: defaultOrder }; }
@@ -2901,7 +1726,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
     if (!name || !preferencesUserId || presetOrderSaving || (!appliedFilters.length && !primaryFilter)) return;
     const seen = new Set<string>();
     const hasDuplicateField = appliedFilters.some((item) => { if (seen.has(item.field)) return true; seen.add(item.field); return false; });
-    if (hasDuplicateField) { setError("EspoCRM ukládá nejvýše jednu podmínku na pole do jednoho filtru."); return; }
+    if (hasDuplicateField) { setError("ViaCRM ukládá nejvýše jednu podmínku na pole do jednoho filtru."); return; }
     setPresetSaving(true); setError("");
     try {
       const preferences = await request<Row>(`Preferences/${encodeURIComponent(preferencesUserId)}`);
@@ -3242,7 +2067,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
     setMassBusy(true); setError("");
     try {
       const result = await request<Row>("Pdf/action/massPrint", { method: "POST", body: JSON.stringify({ idList: selectedIds, entityType: entity, templateId: template.id }) });
-      if (!result?.id) throw new Error("EspoCRM nevytvořilo soubor PDF.");
+      if (!result?.id) throw new Error("ViaCRM nevytvořilo soubor PDF.");
       await downloadAttachment(result.id, `${entityLabel(metadata, entity, true).replace(/[^a-z0-9_-]+/gi, "-")}-vybrane-zaznamy.pdf`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "PDF se nepodařilo vygenerovat."); }
     finally { setMassBusy(false); }
@@ -3275,7 +2100,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
   }
   function startMerge() {
     if (selectedIds.length < 2) { setError("Pro sloučení vyberte alespoň dva záznamy."); return; }
-    if (selectedIds.length > 4) { setError("EspoCRM umožňuje sloučit nejvýše čtyři záznamy najednou."); return; }
+    if (selectedIds.length > 4) { setError("ViaCRM umožňuje sloučit nejvýše čtyři záznamy najednou."); return; }
     setError(""); setMergeOpen(true);
   }
   async function moveEmailFolder(row: Row, direction: "Up" | "Down") {
@@ -3345,7 +2170,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
   }
 
   return <div className="entity-view" onKeyDown={handleListShortcut}>
-    <div className="entity-heading"><div><div className="eyebrow">{emailFilterList ? "E-MAIL · PRAVIDLA DORUČOVÁNÍ" : "SPRÁVA ZÁZNAMŮ"}</div><h1>{title || entityLabel(metadata, entity, true)}<span className="title-count">{total || ""}</span></h1><p>{emailFilterList ? "Nastavte, jak se mají příchozí zprávy rozpoznat a roztřídit podle schránky a zvolených pravidel." : userType === "api" ? "Účty služby EspoCRM pro přístup přes API." : userType === "portal" ? "Uživatelské účty zákaznických a partnerských portálů." : "Všechny záznamy a jejich aktuální stav na jednom místě."}</p></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}>{entity === "Job" && (!metadata.appParams?.isRestrictedMode || getSession()?.user.type === "super-admin") && <button type="button" className="button subtle" onClick={() => onNavigateEntity?.("__jobs-settings__")}><Settings size={14}/>Nastavení úloh</button>}{(emailFilterList || emailFolderList) && canAccessEntity(metadata, "Email") && <button type="button" className="button subtle" onClick={() => onNavigateEntity?.("Email")}><InboxIcon size={14}/>Otevřít poštu</button>}{canCreate && (entity === "Email" ? <button className="button primary" onClick={() => setComposeEmail(true)}><Plus size={15}/> Napsat e-mail</button> : <button className="button primary" onClick={startNewRecord}><Plus size={15}/>{userType === "api" ? "Nový API uživatel" : userType === "portal" ? "Nový uživatel portálu" : "Nový záznam"}</button>)}</div></div>
+    <div className="entity-heading"><div><div className="eyebrow">{emailFilterList ? "E-MAIL · PRAVIDLA DORUČOVÁNÍ" : "SPRÁVA ZÁZNAMŮ"}</div><h1>{title || entityLabel(metadata, entity, true)}<span className="title-count">{total || ""}</span></h1><p>{emailFilterList ? "Nastavte, jak se mají příchozí zprávy rozpoznat a roztřídit podle schránky a zvolených pravidel." : userType === "api" ? "Účty služby ViaCRM pro přístup přes API." : userType === "portal" ? "Uživatelské účty zákaznických a partnerských portálů." : "Všechny záznamy a jejich aktuální stav na jednom místě."}</p></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}>{entity === "Job" && (!metadata.appParams?.isRestrictedMode || getSession()?.user.type === "super-admin") && <button type="button" className="button subtle" onClick={() => onNavigateEntity?.("__jobs-settings__")}><Settings size={14}/>Nastavení úloh</button>}{(emailFilterList || emailFolderList) && canAccessEntity(metadata, "Email") && <button type="button" className="button subtle" onClick={() => onNavigateEntity?.("Email")}><InboxIcon size={14}/>Otevřít poštu</button>}{canCreate && (entity === "Email" ? <button className="button primary" onClick={() => setComposeEmail(true)}><Plus size={15}/> Napsat e-mail</button> : <button className="button primary" onClick={startNewRecord}><Plus size={15}/>{userType === "api" ? "Nový API uživatel" : userType === "portal" ? "Nový uživatel portálu" : "Nový záznam"}</button>)}</div></div>
     {entity === "ScheduledJob" && <ScheduledJobCronNotice onOpenJobs={() => onNavigateEntity?.("Job")}/>}
     <section className={`surface records-surface ${hasCategoryNavigation ? "has-category-navigation" : ""}`}>
       {hasCategoryNavigation && <CategoryNavigation entity={categoryScope} metadata={metadata} selection={categorySelection} onSelect={(selection) => { setCategorySelection(selection); setOffset(0); }} canManage={canChangeEntity(metadata, categoryScope, "edit") || canCreateEntity(metadata, categoryScope)} onManage={() => onNavigateEntity?.(categoryScope)}/>}
@@ -3358,7 +2183,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
         {!entityClientDefs.searchPanelDisabled && !emailAccountSearchDisabled && <button type="button" className={`button subtle filter-toggle ${filterPanelOpen || appliedFilters.length || activeBoolFilters.length ? "selected" : ""}`} onClick={() => { setDraftFilters(appliedFilters.length ? appliedFilters : [{ field: filterableFields[0]?.[0] || "", operator: filterOperators(filterableFields[0]?.[0] || "")[0]?.[0] || "equals", value: "" }]); setFilterPanelOpen((open) => !open); }}><Filter size={14}/>Filtry{appliedFilters.length > 0 && <b>{appliedFilters.length}</b>}</button>}
         {!emailAccountSearchDisabled && <form className="record-search" onSubmit={doSearch}><Search size={15}/><input ref={searchInputRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Hledat: ${entityLabel(metadata, entity, true).toLowerCase()}…`} /><button aria-label="Hledat"><ArrowRight size={13}/></button></form>}
       </div>
-      {filterPanelOpen && <div className="advanced-filter-panel"><div className="advanced-filter-heading"><div><strong>Filtr podle polí</strong><small>Podmínky se kombinují a zpracovává je EspoCRM.</small></div><button type="button" className="button subtle" onClick={() => setDraftFilters((current) => [...current, { field: filterableFields[0]?.[0] || "", operator: filterOperators(filterableFields[0]?.[0] || "")[0]?.[0] || "equals", value: "" }])}><Plus size={13}/>Přidat podmínku</button></div>{nativeBoolFilters.length > 0 && <div className="native-bool-filters">{nativeBoolFilters.map((item) => <label key={item.name}><input type="checkbox" checked={activeBoolFilters.includes(item.name)} onChange={(event) => { setActiveBoolFilters((current) => event.target.checked ? [...current, item.name] : current.filter((name) => name !== item.name)); setOffset(0); }}/><span>{item.label}</span></label>)}</div>}{draftFilters.map((condition, index) => {
+      {filterPanelOpen && <div className="advanced-filter-panel"><div className="advanced-filter-heading"><div><strong>Filtr podle polí</strong><small>Podmínky se kombinují a zpracovává je ViaCRM.</small></div><button type="button" className="button subtle" onClick={() => setDraftFilters((current) => [...current, { field: filterableFields[0]?.[0] || "", operator: filterOperators(filterableFields[0]?.[0] || "")[0]?.[0] || "equals", value: "" }])}><Plus size={13}/>Přidat podmínku</button></div>{nativeBoolFilters.length > 0 && <div className="native-bool-filters">{nativeBoolFilters.map((item) => <label key={item.name}><input type="checkbox" checked={activeBoolFilters.includes(item.name)} onChange={(event) => { setActiveBoolFilters((current) => event.target.checked ? [...current, item.name] : current.filter((name) => name !== item.name)); setOffset(0); }}/><span>{item.label}</span></label>)}</div>}{draftFilters.map((condition, index) => {
         const operators = filterOperators(condition.field);
         const def = filterFieldDefinition(condition.field, fieldDefs[condition.field] || {});
         const type = def.type || "varchar";
@@ -3394,7 +2219,7 @@ function EntityView({ entity, metadata, onOpenRecord, onNavigateEntity, onEmailS
       })}<div className="advanced-filter-actions"><button type="button" className="button subtle" onClick={() => { setDraftFilters([]); setAppliedFilters([]); setSelectedPresetId(""); setSavedPresetWhere([]); setPrimaryFilter(""); setActiveBoolFilters([]); setOffset(0); }}>Vymazat vše</button><button type="button" className="button primary" onClick={() => { applyFilters(); setSelectedPresetId(""); setSavedPresetWhere([]); }}>Použít filtry</button></div><div className="save-filter-row"><input aria-label="Název uloženého filtru" value={presetNameInput} onChange={(event) => setPresetNameInput(event.target.value)} placeholder="Pojmenujte aktuální filtr…"/><button type="button" className="button subtle" disabled={presetSaving || presetOrderSaving || !presetNameInput.trim() || (!appliedFilters.length && !primaryFilter)} onClick={() => void saveCurrentPreset()}><Save size={13}/>{presetSaving ? "Ukládám…" : "Uložit filtr"}</button></div></div>}
       {viewMode === "list" && (selectedIds.length > 0 || allResultsSelected || canExport && userType !== "api") && <div className="entity-bulkbar">{(selectedIds.length > 0 || allResultsSelected) && <b>{allResultsSelected ? `${total} výsledků vybráno` : `${selectedIds.length} vybráno`}</b>}{!inboundEmailList && !emailAccountList && !allResultsSelected && rows.length > 0 && total > rows.length && rows.every((row) => selectedIds.includes(row.id)) && <button className="bulk-clear" onClick={() => { setAllResultsSelected(true); setSelectedIds([]); }}>Vybrat všech {total} výsledků</button>}{allResultsSelected && <button className="bulk-clear" onClick={() => { setAllResultsSelected(false); setSelectedIds([]); }}>Zrušit výběr</button>}{canMassUpdate && userType !== "api" && (selectedIds.length > 0 || allResultsSelected) && <button onClick={() => { setMassField(""); setMassValue(""); setMassEdit(true); }} disabled={massBusy}>Hromadně upravit</button>}{canMassSetEventStatus && selectedIds.length > 0 && !allResultsSelected && <><button type="button" onClick={() => void massSetEventStatus("Held")} disabled={massBusy}><Check size={13}/> Označit jako proběhlé</button><button type="button" onClick={() => void massSetEventStatus("Not Held")} disabled={massBusy}><X size={13}/> Označit jako neproběhlé</button></>}{canMerge && selectedIds.length > 0 && !allResultsSelected && <button onClick={startMerge} disabled={massBusy || selectedIds.length < 2} title={selectedIds.length > 4 ? "Sloučit lze nejvýše čtyři záznamy" : undefined}>Sloučit</button>}{canMassConvertCurrency && selectedIds.length > 0 && !allResultsSelected && <button onClick={() => setCurrencyConvertOpen(true)} disabled={massBusy}><ArrowRightLeft size={13}/> Převést měnu</button>}{canExport && userType !== "api" && <button onClick={() => setExportOpen(true)} disabled={massBusy}><FileInput size={13}/> Exportovat…</button>}{canPrintPdf && selectedIds.length > 0 && !allResultsSelected && <button onClick={() => setPdfTemplateOpen(true)} disabled={massBusy}><FileText size={13}/> Tisknout PDF…</button>}{canRecalculateFormula && (selectedIds.length > 0 || allResultsSelected) && <button type="button" onClick={() => setFormulaConfirmOpen(true)} disabled={massBusy || Boolean(formulaJob && ["Pending", "Running"].includes(formulaJob.status))}><RefreshCw size={13}/> Přepočítat vzorce</button>}{(canMassFollow && selectedIds.length > 0 || canMassFollowAllResults && allResultsSelected) && <button onClick={() => void massFollow("follow")} disabled={massBusy}><Users size={13}/> Sledovat</button>}{(canMassFollow && selectedIds.length > 0 || canMassUnfollowAllResults && allResultsSelected) && <button onClick={() => void massFollow("unfollow")} disabled={massBusy}><Users size={13}/> Přestat sledovat</button>}{(canMassRemove && selectedIds.length > 0 || canMassRemoveAllResults && allResultsSelected) && <button className="bulk-danger" onClick={() => void bulkDelete()} disabled={massBusy}><Trash2 size={13}/> Smazat</button>}{selectedIds.length > 0 && !allResultsSelected && <button className="bulk-clear" onClick={() => { setSelectedIds([]); setAllResultsSelected(false); }}>Zrušit výběr</button>}</div>}
       {massNotice && <div className="save-confirm"><Check size={14}/>{massNotice}</div>}
-      {formulaJob && <div className="formula-mass-action-status" role="status" aria-live="polite" aria-busy={["Pending", "Running"].includes(formulaJob.status)}>{["Pending", "Running"].includes(formulaJob.status) ? <span className="spinner" aria-hidden="true"/> : formulaJob.status === "Success" ? <Check size={15} aria-hidden="true"/> : <X size={15} aria-hidden="true"/>}<div><strong>{formulaJob.status === "Pending" ? "Přepočet čeká ve frontě" : formulaJob.status === "Running" ? "Přepočítávají se vzorce" : formulaJob.status === "Success" ? "Přepočet dokončen" : "Přepočet se nezdařil"}</strong><span>{formulaJob.processedCount ? `Zpracováno ${formulaJob.processedCount} záznamů.` : "Změny zpracovává EspoCRM na pozadí."}</span></div>{!["Pending", "Running"].includes(formulaJob.status) && <button type="button" className="icon-button" aria-label="Zavřít stav přepočtu" onClick={() => setFormulaJob(null)}><X size={14}/></button>}</div>}
+      {formulaJob && <div className="formula-mass-action-status" role="status" aria-live="polite" aria-busy={["Pending", "Running"].includes(formulaJob.status)}>{["Pending", "Running"].includes(formulaJob.status) ? <span className="spinner" aria-hidden="true"/> : formulaJob.status === "Success" ? <Check size={15} aria-hidden="true"/> : <X size={15} aria-hidden="true"/>}<div><strong>{formulaJob.status === "Pending" ? "Přepočet čeká ve frontě" : formulaJob.status === "Running" ? "Přepočítávají se vzorce" : formulaJob.status === "Success" ? "Přepočet dokončen" : "Přepočet se nezdařil"}</strong><span>{formulaJob.processedCount ? `Zpracováno ${formulaJob.processedCount} záznamů.` : "Změny zpracovává ViaCRM na pozadí."}</span></div>{!["Pending", "Running"].includes(formulaJob.status) && <button type="button" className="icon-button" aria-label="Zavřít stav přepočtu" onClick={() => setFormulaJob(null)}><X size={14}/></button>}</div>}
       {error && <div className="table-error">{error}<button onClick={() => void load()}>Zkusit znovu</button></div>}
       {viewMode === "kanban" ? <KanbanBoard entity={entity} metadata={metadata} statusField={statusField} groups={kanbanGroups} layout={kanbanLayout} loading={busy || kanbanBusyId.startsWith("more:")} canCreate={canCreateKanban} canMove={canMoveKanban} canReorder={canReorderKanban} canEdit={canEdit} canDelete={canDelete} busyId={kanbanBusyId} onOpenRecord={onOpenRecord} onEditRecord={(row) => setEditor({ record: row })} onCreateInGroup={(status) => setEditor({ initialValues: { [statusField]: status } })} onChangeStatus={(row, status) => void changeKanbanStatus(row, status)} onRemove={(row) => void removeKanbanRecord(row)} onShowMore={(group) => void loadMoreKanban(group)} onReorder={(group, ids) => void saveKanbanOrder(group, ids)}/> : <><div className="table-wrap"><table className={`records-table ${columnResizeEnabled ? "column-resize-enabled" : ""}`}><thead><tr><th className="select-col"><input type="checkbox" aria-label="Vybrat všechny záznamy na stránce" checked={allResultsSelected || rows.length > 0 && rows.every((r) => selectedIds.includes(r.id))} onChange={(e) => { setAllResultsSelected(false); setSelectedIds((old) => e.target.checked ? [...new Set([...old, ...rows.map((r) => r.id)])] : old.filter((id) => !rows.some((r) => r.id === id))); }} /></th>{columns.map((column) => { const sortable = !notSortableColumns.includes(column) && !fieldDefs[column]?.notSortable && !metadata.fields?.[column]?.orderDisabled; const width = getColumnWidth(column); return <th key={column} style={width ? { width: `${width.value}${width.unit}` } : undefined} className={columnResizeEnabled ? "column-width-enabled" : undefined} aria-sort={sortable && activeOrderBy === column ? activeOrder === "asc" ? "ascending" : "descending" : undefined}>{sortable ? <button type="button" className={`list-sort-button ${activeOrderBy === column ? "sorted" : ""}`} onClick={() => sortBy(column)}>{fieldLabel(column, fieldDefs[column], entity, metadata)}{activeOrderBy === column ? <span aria-hidden="true">{activeOrder === "asc" ? "↑" : "↓"}</span> : <ArrowUpDown size={12} aria-hidden="true"/>}</button> : fieldLabel(column, fieldDefs[column], entity, metadata)}{columnResizeEnabled && columns.length > 1 && <span className="column-resizer" role="separator" aria-orientation="vertical" aria-label={`Změnit šířku sloupce ${fieldLabel(column, fieldDefs[column], entity, metadata)}`} onPointerDown={(event) => startColumnResize(event, column)}/>}</th>; })}<th className="actions-col"/></tr></thead>
         <tbody>{busy ? <tr><td colSpan={columns.length + 2}><div className="table-loading"><span className="spinner"/> Načítám záznamy…</div></td></tr> : rows.length ? rows.map((row, rowIndex) => <tr key={row.id} onClick={() => { if (!isAuthLogRecord && !isEmailQueueItem) onOpenRecord(row); }}>
@@ -3951,7 +2776,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
     setBusy(true); setError("");
     try {
       const result = await request<Row>("Pdf/action/massPrint", { method: "POST", body: JSON.stringify({ idList: [record.id], entityType: entity, templateId: template.id }) });
-      if (!result?.id) throw new Error("EspoCRM nevytvořilo soubor PDF.");
+      if (!result?.id) throw new Error("ViaCRM nevytvořilo soubor PDF.");
       const url = await getAttachmentPreviewUrl(result.id);
       if (previewWindow.closed) { URL.revokeObjectURL(url); throw new Error("Okno náhledu bylo zavřeno před dokončením PDF."); }
       previewWindow.opener = null;
@@ -4097,7 +2922,7 @@ function RecordDrawer({ entity, record: initial, metadata, onClose, onChanged, o
   if (entity === "LayoutSet" && layoutSetEditorOpen) return <div className="layoutset-editor-layer"><Suspense fallback={<div className="surface table-loading" role="status"><span className="spinner"/> Otevírám rozložení…</div>}><AdminLayoutManager metadata={metadata} layoutSetId={record.id} layoutSetName={record.name} layoutList={record.layoutList || []} onBack={() => setLayoutSetEditorOpen(false)}/></Suspense></div>;
   const detailContent = visibleDetailPanels.map((panel, panelIndex) => { const entries = (panel.rows || []).flat().filter((item): item is Exclude<LayoutItem, false> => Boolean(item) && typeof item === "object" && Boolean(item.name) && readableFieldPermissions[item.name!]?.read !== "no" && !(entity === "Task" && item.name === "reminders" && !taskReminderVisible)); return entries.length ? <section className="detail-panel" key={`${panel.label || "panel"}-${panelIndex}`}><div className="drawer-section-title">{panel.label || "INFORMACE O ZÁZNAMU"}</div><div className="detail-grid">{entries.map(({ name }) => { const rawDef = fields[name!]; const def = rawDef ? nativeForeignFieldDef(metadata, entity, rawDef) : undefined; const numericField = ["number", "int", "float", "currency", "currencyConverted", "rangeInt", "rangeFloat", "rangeCurrency"].includes(String(def?.type || "")); const fieldClass = `detail-field${numericField ? " detail-field-numeric" : ""}${entity === "Note" && name === "post" ? " detail-note-post" : ""}`; const isAddress = def?.type === "address"; const isMap = def?.type === "map"; const addressField = isMap ? name!.slice(0, -3) : name!; const addressParts = isAddress || isMap ? [["street", "Street"], ["city", "City"], ["state", "State"], ["postalCode", "PostalCode"], ["country", "Country"]].map(([, suffix]) => record[`${addressField}${suffix}`]).filter(Boolean) : []; const mapAddressValue = { street: record[`${addressField}Street`], city: record[`${addressField}City`], state: record[`${addressField}State`], postalCode: record[`${addressField}PostalCode`], country: record[`${addressField}Country`] }; const isSecret = entity === "AppSecret" && name === "value"; const fileValue = ["file", "image"].includes(def?.type || "") && record[`${name}Id`] ? { id: record[`${name}Id`], name: record[`${name}Name`] || "Soubor", type: record[`${name}Type`] || def?.defaultType } : null; const value = isSecret ? "**********" : ["file", "image"].includes(def?.type || "") ? fileValue : def?.type === "duration" ? recordDurationSeconds(name!, def, record) : isAddress || isMap ? addressParts.join(", ") : entity === "CampaignLogRecord" && name === "data" ? (record.data ?? record.stringData ?? record.action) : entity === "Task" && name === "dateEnd" ? (record.dateEnd || record.dateEndDate) : def?.type === "datetimeOptional" ? (record[`${name}Date`] || getValue(name!)) : entity === "Meeting" && name === "dateStart" && record.isAllDay ? record.dateStartDate : getValue(name!); return value == null || value === "" ? isMap ? <div className={fieldClass} key={name}><span>{fieldLabel(name!, def, entity, metadata)}</span><GoogleAddressMap address={mapAddressValue} apiKey={String(metadata.appSettings?.googleMapsApiKey || "")} mapId={String(metadata.appSettings?.googleMapsMapId || "")} height={Number(def?.height) || 300}/></div> : name === "reminders" && ["Meeting", "Call", "Task"].includes(entity) ? <div className={fieldClass} key={name}><span>{fieldLabel(name!, def, entity, metadata)}</span><ReminderDisplay value={record.reminders} metadata={metadata}/></div> : <div className={fieldClass} key={name}><span>{fieldLabel(name!, def, entity, metadata)}</span><span className="muted-cell">—</span></div> : <div className={fieldClass} key={name}><span>{fieldLabel(name!, def, entity, metadata)}</span>{["file", "image"].includes(def?.type || "") ? <FileAttachmentDisplay value={fileValue} def={def!}/> : name === "reminders" && ["Meeting", "Call", "Task"].includes(entity) ? <ReminderDisplay value={record.reminders ?? value} metadata={metadata}/> : (String(def?.view || "").includes("views/fields/user-with-avatar") || entity === "User" && name === "name") ? <UserAvatarValue id={entity === "User" && name === "name" ? record.id : record[`${name}Id`]} name={record[`${name}Name`] || value} disabled={Boolean(metadata.appSettings?.avatarsDisabled)}/> : def?.type === "barcode" ? <BarcodeField mode="display" inputId={`detail-${entity}-${name}`} value={value} codeType={def.codeType} lastChar={def.lastChar} label={fieldLabel(name!, def, entity, metadata)}/> : def?.type === "linkMultiple" ? <LinkMultipleDisplay entity={entity} name={name!} record={record} def={def} metadata={metadata} showRelatedColorIcon onOpen={openRelatedFieldRecord} onOpenCategory={(scope, id) => onOpenEntity(scope, [{ type: "equals", attribute: "categoryId", value: id }])}/> : entity === "CampaignLogRecord" && name === "parent" ? <CampaignLogParentView record={record} onOpenRecord={(scope, id) => void openRelatedFieldRecord(scope, id)}/> : entity === "CampaignLogRecord" && name === "data" ? <CampaignLogDataView record={record} onOpenRecord={(scope, id) => void openRelatedFieldRecord(scope, id)}/> : entity === "OAuthProvider" && name === "authorizationParams" ? <OAuthAuthorizationParams value={value} label={fieldLabel(name, def, entity, metadata)} readOnly/> : isMap ? <GoogleAddressMap address={mapAddressValue} apiKey={String(metadata.appSettings?.googleMapsApiKey || "")} mapId={String(metadata.appSettings?.googleMapsMapId || "")} height={Number(def?.height) || 300}/> : entity === "Task" && name === "dateEnd" ? <TaskDeadlineDisplay record={record} timeZone={dateTimeZone} detailed/> : (entity === "Meeting" || entity === "Call") && name === "dateStart" ? <EventStartDisplay record={record} entity={entity} metadata={metadata} timeZone={dateTimeZone} value={value}/> : ["url", "urlMultiple"].includes(String(def?.type)) ? <UrlFieldDisplay value={value} multiple={def?.type === "urlMultiple"} copyToClipboard={Boolean(def?.copyToClipboard)}/> : ["email", "emailAddress", "phone"].includes(String(def?.type)) ? <ContactFieldDisplay value={value} type={String(def?.type)}/> : def?.type?.startsWith("enum") ? <EnumValue value={value} def={def} metadata={metadata} entity={entity} name={name}/> : def?.copyToClipboard && ["varchar", "number"].includes(def?.type || "") ? <CopyableValue value={displayValue(value, def)}/> : <RecordFieldDisplay entity={entity} name={name!} record={record} value={value} def={def} metadata={metadata} onOpen={openRelatedFieldRecord} onOpenCategory={(scope, id) => onOpenEntity(scope, [{ type: "equals", attribute: "categoryId", value: id }])} className={entity === "Contact" && name === "account" && record.accountIsInactive ? "inactive-account-reference" : undefined} formatValue={() => (["date", "datetime", "datetimeOptional"].includes(String(def?.type)) ? formatFieldDateTime(String(value), def, metadata, dateTimeZone) : isSecret ? "**********" : def?.type === "currency" ? formatCurrency(value, record[`${name}Currency`], metadata) : def?.type === "currencyConverted" ? formatCurrency(value, metadata.appSettings?.defaultCurrency, metadata) : ["int", "float"].includes(def?.type || "") ? formatNumericValue(value, def!, metadata) : displayValue(value, def) || "—")}/>}{isAddress && addressParts.length > 0 && <button type="button" className="address-map-button" onClick={() => setMapAddress(mapAddressValue)}><MapPin size={13}/> Zobrazit mapu</button>}</div>; })}</div></section> : null; });
   return <><article className={`record-page${entity === "Note" ? " record-page-note" : ""}`} aria-label={`Detail: ${entity === "Note" ? "Příspěvek" : record.name || record.subject || entityLabel(metadata, entity, true)}`} onKeyDown={(event) => { const target = event.target as HTMLElement; if (event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey && event.code === "Space" && canEditRecord && !editor && !busy && !["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) && !target.isContentEditable) { event.preventDefault(); event.stopPropagation(); changeEditor(true); } }}><div className="drawer-top record-page-top"><button type="button" className="record-page-back" onClick={onClose}><ArrowLeft size={15}/>Zpět na seznam</button><span className="eyebrow">{entity === "Note" ? `STREAM · ${(metadata.labels as any)?.Note?.options?.type?.[record.type] || record.type || "PŘÍSPĚVEK"}` : `${entityLabel(metadata, entity, true).toUpperCase()} · DETAIL`}</span><div>{!record.deleted && aclLevel(metadata, entity, "stream") !== "no" && <button className="icon-button" onClick={() => setFollowersOpen(true)} title="Zobrazit sledující" aria-label="Zobrazit sledující"><Users size={15}/></button>}{canEditRecord && <button className="icon-button" onClick={() => changeEditor(true)} title="Upravit · Ctrl+mezerník" aria-label="Upravit záznam (Ctrl+mezerník)"><FileText size={15}/></button>}{canDeleteRecord && <button className="icon-button danger-ghost" onClick={() => void remove()} disabled={busy} title="Smazat" aria-label="Smazat záznam"><Trash2 size={15}/></button>}</div></div>
-    <div className={`drawer-title ${record.deleted ? "deleted-record-title" : ""}`}><span className="drawer-avatar">{String(entity === "Note" ? record.createdByName || "P" : recordFieldDisplayValue(entity, "name", record) || record.subject || "?").slice(0, 1).toUpperCase()}</span><div><h2>{entity === "Note" ? "Příspěvek" : recordFieldDisplayValue(entity, "name", record) || record.subject || [record.firstName, record.lastName].filter(Boolean).join(" ") || "Záznam"}</h2>{entity === "Note" ? <p className="note-detail-byline"><span>{record.createdByName || "Uživatel"}</span>{record.createdAt && <><span aria-hidden="true">·</span><time dateTime={record.createdAt}>{formatEspoDateTime(record.createdAt, dateTimeZone)}</time></>}{record.parentType && record.parentId && canAccessEntity(metadata, record.parentType) && <><span aria-hidden="true">·</span><button type="button" className="note-parent-link" onClick={() => onOpenRelated(record.parentType, { id: record.parentId, name: record.parentName || entityLabel(metadata, record.parentType, true) })}>{record.parentName || entityLabel(metadata, record.parentType, true)} <ArrowRight size={12}/></button></>}</p> : <p>{record.deleted ? "Smazaný záznam · " : ""}{entityLabel(metadata, entity)}{record.accountName ? ` · ${record.accountName}` : ""}</p>}</div></div>
+    <div className={`drawer-title ${record.deleted ? "deleted-record-title" : ""}`}><span className="drawer-avatar">{String(entity === "Note" ? record.createdByName || "P" : recordFieldDisplayValue(entity, "name", record) || record.subject || "?").slice(0, 1).toUpperCase()}</span><div><h2>{entity === "Note" ? "Příspěvek" : recordFieldDisplayValue(entity, "name", record) || record.subject || [record.firstName, record.lastName].filter(Boolean).join(" ") || "Záznam"}</h2>{entity === "Note" ? <p className="note-detail-byline"><span>{record.createdByName || "Uživatel"}</span>{record.createdAt && <><span aria-hidden="true">·</span><time dateTime={record.createdAt}>{formatServerDateTime(record.createdAt, dateTimeZone)}</time></>}{record.parentType && record.parentId && canAccessEntity(metadata, record.parentType) && <><span aria-hidden="true">·</span><button type="button" className="note-parent-link" onClick={() => onOpenRelated(record.parentType, { id: record.parentId, name: record.parentName || entityLabel(metadata, record.parentType, true) })}>{record.parentName || entityLabel(metadata, record.parentType, true)} <ArrowRight size={12}/></button></>}</p> : <p>{record.deleted ? "Smazaný záznam · " : ""}{entityLabel(metadata, entity)}{record.accountName ? ` · ${record.accountName}` : ""}</p>}</div></div>
     {!fullRecordLoaded && <div className="table-loading record-detail-loading" role="status"><span className="spinner"/>Načítám úplná data záznamu…</div>}{fullRecordError && <div className="inline-error">Detail se nepodařilo obnovit z API. Zobrazuji dostupná data ze seznamu: {fullRecordError}</div>}{error && <div className="inline-error">{error}</div>}{userNotice && <div className="save-confirm"><Check size={14}/>{userNotice}</div>}{entity === "LeadCaptureLogRecord" && <div className="read-only-record-note"><Shield size={15}/><span>Záznam odeslání formuláře je pouze pro čtení, aby zůstala zachována auditní stopa.</span></div>}
     {record.deleted ? <div className="drawer-actions"><button className="button primary" onClick={() => void restoreDeletedRecord()} disabled={busy}><RefreshCw size={14}/> Obnovit záznam</button></div> : <div className="drawer-actions">{metadata.scopes?.[entity]?.stars && Object.prototype.hasOwnProperty.call(record, "isStarred") && <button type="button" className="button subtle" onClick={() => void toggleRecordStar()} disabled={busy} aria-pressed={Boolean(record.isStarred)}><Star size={14} fill={record.isStarred ? "currentColor" : "none"}/>{record.isStarred ? "Odebrat z oblíbených" : "Přidat do oblíbených"}</button>}{aclLevel(metadata, entity, "stream") !== "no" && Object.prototype.hasOwnProperty.call(record, "isFollowed") && <button type="button" className={`button ${record.isFollowed ? "subtle" : "primary"}`} onClick={() => void toggleRecordFollow()} disabled={busy} aria-pressed={Boolean(record.isFollowed)}>{record.isFollowed ? <Check size={14}/> : <Activity size={14}/>} {record.isFollowed ? "Přestat sledovat" : "Sledovat záznam"}</button>}{canSelfAssign && <button className="button subtle" onClick={() => void selfAssignRecord()} disabled={busy}><UserRound size={14}/> Přiřadit mně</button>}{canEditRecord && <button className="button primary" onClick={() => changeEditor(true)}>Upravit záznam <FileText size={14}/></button>}{canPrintPdf && <button className="button subtle" onClick={() => setPdfTemplateOpen(true)} disabled={busy}><FileText size={14}/> Tisknout PDF</button>}{canDuplicateRecord && <button className="button subtle" onClick={() => void openDuplicateEditor()} disabled={busy}><Copy size={14}/> Duplikovat</button>}{entity === "MassEmail" && canEditRecord && ["Draft", "Pending"].includes(record.status) && <button className="button subtle" onClick={openMassEmailTest}><Send size={14}/> Poslat test</button>}{canManagePreferences && <button className="button subtle" onClick={() => onOpenPreferences(record)}><Settings size={14}/> Preference uživatele</button>}{canOpenUserEmailAccounts && <button className="button subtle" onClick={() => onOpenEmailAccounts(record)}><Mail size={14}/> E-mailové účty</button>}{canOpenUserExternalAccounts && <button className="button subtle" onClick={() => onOpenEntity("ExternalAccount")}><Link2 size={14}/> Externí účty</button>}{canViewUserCalendar && <button className="button subtle" onClick={() => onOpenCalendar(record)}><CalendarDays size={14}/> Kalendář uživatele</button>}{isAdminViewer && entity === "User" && record.type === "regular" && <button className="button subtle" onClick={loginAsUser}><LogIn size={14}/> Přihlásit se jako uživatel</button>}{canEditRecord && entity === "LayoutSet" && <button className="button subtle" onClick={() => setLayoutSetEditorOpen(true)}><LayoutDashboard size={14}/> Upravit rozložení</button>}{isAdminViewer && entity === "DashboardTemplate" && <button className="button subtle" onClick={() => setDashboardDeployOpen(true)} disabled={busy}><Users size={14}/> Nasadit uživatelům / týmu</button>}{canConvertCurrency && <button className="button subtle" onClick={() => setCurrencyConvertOpen(true)} disabled={busy}><ArrowRightLeft size={14}/> Převést měnu</button>}{entity === "Campaign" && <CampaignMailMergeAction campaign={record} metadata={metadata}/>}{canSetEventAttendance && <><button className="button subtle" onClick={() => void setEventAttendance("Held")} disabled={busy}><Check size={14}/> Označit jako proběhlé</button><button className="button subtle" onClick={() => void setEventAttendance("Not Held")} disabled={busy}><X size={14}/> Označit jako neproběhlé</button></>}{canEditRecord && entity === "Task" && metadata.userAcl?.fieldTable?.Task?.status?.edit !== "no" && !["Completed", "Canceled"].includes(record.status) && <button className="button subtle" onClick={() => void completeTask()} disabled={busy}><Check size={14}/> Dokončit úkol</button>}{canEditRecord && entity === "LeadCapture" && <><button className="button subtle" onClick={() => void leadCaptureTokenAction("generateNewApiKey")} disabled={busy}><KeyRound size={14}/> Nový API klíč</button><button className="button subtle" onClick={() => void leadCaptureTokenAction("generateNewFormId")} disabled={busy}><RefreshCw size={14}/> Nové ID formuláře</button></>}{isManageableUser && record.type !== "portal" && <button className="button subtle" onClick={() => void openUserAccess()} disabled={busy}>Přístupová práva <Shield size={14}/></button>}{isManageableUser && ["regular", "admin", "portal"].includes(record.type) && <button className="button subtle" onClick={() => setUserSecurityOpen(true)}>Zabezpečení a 2FA <Shield size={14}/></button>}{isManageableUser && record.type === "api" && <button className="button subtle" onClick={() => void userSecurityAction("apiKey")} disabled={busy}>Nový API klíč <KeyRound size={14}/></button>}{isManageableUser && ["regular", "admin", "portal"].includes(record.type) && record.emailAddress && <><button className="button subtle" onClick={() => void userSecurityAction("recovery")} disabled={busy}>Odkaz na změnu hesla <Mail size={14}/></button><button className="button subtle" onClick={() => void userSecurityAction("password")} disabled={busy}>Vygenerovat heslo <RefreshCw size={14}/></button></>}{convertible && <button className="button subtle" onClick={() => setConvertOpen(true)}>Převést zájemce <ArrowRight size={14}/></button>}{canViewPersonalData && <button className="button subtle" onClick={() => setPersonalDataOpen(true)}>Osobní údaje <Shield size={14}/></button>}</div>}
     {(meetingAcceptanceAllowed && meetingAcceptanceOptions.length > 0 || meetingCanSendInvitations || meetingCanSendCancellation) && <div className="drawer-actions meeting-acceptance-actions">{meetingCanSendInvitations && <button type="button" className="button subtle" onClick={() => setMeetingAttendeeMailMode("invitations")}><Send size={14}/> Odeslat pozvánky</button>}{meetingCanSendCancellation && <button type="button" className="button danger" onClick={() => setMeetingAttendeeMailMode("cancellation")}><Send size={14}/> Odeslat storno</button>}{meetingAcceptanceAllowed && meetingAcceptanceOptions.length > 0 && <button type="button" className="button subtle meeting-acceptance-action" onClick={() => setAcceptanceOpen(true)} disabled={busy}><span className={`meeting-acceptance-dot ${String((metadata.entityDefs?.[entity]?.fields?.acceptanceStatus as any)?.style?.[meetingAcceptanceStatus] || "default")}`}/>{meetingAcceptanceStatus === "None" ? "Odpovědět na pozvánku" : `Odpověď: ${(metadata.labels as any)?.[entity]?.options?.acceptanceStatus?.[meetingAcceptanceStatus] || meetingAcceptanceStatus}`}</button>}</div>}
@@ -4210,7 +3035,7 @@ function MassEmailSmtpAccountField({ metadata, def, values, onChange }: { metada
 }
 
 function RecordEditor({ entity, fields, metadata, record, initialValues = {}, duplicate = false, onClose, onSaved, onSavedAndNew }: { entity: string; fields: [string, FieldDef][]; metadata: Metadata; record?: Row; initialValues?: Row; duplicate?: boolean; onClose: () => void; onSaved: (record: Row) => void; onSavedAndNew?: (record: Row) => void }) {
-  const timeSettings = useEspoTimeSettings(String(metadata.appSettings?.timeFormat || "HH:mm"), String(metadata.appSettings?.language || "en"));
+  const timeSettings = useTimeSettings(String(metadata.appSettings?.timeFormat || "HH:mm"), String(metadata.appSettings?.language || "en"));
   const [values, setValues] = useState<Row>(() => {
     const defaults = Object.fromEntries(fields.filter(([, def]) => def.default !== undefined && typeof def.default !== "string" || typeof def.default === "string" && !def.default.startsWith("javascript:")).map(([name, def]) => [name, def.default]));
     const initial = { ...defaults, ...initialValues, ...(record || {}) };
@@ -4218,7 +3043,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
       initial.fromAddress = initial.fromAddress ?? metadata.appSettings?.outboundEmailFromAddress ?? "";
       initial.fromName = initial.fromName ?? metadata.appSettings?.outboundEmailFromName ?? "";
     }
-    // EspoCRM's AppSecret detail field never returns or preloads a secret for editing.
+    // the server's AppSecret detail field never returns or preloads a secret for editing.
     // Existing credentials stay untouched unless the administrator explicitly changes them.
     if (entity === "AppSecret" && record) initial.value = "";
     if (entity === "DashboardTemplate" && !record && !Array.isArray(initial.layout)) initial.layout = [{ name: "Přehled", layout: [] }];
@@ -4350,7 +3175,7 @@ function RecordEditor({ entity, fields, metadata, record, initialValues = {}, du
     setTestEmailBusy(true); setTestEmailError(""); setTestEmailNotice("");
     const user = getSession()?.user as (User & { name?: string }) | undefined;
     try {
-      await request("Email/sendTest", { method: "POST", body: JSON.stringify({ server: values.smtpHost, port: Number(values.smtpPort), auth: Boolean(values.smtpAuth), security: values.smtpSecurity || null, username: values.smtpUsername || null, password: values.smtpPassword || null, authMechanism: values.smtpAuthMechanism || null, fromName: entity === "InboundEmail" ? values.fromName || user?.name || "EspoCRM" : user?.name || "EspoCRM", fromAddress: values.emailAddress, emailAddress: recipient, type: entity === "InboundEmail" ? "inboundEmail" : "emailAccount", id: activeRecord?.id || null, ...(entity === "EmailAccount" ? { userId: values.assignedUser || values.assignedUserId || null } : {}) }) });
+      await request("Email/sendTest", { method: "POST", body: JSON.stringify({ server: values.smtpHost, port: Number(values.smtpPort), auth: Boolean(values.smtpAuth), security: values.smtpSecurity || null, username: values.smtpUsername || null, password: values.smtpPassword || null, authMechanism: values.smtpAuthMechanism || null, fromName: entity === "InboundEmail" ? values.fromName || user?.name || "ViaCRM" : user?.name || "ViaCRM", fromAddress: values.emailAddress, emailAddress: recipient, type: entity === "InboundEmail" ? "inboundEmail" : "emailAccount", id: activeRecord?.id || null, ...(entity === "EmailAccount" ? { userId: values.assignedUser || values.assignedUserId || null } : {}) }) });
       setTestEmailNotice(`Testovací zpráva byla odeslána na ${recipient}.`); setTestEmailOpen(false);
     } catch (cause) { setTestEmailError(cause instanceof Error ? cause.message : "Testovací zprávu se nepodařilo odeslat."); }
     finally { setTestEmailBusy(false); }
@@ -4989,7 +3814,7 @@ function CampaignLogActionAvatar({ action }: { action: string }) {
     "Opted Out": "fas fa-ban", Bounced: "fas fa-envelope", "Opted In": "fas fa-user-check", "Lead Created": "fas fa-user-plus",
   };
   const tones: Record<string, string> = { Sent: "sent", Opened: "opened", Clicked: "clicked", "Opted Out": "opted-out", Bounced: "bounced", "Opted In": "opted-in", "Lead Created": "lead-created" };
-  return <span className={`record-avatar campaign-log-avatar ${tones[action] || "other"}`} aria-hidden="true"><EspoIcon className={icons[action] || "fas fa-bullhorn"} size={13}/></span>;
+  return <span className={`record-avatar campaign-log-avatar ${tones[action] || "other"}`} aria-hidden="true"><FaIcon className={icons[action] || "fas fa-bullhorn"} size={13}/></span>;
 }
 
 function CampaignLogDataView({ record, onOpenRecord }: { record: Row; onOpenRecord?: (entity: string, id: string) => void }) {
@@ -5039,21 +3864,8 @@ function CampaignStatsPanel({ record, metadata }: { record: Row; metadata: Metad
       ? formatCurrency(raw ?? 0, record.revenueCurrency || metadata.appSettings?.defaultCurrency, metadata)
       : new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 }).format(Number(raw) || 0);
     const iconClass: Record<string, string> = { sentCount: "fas fa-paper-plane", openedCount: "fas fa-envelope-open", clickedCount: "fas fa-arrow-pointer", optedOutCount: "fas fa-ban", bouncedCount: "fas fa-envelope-open-text", leadCreatedCount: "fas fa-user-plus", optedInCount: "fas fa-user-check", revenue: "fas fa-coins" };
-    return <div className="campaign-stat" key={name}><span className="campaign-stat-icon"><EspoIcon className={iconClass[name] || "fas fa-chart-column"} size={14}/></span><div><small>{fieldLabel(name, fields[name], "Campaign", metadata)}</small><strong>{value}</strong></div></div>;
+    return <div className="campaign-stat" key={name}><span className="campaign-stat-icon"><FaIcon className={iconClass[name] || "fas fa-chart-column"} size={14}/></span><div><small>{fieldLabel(name, fields[name], "Campaign", metadata)}</small><strong>{value}</strong></div></div>;
   })}</div></section>;
-}
-
-function EmailEventPanel({ record, metadata, timeZone, onCreate, onOpenRecord }: { record: Row; metadata: Metadata; timeZone: string; onCreate: () => void; onOpenRecord: (entity: string, row: Row) => void }) {
-  const configured = (metadata.clientDefs?.Email?.sidePanels?.detail || []).some((item: any) => item?.name === "event");
-  if (!configured) return null;
-  const eventData = record.icsEventData || {};
-  const created = eventData.createdEvent;
-  const eventId = record.createdEventId || created?.id;
-  const eventType = record.createdEventType || created?.entityType || "Meeting";
-  const eventName = record.createdEventName || created?.name;
-  if (!record.icsEventData && !eventId) return null;
-  const canCreate = Boolean(eventData.valueMap) && !eventId && canCreateEntity(metadata, "Meeting");
-  return <section className="detail-panel native-info-panel email-event-panel"><div className="drawer-section-title">POZVÁNKA V KALENDÁŘI</div>{record.icsEventDateStart && <div className="email-event-date"><CalendarDays size={14}/><span><small>Začátek události</small><strong>{formatEspoDateTime(record.icsEventDateStart, timeZone)}</strong></span></div>}{eventId ? <button type="button" className="relationship-open email-created-event" onClick={() => onOpenRecord(eventType, { id: eventId, name: eventName || "Schůzka" })}><span><small>Vytvořená událost</small><strong>{eventName || "Otevřít událost"}</strong></span><ArrowRight size={14}/></button> : canCreate ? <><p>V e-mailu je kalendářová pozvánka. Založte z ní schůzku v CRM.</p><button type="button" className="button primary" onClick={onCreate}><Plus size={14}/> Vytvořit schůzku</button></> : null}</section>;
 }
 
 function EmailTemplatePlaceholdersPanel({ metadata }: { metadata: Metadata }) {
@@ -5086,7 +3898,7 @@ function LeadConversionResultPanel({ record, metadata, onOpenRecord }: { record:
   if (!entries.length) return null;
   return <section className="detail-panel lead-conversion-result"><div className="drawer-section-title">{(metadata.labels as any)?.Lead?.labels?.ConvertedTo || (metadata.labels as any)?.Lead?.labels?.["Converted To"] || "PŘEVEDENO NA"}</div><div className="lead-conversion-result-list">{entries.map(({ field, entity }) => {
     const name = record[`${field}Name`] || record[`${field}Id`];
-    return <button type="button" className="relationship-open" key={field} onClick={() => onOpenRecord(entity, { id: record[`${field}Id`], name })}><span className="relationship-row-icon"><EspoIcon className={metadata.clientDefs?.[entity]?.iconClass || entityIcons[entity] || "fas fa-cube"} size={14}/></span><span><small>{entityLabel(metadata, entity)}</small><strong>{name}</strong></span><ArrowRight size={14}/></button>;
+    return <button type="button" className="relationship-open" key={field} onClick={() => onOpenRecord(entity, { id: record[`${field}Id`], name })}><span className="relationship-row-icon"><FaIcon className={metadata.clientDefs?.[entity]?.iconClass || entityIcons[entity] || "fas fa-cube"} size={14}/></span><span><small>{entityLabel(metadata, entity)}</small><strong>{name}</strong></span><ArrowRight size={14}/></button>;
   })}</div></section>;
 }
 
@@ -5390,57 +4202,6 @@ function RoleFieldAcl({ metadata, scope, type, data, onChange }: { metadata: Met
   </div>;
 }
 
-function AddressFormatPreview({ format }: { format: unknown }) {
-  const samples: Record<number, string[]> = {
-    1: ["Ulice 123", "Praha, Praha 110 00", "Česko"],
-    2: ["Ulice 123", "110 00 Praha", "Praha Česko"],
-    3: ["Česko", "110 00 Praha Praha", "Ulice 123"],
-    4: ["Ulice 123", "Praha", "Česko - Praha 110 00"],
-  };
-  const value = Number(format) || 1;
-  return <div className="address-format-preview"><span>Náhled adresy</span><div><small>Výsledek při formátu {value}</small><pre>{(samples[value] || samples[1]).join("\n")}</pre></div></div>;
-}
-
-function SettingsEmailAddressField({ name, metadata, value, suggestInbound, onChange }: { name: string; metadata: Metadata; value: string; suggestInbound: boolean; onChange: (value: string) => void }) {
-  const [query, setQuery] = useState(value);
-  const [suggestions, setSuggestions] = useState<Row[]>([]);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const [open, setOpen] = useState(false);
-  useEffect(() => setQuery(value), [value]);
-  useEffect(() => {
-    if (!suggestInbound || query.trim().length < 1) { setSuggestions([]); return; }
-    let live = true;
-    const timer = window.setTimeout(() => {
-      const searchParams = JSON.stringify({
-        select: ["emailAddress"], maxSize: 7,
-        where: [
-          { type: "startsWith", attribute: "emailAddress", value: query.trim() },
-          { type: "isTrue", attribute: "useSmtp" },
-        ],
-      });
-      request<{ list?: Row[] }>(`InboundEmail?searchParams=${encodeURIComponent(searchParams)}`).then((result) => {
-        if (live) { setSuggestions(result.list || []); setActiveIndex(-1); }
-      }).catch(() => live && setSuggestions([]));
-    }, 180);
-    return () => { live = false; window.clearTimeout(timer); };
-  }, [query, suggestInbound]);
-  const choose = (address: string) => { setQuery(address); onChange(address); setOpen(false); setSuggestions([]); };
-  const label = fieldLabel(name, metadata.entityDefs?.Settings?.fields?.[name], "Settings", metadata);
-  return <label className="setting-field settings-email-address-field"><span>{label}</span><input type="email" autoComplete="email" value={query} onFocus={() => setOpen(true)} onBlur={() => window.setTimeout(() => setOpen(false), 120)} onChange={(event) => { setQuery(event.target.value); onChange(event.target.value); setOpen(true); }} onKeyDown={(event) => {
-    if (event.key === "ArrowDown" && suggestions.length) { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.min(index + 1, suggestions.length - 1)); }
-    else if (event.key === "ArrowUp" && suggestions.length) { event.preventDefault(); setActiveIndex((index) => Math.max(index - 1, 0)); }
-    else if (event.key === "Enter" && activeIndex >= 0 && suggestions[activeIndex]) { event.preventDefault(); choose(String(suggestions[activeIndex].emailAddress || suggestions[activeIndex].attributes?.emailAddress || "")); }
-    else if (event.key === "Escape") setOpen(false);
-  }}/>{open && suggestInbound && suggestions.length > 0 && <div className="settings-email-suggestions" role="listbox" aria-label="Odchozí e-mailové schránky">{suggestions.map((item, index) => { const address = String(item.emailAddress || item.attributes?.emailAddress || ""); return <button key={item.id || address} type="button" role="option" aria-selected={activeIndex === index} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(address)}><Mail size={13}/><span>{address}</span><small>{item.name || "SMTP schránka"}</small></button>; })}</div>}{suggestInbound && <small className="field-hint">Našeptávání hledá adresy schránek se zapnutým SMTP.</small>}</label>;
-}
-
-function CurrencyRatesEditor({ metadata, currencies, baseCurrency, value, onChange }: { metadata: Metadata; currencies: string[]; baseCurrency: string; value: any; onChange: (value: Record<string, number>) => void }) {
-  const labels = metadata.app?.currency?.symbolMap || {};
-  const rates = value && !Array.isArray(value) && typeof value === "object" ? value as Record<string, number> : {};
-  const otherCurrencies = currencies.filter((currency) => currency !== baseCurrency);
-  return <div className="field-input currency-rates-editor"><span>{fieldLabel("currencyRates", metadata.entityDefs.Settings.fields?.currencyRates, "Settings", metadata)}</span><p className="field-hint">Zadejte, kolik jednotek dané měny odpovídá jedné jednotce základní měny ({baseCurrency || "není nastavena"}). Kurz musí být kladný.</p>{otherCurrencies.length ? <div className="currency-rate-list">{otherCurrencies.map((currency) => <label key={currency}><span id={`currency-rate-label-${currency}`}><b>{currency}</b><small>{labels[currency] || currency} za 1 {baseCurrency}</small></span><input type="number" inputMode="decimal" required min="0.000001" step="any" aria-labelledby={`currency-rate-label-${currency}`} aria-describedby={`currency-rate-help-${currency}`} value={rates[currency] ?? 1} onChange={(event) => onChange({ ...rates, [currency]: Number(event.target.value) })}/><small id={`currency-rate-help-${currency}`} className="sr-only">Zadejte kladný kurz pro {currency} vůči {baseCurrency}.</small></label>)}</div> : <div className="currency-rate-empty"><strong>Není co převádět</strong><span>{baseCurrency ? `Základní měna ${baseCurrency} je jedinou povolenou měnou.` : "Nejprve nastavte základní měnu a seznam povolených měn."}</span></div>}</div>;
-}
-
 function HtmlFieldEditor({ entity, metadata, value, onChange, htmlMode = true, fieldName, disabled = false, onRegisterExternalInsert }: { entity: string; metadata: Metadata; value: unknown; onChange: (value: string) => void; htmlMode?: boolean; fieldName: string; disabled?: boolean; onRegisterExternalInsert?: (name: string, insert: (text: string) => void) => void }) {
   const [preview, setPreview] = useState(false);
   const [placeholderScope, setPlaceholderScope] = useState("Contact");
@@ -5534,7 +4295,7 @@ function ScheduledJobJobField({ metadata, value, disabled, onChange }: { metadat
     const job = event.target.value;
     const label = (metadata.labels as any)?.ScheduledJob?.options?.job?.[job] || definitions[job]?.name || job;
     onChange(job, { name: label, scheduling: schedules[job] || "*/10 * * * *" });
-  }}><option value="">{loading ? "Načítám dostupné úlohy…" : "Vyberte úlohu…"}</option>{options.map((job) => <option key={job} value={job}>{(metadata.labels as any)?.ScheduledJob?.options?.job?.[job] || definitions[job]?.name || job}</option>)}</select>{error && <small className="field-error">{error}</small>}<small className="field-hint">Systémové úlohy spravuje EspoCRM a nelze je přidávat jako vlastní plánovač.</small></label>;
+  }}><option value="">{loading ? "Načítám dostupné úlohy…" : "Vyberte úlohu…"}</option>{options.map((job) => <option key={job} value={job}>{(metadata.labels as any)?.ScheduledJob?.options?.job?.[job] || definitions[job]?.name || job}</option>)}</select>{error && <small className="field-error">{error}</small>}<small className="field-hint">Systémové úlohy spravuje ViaCRM a nelze je přidávat jako vlastní plánovač.</small></label>;
 }
 
 function ScheduledJobCronField({ value, required, disabled, onChange }: { value: string; required: boolean; disabled: boolean; onChange: (value: string) => void }) {
@@ -5640,7 +4401,12 @@ function PortalScopeListEditor({ name, label, value, metadata, disabled, onChang
   return <div className="field-input portal-scope-list-editor"><span>{label}</span><div className="portal-scope-list">{selected.map((item, index) => <div className="portal-scope-list-row" key={`${item}-${index}`}><strong>{optionLabel(item)}</strong><div><button type="button" className="icon-button" disabled={disabled || index === 0} onClick={() => move(index, -1)} aria-label={`Posunout nahoru: ${optionLabel(item)}`}><ArrowUp size={13}/></button><button type="button" className="icon-button" disabled={disabled || index === selected.length - 1} onClick={() => move(index, 1)} aria-label={`Posunout dolů: ${optionLabel(item)}`}><ArrowDown size={13}/></button><button type="button" className="icon-button danger-ghost" disabled={disabled} onClick={() => remove(index)} aria-label={`Odebrat: ${optionLabel(item)}`}><Trash2 size={13}/></button></div></div>)}{!selected.length && <small>Žádná položka není vybraná.</small>}</div><div className="portal-scope-list-add"><select value={next} disabled={disabled || !available.length} onChange={(event) => setNext(event.target.value)}><option value="">Vyberte modul…</option>{available.map((item, index) => <option key={`${item}-${index}`} value={item}>{optionLabel(item)}</option>)}</select><button type="button" className="button subtle" disabled={disabled || !next} onClick={add}><Plus size={13}/>Přidat</button></div><small className="field-hint">Rychlé vytvoření nabízí jen objekty povolené pro tento portál.</small></div>;
 }
 
-function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}, onColumnsChange, primaryId, onPrimaryChange, onChange, onUploading, onUploaded, onError, relatedContext, currencyValue, onCurrencyChange, themeParamsValue, onThemeParamsChange, timeZone, onRegisterTemplateInsert }: { entity: string; metadata: Metadata; name: string; def: FieldDef; value: any; columns?: Row; onColumnsChange?: (columns: Row) => void; primaryId?: string; onPrimaryChange?: (id: string, label?: string) => void; onChange: (value: any) => void; onUploading?: (value: boolean) => void; onUploaded?: (id: string) => void; onError?: (message: string) => void; relatedContext?: Row; currencyValue?: string; onCurrencyChange?: (currency: string) => void; themeParamsValue?: Row; onThemeParamsChange?: (value: Row) => void; timeZone?: string; onRegisterTemplateInsert?: (name: string, insert: (text: string) => void) => void }) {
+// FieldInputBody returns early for some field types before its hooks; a field whose type changes (the schema was edited) starts from a fresh instance, so the hooks of one instance are always the same.
+function FieldInput(props: React.ComponentProps<typeof FieldInputBody>) {
+  return <FieldInputBody key={`${props.def.type ?? ""}/${props.name}`} {...props} />;
+}
+
+function FieldInputBody({ entity, metadata, name, def: inputDef, value, columns = {}, onColumnsChange, primaryId, onPrimaryChange, onChange, onUploading, onUploaded, onError, relatedContext, currencyValue, onCurrencyChange, themeParamsValue, onThemeParamsChange, timeZone, onRegisterTemplateInsert }: { entity: string; metadata: Metadata; name: string; def: FieldDef; value: any; columns?: Row; onColumnsChange?: (columns: Row) => void; primaryId?: string; onPrimaryChange?: (id: string, label?: string) => void; onChange: (value: any) => void; onUploading?: (value: boolean) => void; onUploaded?: (id: string) => void; onError?: (message: string) => void; relatedContext?: Row; currencyValue?: string; onCurrencyChange?: (currency: string) => void; themeParamsValue?: Row; onThemeParamsChange?: (value: Row) => void; timeZone?: string; onRegisterTemplateInsert?: (name: string, insert: (text: string) => void) => void }) {
   const def = nativeForeignFieldDef(metadata, entity, inputDef);
   const [options, setOptions] = useState<Row[]>([]);
   const [teamPositionOptions, setTeamPositionOptions] = useState<Record<string, string[]>>({});
@@ -5713,7 +4479,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   if (type === "int" || type === "float") return <LocalizedNumberField label={label} value={value} def={def} metadata={metadata} disabled={fieldDisabled} required={Boolean(def.required)} onChange={onChange}/>;
   if (name === "theme" && ["Settings", "Portal"].includes(entity)) {
     const themes = ((metadata as any).themes || {}) as Row;
-    const themeOptions = Object.keys(themes).sort((a, b) => a === "EspoRtl" ? -1 : b === "EspoRtl" ? 1 : optionLabel(a).localeCompare(optionLabel(b), "cs"));
+    const themeOptions = Object.keys(themes).sort((a, b) => a === "StandardRtl" ? -1 : b === "StandardRtl" ? 1 : optionLabel(a).localeCompare(optionLabel(b), "cs"));
     const navbarDefinition = themes[String(value || "")]?.params?.navbar || {};
     const navbarOptions: string[] = Array.isArray(navbarDefinition.options) && navbarDefinition.options.length > 1 ? navbarDefinition.options.map(String) : [];
     const currentNavbar = String(themeParamsValue?.navbar || navbarDefinition.default || "");
@@ -5726,6 +4492,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     return <div className="field-input theme-field"><span>{label}{def.required && <i> *</i>}</span><div className="theme-field-controls"><select aria-label={label} value={value || ""} disabled={fieldDisabled} onChange={(event) => changeTheme(event.target.value)}>{entity === "Portal" && <option value="">Výchozí</option>}{themeOptions.map((theme) => <option key={theme} value={theme}>{optionLabel(theme)}</option>)}</select>{navbarOptions.length > 0 && <select aria-label="Rozložení navigace" value={currentNavbar} disabled={fieldDisabled} onChange={(event) => onThemeParamsChange?.({ ...(themeParamsValue || {}), navbar: event.target.value })}>{navbarOptions.map((navbar) => <option key={navbar} value={navbar}>{(metadata.labels as any)?.Global?.themeNavbars?.[navbar] || navbar}</option>)}</select>}</div></div>;
   }
   if (type === "currencyConverted") return <label className="field-input currency-converted-field"><span>{label}{def.required && <i> *</i>}</span><output>{value == null || value === "" ? "—" : `${new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: Number(currencySettings.currencyDecimalPlaces ?? 2) }).format(Number(value))} ${((metadata.app as any)?.currency?.symbolMap || {})[defaultCurrency] || defaultCurrency}`}</output></label>;
+  // oxlint-disable-next-line react-hooks/rules-of-hooks -- see FieldInput: one instance always takes the same path
   const dynamicEnumOptions = useMemo(() => {
     if (type === "arrayInt") return resolvedOptions.options;
     if (type !== "multiEnum" || resolvedOptions.options.length) return resolvedOptions.options;
@@ -5750,6 +4517,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
       return true;
     }).sort((a, b) => entityLabel(metadata, a, true).localeCompare(entityLabel(metadata, b, true), "cs"));
   }, [resolvedOptions.options, metadata, entity, name, type, def.view, def.translation]);
+  // oxlint-disable-next-line react-hooks/rules-of-hooks -- see FieldInput: one instance always takes the same path
   const fieldOptions = useMemo(() => {
     if (resolvedOptions.options.length) return resolvedOptions.options;
     if (type === "enum" && String(def.view || "").includes("entity-type")) return Object.keys(metadata.scopes || {}).filter((scope) => Boolean(metadata.scopes?.[scope]?.entity && metadata.scopes?.[scope]?.object)).sort((a, b) => entityLabel(metadata, a).localeCompare(entityLabel(metadata, b), "cs"));
@@ -5787,6 +4555,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const currentId = type === "linkParent" ? value?.id : type === "linkMultiple" ? "" : value;
   const selectedRelationIds: string[] = type === "linkMultiple" && Array.isArray(value) ? value : [];
   const selectedRelationKey = selectedRelationIds.join(",");
+  // oxlint-disable-next-line react-hooks/rules-of-hooks -- see FieldInput: one instance always takes the same path
   useEffect(() => {
     if (entity !== "User" || name !== "teams" || !selectedRelationIds.length) {
       setTeamPositionOptions({}); setTeamPositionLoading({}); return;
@@ -5806,8 +4575,11 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
     });
     return () => { live = false; };
   }, [entity, name, selectedRelationKey]);
+  // oxlint-disable-next-line react-hooks/rules-of-hooks -- see FieldInput: one instance always takes the same path
   useEffect(() => { if (type === "linkParent" && value?.type) setParentEntity(value.type); }, [type, value?.type]);
+  // oxlint-disable-next-line react-hooks/rules-of-hooks -- see FieldInput: one instance always takes the same path
   useEffect(() => { if (type === "linkParent" && !parentEntity && parentEntityList.length) setParentEntity(parentEntityList[0]); }, [type, parentEntity, parentEntityList.join(",")]);
+  // oxlint-disable-next-line react-hooks/rules-of-hooks -- see FieldInput: one instance always takes the same path
   useEffect(() => {
     if (!targetEntity || !["link", "linkOne", "linkMultiple", "linkParent"].includes(type)) { setOptions([]); return; }
     let live = true;
@@ -5894,32 +4666,32 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
   const controlProps = { id: `field-${name}`, value: value ?? "", onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => onChange(e.target.value), required: def.required, maxLength: def.maxLength, min: def.min, disabled: Boolean(def.readOnly || def.disabled) };
   const handleControlChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const next = event.target.value;
-    const normalized = ["datetime", "datetimeOptional"].includes(type) ? espocrmDateTimeFromInput(next, fieldTimeZone) : next;
+    const normalized = ["datetime", "datetimeOptional"].includes(type) ? serverDateTimeFromInput(next, fieldTimeZone) : next;
     onChange(entity === "Portal" && name === "customId" && next ? encodeURIComponent(next.replace(/ /i, "-").toLowerCase()) : normalized);
   };
   const inputLabel = <span>{label}{def.required && <i> *</i>}</span>;
   if (type === "datetimeOptional") {
     const rawValue = String(value || "");
     const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(rawValue);
-    const localValue = dateOnly ? rawValue : formatEspoDateTimeInput(rawValue, fieldTimeZone);
+    const localValue = dateOnly ? rawValue : formatServerDateTimeInput(rawValue, fieldTimeZone);
     const dateValue = localValue.slice(0, 10);
     const timeValue = localValue.slice(11, 16);
     const disabled = Boolean(def.readOnly || def.disabled);
-    const updateDate = (date: string) => onChange(!date ? "" : dateOnly ? date : espocrmDateTimeFromInput(`${date}T${timeValue || "09:00"}`, fieldTimeZone));
+    const updateDate = (date: string) => onChange(!date ? "" : dateOnly ? date : serverDateTimeFromInput(`${date}T${timeValue || "09:00"}`, fieldTimeZone));
     return <div className={`field-input optional-datetime-field ${def.required ? "required" : ""}`}>
       <span>{inputLabel}</span>
       <div className="optional-datetime-controls">
         <input aria-label={`${label} – datum`} type="date" value={dateValue} disabled={disabled} required={Boolean(def.required)} onChange={(event) => updateDate(event.target.value)}/>
-        {!dateOnly && <input aria-label={`${label} – čas`} type="time" value={timeValue} disabled={disabled} required={Boolean(def.required)} onChange={(event) => onChange(dateValue && event.target.value ? espocrmDateTimeFromInput(`${dateValue}T${event.target.value}`, fieldTimeZone) : "")}/>}
+        {!dateOnly && <input aria-label={`${label} – čas`} type="time" value={timeValue} disabled={disabled} required={Boolean(def.required)} onChange={(event) => onChange(dateValue && event.target.value ? serverDateTimeFromInput(`${dateValue}T${event.target.value}`, fieldTimeZone) : "")}/>}
       </div>
       <label className="optional-datetime-toggle"><input type="checkbox" checked={dateOnly} disabled={disabled} onChange={(event) => {
         if (event.target.checked) onChange(dateValue || "");
-        else onChange(dateValue ? espocrmDateTimeFromInput(`${dateValue}T${timeValue || "09:00"}`, fieldTimeZone) : "");
+        else onChange(dateValue ? serverDateTimeFromInput(`${dateValue}T${timeValue || "09:00"}`, fieldTimeZone) : "");
       }}/><span>Bez času</span></label>
     </div>;
   }
   if (type === "colorpicker") return <ColorPickerFieldInput id={`field-${entity}-${name}`.replace(/[^a-zA-Z0-9_-]/g, "-")} label={label} value={value} required={Boolean(def.required)} disabled={fieldDisabled} onChange={onChange}/>;
-  if (type === "autoincrement") return <label className="field-input autoincrement-field" htmlFor={`field-${name}`}><span>{inputLabel}</span><input id={`field-${name}`} value={value ?? ""} readOnly disabled={Boolean(def.disabled)} placeholder="Přidělí se po vytvoření" aria-describedby={`field-${name}-help`}/><small id={`field-${name}-help`}>Číslo záznamu přiděluje EspoCRM automaticky.</small></label>;
+  if (type === "autoincrement") return <label className="field-input autoincrement-field" htmlFor={`field-${name}`}><span>{inputLabel}</span><input id={`field-${name}`} value={value ?? ""} readOnly disabled={Boolean(def.disabled)} placeholder="Přidělí se po vytvoření" aria-describedby={`field-${name}-help`}/><small id={`field-${name}-help`}>Číslo záznamu přiděluje ViaCRM automaticky.</small></label>;
   if (entity === "Settings" && name === "availableReactions") {
     const reactions = (((metadata.app as any)?.reactions?.list || []) as Array<{ type: string; iconClass?: string }>);
     const options = reactions.map((item) => item.type).filter(Boolean);
@@ -6074,7 +4846,7 @@ function FieldInput({ entity, metadata, name, def: inputDef, value, columns = {}
       : type === "arrayInt" ? <select id={`field-${name}`} disabled={Boolean(def.readOnly || def.disabled)} multiple size={Math.min(Math.max(dynamicEnumOptions.length, 3), 7)} value={Array.isArray(value) ? value.map(String) : []} onChange={(e) => { const selected = Array.from(e.currentTarget.selectedOptions, (option) => option.value); onChange(selected.map(Number).filter(Number.isFinite)); }}>{dynamicEnumOptions.map((option) => <option key={option} value={String(option)}>{optionLabel(option)}</option>)}</select>
       : type === "checklist" ? <div className="checklist-field">{resolvedOptions.options.map((option) => { const checked = Array.isArray(value) && value.map(String).includes(String(option)); const limitReached = Number(def.maxCount) > 0 && (Array.isArray(value) ? value.length : 0) >= Number(def.maxCount); return <label key={option}><input type="checkbox" disabled={Boolean(def.readOnly || def.disabled) || (!checked && limitReached)} checked={checked} onChange={(event) => onChange(event.target.checked ? [...(Array.isArray(value) ? value : []), option] : (Array.isArray(value) ? value : []).filter((item) => String(item) !== String(option)))}/>{optionLabel(option)}</label>; })}</div>
       : ["text", "wysiwyg", "jsonObject", "jsonArray", "array", "urlMultiple"].includes(type) ? <textarea {...controlProps} rows={type === "text" || type === "wysiwyg" ? 3 : 5} value={typeof value === "string" ? value : value == null ? "" : Array.isArray(value) ? value.join("\n") : JSON.stringify(value, null, 2)} placeholder={["array", "urlMultiple"].includes(type) ? "Jedna hodnota na řádek" : ["jsonObject", "jsonArray"].includes(type) ? "{}" : undefined}/>
-      : <><input {...controlProps} list={addressSuggestions.length ? addressSuggestionsId : undefined} onChange={handleControlChange} type={type === "date" ? "date" : ["datetime", "datetimeOptional"].includes(type) ? "datetime-local" : type === "password" ? "password" : type === "colorpicker" ? "color" : type === "email" ? "email" : type === "url" ? "url" : type === "phone" ? "tel" : ["int", "float", "currency"].includes(type) ? "number" : "text"} value={type === "datetime" || type === "datetimeOptional" ? formatEspoDateTimeInput(String(value || ""), fieldTimeZone) : value ?? ""} step={type === "float" || type === "currency" ? "any" : undefined} autoComplete={type === "password" ? "new-password" : undefined} />{addressSuggestions.length > 0 && <datalist id={addressSuggestionsId}>{addressSuggestions.map((option) => <option key={option} value={option}/>)}</datalist>}</>}
+      : <><input {...controlProps} list={addressSuggestions.length ? addressSuggestionsId : undefined} onChange={handleControlChange} type={type === "date" ? "date" : ["datetime", "datetimeOptional"].includes(type) ? "datetime-local" : type === "password" ? "password" : type === "colorpicker" ? "color" : type === "email" ? "email" : type === "url" ? "url" : type === "phone" ? "tel" : ["int", "float", "currency"].includes(type) ? "number" : "text"} value={type === "datetime" || type === "datetimeOptional" ? formatServerDateTimeInput(String(value || ""), fieldTimeZone) : value ?? ""} step={type === "float" || type === "currency" ? "any" : undefined} autoComplete={type === "password" ? "new-password" : undefined} />{addressSuggestions.length > 0 && <datalist id={addressSuggestionsId}>{addressSuggestions.map((option) => <option key={option} value={option}/>)}</datalist>}</>}
   </label>;
 }
 
@@ -6115,7 +4887,7 @@ function ComplexExpressionInput({ entity, metadata, name, label, value, def, dis
     setQuery("");
     requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start + text.length, start + text.length); });
   };
-  return <div className="field-input complex-expression-field"><span>{label}{def.required && <i> *</i>}</span><div className="complex-expression-toolbar"><button type="button" className="button subtle" disabled={disabled} aria-expanded={picker === "attribute"} onClick={() => { setPicker((current) => current === "attribute" ? "" : "attribute"); setQuery(""); }}><Plus size={13}/> Vložit atribut</button><button type="button" className="button subtle" disabled={disabled} aria-expanded={picker === "function"} onClick={() => { setPicker((current) => current === "function" ? "" : "function"); setQuery(""); }}><Code2 size={13}/> Vložit funkci</button><a href="https://docs.espocrm.com/user-guide/complex-expressions/" target="_blank" rel="noreferrer">Nápověda syntaxe <ExternalLink size={12}/></a></div>{picker && <div className="complex-expression-picker" role="dialog" aria-label={picker === "attribute" ? "Vložit atribut" : "Vložit funkci"}><label><Search size={13}/><input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={picker === "attribute" ? "Hledat atribut…" : "Hledat funkci…"}/></label><div className="complex-expression-options">{filtered.slice(0, 100).map((item) => <button type="button" key={`${picker}-${item.label}`} onClick={() => insert(item.value)}><code>{item.label}</code><small>{item.detail}</small></button>)}{!filtered.length && <small className="field-hint">Nic jsme nenašli.</small>}</div><small className="field-hint">{filtered.length > 100 ? `Zobrazeno 100 z ${filtered.length}. Upřesněte hledání.` : `${filtered.length} možností`}</small></div>}<textarea ref={editor} id={`field-${name}`} className="complex-expression-code" value={typeof value === "string" ? value : ""} disabled={disabled} required={def.required} maxLength={def.maxLength} rows={Math.min(14, Math.max(5, String(value || "").split("\n").length))} spellCheck={false} autoCapitalize="off" autoCorrect="off" onChange={(event) => onChange(event.target.value)} placeholder="Začněte psát výraz nebo vložte atribut či funkci…"/></div>;
+  return <div className="field-input complex-expression-field"><span>{label}{def.required && <i> *</i>}</span><div className="complex-expression-toolbar"><button type="button" className="button subtle" disabled={disabled} aria-expanded={picker === "attribute"} onClick={() => { setPicker((current) => current === "attribute" ? "" : "attribute"); setQuery(""); }}><Plus size={13}/> Vložit atribut</button><button type="button" className="button subtle" disabled={disabled} aria-expanded={picker === "function"} onClick={() => { setPicker((current) => current === "function" ? "" : "function"); setQuery(""); }}><Code2 size={13}/> Vložit funkci</button></div>{picker && <div className="complex-expression-picker" role="dialog" aria-label={picker === "attribute" ? "Vložit atribut" : "Vložit funkci"}><label><Search size={13}/><input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={picker === "attribute" ? "Hledat atribut…" : "Hledat funkci…"}/></label><div className="complex-expression-options">{filtered.slice(0, 100).map((item) => <button type="button" key={`${picker}-${item.label}`} onClick={() => insert(item.value)}><code>{item.label}</code><small>{item.detail}</small></button>)}{!filtered.length && <small className="field-hint">Nic jsme nenašli.</small>}</div><small className="field-hint">{filtered.length > 100 ? `Zobrazeno 100 z ${filtered.length}. Upřesněte hledání.` : `${filtered.length} možností`}</small></div>}<textarea ref={editor} id={`field-${name}`} className="complex-expression-code" value={typeof value === "string" ? value : ""} disabled={disabled} required={def.required} maxLength={def.maxLength} rows={Math.min(14, Math.max(5, String(value || "").split("\n").length))} spellCheck={false} autoCapitalize="off" autoCorrect="off" onChange={(event) => onChange(event.target.value)} placeholder="Začněte psát výraz nebo vložte atribut či funkci…"/></div>;
 }
 
 function MultipleContactField({ label, email, rows, options, phonePattern, disabled, required, onlyPrimary, maxCount, maxLength, defaultOptOut, onChange }: { label: string; email: boolean; rows: Row[]; options: string[]; phonePattern: RegExp; disabled: boolean; required: boolean; onlyPrimary: boolean; maxCount: number; maxLength: number; defaultOptOut: boolean; onChange: (rows: Row[]) => void }) {
@@ -6171,7 +4943,7 @@ function ArrayFieldInput({ label, value, disabled, keepItems, allowCustomOptions
   };
   const safeUrl = (item: string) => { try { const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(item) ? item : `https://${item}`); return /^https?:$/.test(url.protocol) ? url.toString() : null; } catch { return null; } };
   const addSelected = (selected: string[]) => { const remaining = maxCount ? Math.max(0, maxCount - value.length) : selected.length; onChange([...value, ...selected.filter((item) => !value.includes(item)).slice(0, remaining)]); setPickerOpen(false); };
-  return <><div className={`field-input native-array-field ${urlMode ? "url-multiple-field" : ""} ${compact ? "compact-filter-array" : ""}`}><span>{label}</span><div className="native-array-items">{value.map((item, index) => <div className="native-array-item" key={`${item}-${index}`}><span>{iconClasses[item] && <EspoIcon className={iconClasses[item]} size={16}/>} {urlMode ? safeUrl(item) ? <a href={safeUrl(item) || undefined} target="_blank" rel="noreferrer">{item}</a> : item : optionLabels[item] || item}</span><div>{!compact && <><button type="button" className="icon-button" aria-label={`Posunout ${item} nahoru`} disabled={disabled || index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${item} dolů`} disabled={disabled || index === value.length - 1} onClick={() => move(index, 1)}>↓</button></>}{!keepItems && <button type="button" className="icon-button danger-ghost" aria-label={`Odebrat ${item}`} disabled={disabled} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}>×</button>}</div></div>)}{!value.length && <small className="field-hint">Zatím nejsou přidané žádné položky.</small>}</div>{!disabled && !keepItems && (!maxCount || value.length < maxCount) && <div className="native-array-add">{options.length && !allowCustomOptions ? <button type="button" className="button subtle" onClick={() => setPickerOpen(true)}>Vybrat z nabídky…</button> : <><input value={draft} maxLength={maxLength} placeholder={urlMode ? "https://example.com" : "Nová položka…"} onChange={(event) => { setDraft(event.target.value); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(draft); } }}/><button type="button" className="button subtle" disabled={!draft.trim()} onClick={() => add(draft)}>Přidat</button>{options.length > 0 && <button type="button" className="button subtle" onClick={() => setPickerOpen(true)}>Vybrat z nabídky…</button>}</>}</div>}{error && <small className="field-error">{error}</small>}</div>{pickerOpen && <ArrayOptionsPickerDialog options={options} labels={optionLabels} iconClasses={iconClasses} selected={value} remaining={maxCount ? Math.max(0, maxCount - value.length) : options.length} onClose={() => setPickerOpen(false)} onSelect={addSelected}/>}</>;
+  return <><div className={`field-input native-array-field ${urlMode ? "url-multiple-field" : ""} ${compact ? "compact-filter-array" : ""}`}><span>{label}</span><div className="native-array-items">{value.map((item, index) => <div className="native-array-item" key={`${item}-${index}`}><span>{iconClasses[item] && <FaIcon className={iconClasses[item]} size={16}/>} {urlMode ? safeUrl(item) ? <a href={safeUrl(item) || undefined} target="_blank" rel="noreferrer">{item}</a> : item : optionLabels[item] || item}</span><div>{!compact && <><button type="button" className="icon-button" aria-label={`Posunout ${item} nahoru`} disabled={disabled || index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${item} dolů`} disabled={disabled || index === value.length - 1} onClick={() => move(index, 1)}>↓</button></>}{!keepItems && <button type="button" className="icon-button danger-ghost" aria-label={`Odebrat ${item}`} disabled={disabled} onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}>×</button>}</div></div>)}{!value.length && <small className="field-hint">Zatím nejsou přidané žádné položky.</small>}</div>{!disabled && !keepItems && (!maxCount || value.length < maxCount) && <div className="native-array-add">{options.length && !allowCustomOptions ? <button type="button" className="button subtle" onClick={() => setPickerOpen(true)}>Vybrat z nabídky…</button> : <><input value={draft} maxLength={maxLength} placeholder={urlMode ? "https://example.com" : "Nová položka…"} onChange={(event) => { setDraft(event.target.value); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(draft); } }}/><button type="button" className="button subtle" disabled={!draft.trim()} onClick={() => add(draft)}>Přidat</button>{options.length > 0 && <button type="button" className="button subtle" onClick={() => setPickerOpen(true)}>Vybrat z nabídky…</button>}</>}</div>}{error && <small className="field-error">{error}</small>}</div>{pickerOpen && <ArrayOptionsPickerDialog options={options} labels={optionLabels} iconClasses={iconClasses} selected={value} remaining={maxCount ? Math.max(0, maxCount - value.length) : options.length} onClose={() => setPickerOpen(false)} onSelect={addSelected}/>}</>;
 }
 
 function ArrayOptionsPickerDialog({ options, labels, iconClasses = {}, selected, remaining, onClose, onSelect }: { options: string[]; labels: Record<string, string>; iconClasses?: Record<string, string>; selected: string[]; remaining: number; onClose: () => void; onSelect: (values: string[]) => void }) {
@@ -6179,7 +4951,7 @@ function ArrayOptionsPickerDialog({ options, labels, iconClasses = {}, selected,
   const [checked, setChecked] = useState<string[]>([]);
   const filtered = options.filter((option) => !selected.includes(option)).filter((option) => !query.trim() || `${labels[option] || option} ${option}`.toLocaleLowerCase("cs").split(/\s+/).some((part) => part.startsWith(query.trim().toLocaleLowerCase("cs"))));
   const toggle = (option: string, isChecked: boolean) => setChecked((current) => isChecked ? current.length < remaining ? [...current, option] : current : current.filter((item) => item !== option));
-  return <div className="modal-backdrop array-options-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="record-modal array-options-dialog" role="dialog" aria-modal="true" aria-labelledby="array-options-title"><div className="modal-heading"><div><span className="eyebrow">VÝBĚR POLOŽEK</span><h2 id="array-options-title">Přidat možnosti</h2><p>{remaining === options.length ? "Vyberte jednu nebo více položek." : `Můžete přidat nejvýše ${remaining} položek.`}</p></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={16}/></button></div><label className="array-options-search"><Search size={14}/><input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Hledat možnost…"/><span>{filtered.length}</span></label><div className="array-options-list">{filtered.map((option) => { const checkedNow = checked.includes(option); const disabled = !checkedNow && checked.length >= remaining; return <label key={option} className={disabled ? "disabled" : ""}><input type="checkbox" checked={checkedNow} disabled={disabled} onChange={(event) => toggle(option, event.target.checked)}/>{iconClasses[option] && <EspoIcon className={iconClasses[option]} size={16}/>}<span>{labels[option] || option}</span>{labels[option] && <small>{option}</small>}</label>; })}{!filtered.length && <p className="field-manager-empty">Žádné dostupné možnosti.</p>}</div><div className="modal-footer"><span>{checked.length} vybráno</span><button type="button" className="button subtle" onClick={onClose}>Zrušit</button><button type="button" className="button primary" disabled={!checked.length} onClick={() => onSelect(checked)}>Přidat vybrané</button></div></section></div>;
+  return <div className="modal-backdrop array-options-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="record-modal array-options-dialog" role="dialog" aria-modal="true" aria-labelledby="array-options-title"><div className="modal-heading"><div><span className="eyebrow">VÝBĚR POLOŽEK</span><h2 id="array-options-title">Přidat možnosti</h2><p>{remaining === options.length ? "Vyberte jednu nebo více položek." : `Můžete přidat nejvýše ${remaining} položek.`}</p></div><button type="button" className="icon-button" onClick={onClose} aria-label="Zavřít"><X size={16}/></button></div><label className="array-options-search"><Search size={14}/><input autoFocus type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Hledat možnost…"/><span>{filtered.length}</span></label><div className="array-options-list">{filtered.map((option) => { const checkedNow = checked.includes(option); const disabled = !checkedNow && checked.length >= remaining; return <label key={option} className={disabled ? "disabled" : ""}><input type="checkbox" checked={checkedNow} disabled={disabled} onChange={(event) => toggle(option, event.target.checked)}/>{iconClasses[option] && <FaIcon className={iconClasses[option]} size={16}/>}<span>{labels[option] || option}</span>{labels[option] && <small>{option}</small>}</label>; })}{!filtered.length && <p className="field-manager-empty">Žádné dostupné možnosti.</p>}</div><div className="modal-footer"><span>{checked.length} vybráno</span><button type="button" className="button subtle" onClick={onClose}>Zrušit</button><button type="button" className="button primary" disabled={!checked.length} onClick={() => onSelect(checked)}>Přidat vybrané</button></div></section></div>;
 }
 
 type TimeRange = [string | null, string | null];
@@ -6662,7 +5434,7 @@ function eventStartStyle(record: Row, entity: string, metadata: Metadata, timeZo
     const value = allDay ? record[`${field}Date`] : record[field];
     if (!value) return null;
     const normalized = allDay ? dateFilterBoundaryInTimeZone(String(value), timeZone, field === "dateEnd") : String(value);
-    const date = parseEspoCalendarDateTime(normalized);
+    const date = parseServerCalendarDateTime(normalized);
     return Number.isNaN(date.getTime()) ? null : date;
   };
   const end = toDate("dateEnd");
@@ -6674,7 +5446,7 @@ function eventStartStyle(record: Row, entity: string, metadata: Metadata, timeZo
 
 function EventStartDisplay({ record, entity, metadata, timeZone, value }: { record: Row; entity: "Meeting" | "Call"; metadata: Metadata; timeZone: string; value: unknown }) {
   const style = eventStartStyle(record, entity, metadata, timeZone);
-  const formatted = record.isAllDay && entity === "Meeting" && value ? new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${String(value).slice(0, 10)}T12:00:00Z`)) : formatEspoDateTime(String(value || ""), timeZone);
+  const formatted = record.isAllDay && entity === "Meeting" && value ? new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${String(value).slice(0, 10)}T12:00:00Z`)) : formatServerDateTime(String(value || ""), timeZone);
   return <span className={`event-start-display ${style}`}><span>{formatted}</span>{style && <small>{style === "danger" ? "Po plánovaném konci" : "Právě probíhá"}</small>}</span>;
 }
 
@@ -6708,15 +5480,15 @@ function renderCell(value: any, def?: FieldDef, currency?: unknown, metadata?: M
 function formatFieldDateTime(value: string, def: FieldDef | undefined, metadata: Metadata | undefined, timeZone: string) {
   if (def?.type === "datetime" && String(def.view || "").includes("datetime-short")) {
     const yesterdayLabel = String((metadata?.labels as any)?.Global?.strings?.yesterdayShort || "včera");
-    return formatEspoDateTimeShort(value, timeZone, new Date(), yesterdayLabel, Boolean(def.hasSeconds));
+    return formatServerDateTimeShort(value, timeZone, new Date(), yesterdayLabel, Boolean(def.hasSeconds));
   }
   if (def?.type === "datetimeOptional" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return new Intl.DateTimeFormat("cs-CZ", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
-  return formatEspoDateTime(value, timeZone);
+  return formatServerDateTime(value, timeZone);
 }
 
 function formatDate(value: any, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC") {
   if (!value || typeof value !== "string") return "—";
-  return formatEspoDateTime(value, timeZone);
+  return formatServerDateTime(value, timeZone);
 }
 
 export default App;

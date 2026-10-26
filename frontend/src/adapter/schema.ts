@@ -31,7 +31,7 @@ export function displayName(record: Record<string, any>): string {
 
 // ---- reverse links: "the contacts of an account" ----
 // A link field of an entity (contact.account) gives the target a list of the records that point at it (account.contacts).
-export type ReverseLink = { name: string; entityKey: string; field: string };
+type ReverseLink = { name: string; entityKey: string; field: string };
 
 // Links a target's name must not shadow; the screens treat some names specially.
 const RESERVED_LINK_NAMES = new Set(["teams", "assignedUser", "createdBy", "activities", "history"]);

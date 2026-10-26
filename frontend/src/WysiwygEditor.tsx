@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import EspoIcon from "./EspoIcon";
+import FaIcon from "./FaIcon";
 import DOMPurify from "dompurify";
 import { getAttachmentPreviewUrl, uploadAttachment } from "./api";
 
@@ -31,8 +31,8 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
     const needsRender = normalizeHtml(node) !== value;
     if (!needsRender) return;
     node.innerHTML = sanitizeHtml ? DOMPurify.sanitize(value, { USE_PROFILES: { html: true } }) : value;
-    node.querySelectorAll<HTMLImageElement>("img[data-espo-attachment-id]").forEach((image) => {
-      const id = image.dataset.espoAttachmentId;
+    node.querySelectorAll<HTMLImageElement>("img[data-attachment-id]").forEach((image) => {
+      const id = image.dataset.attachmentId;
       if (!id) return;
       void getAttachmentPreviewUrl(id).then((blobUrl) => {
         blobUrls.current.push(blobUrl); image.src = blobUrl;
@@ -83,7 +83,7 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
   }
   function normalizeHtml(root: HTMLElement) {
     const copy = root.cloneNode(true) as HTMLElement;
-    copy.querySelectorAll<HTMLImageElement>("img[data-espo-attachment-id]").forEach((image) => { image.setAttribute("src", `?entryPoint=attachment&id=${encodeURIComponent(image.dataset.espoAttachmentId || "")}`); });
+    copy.querySelectorAll<HTMLImageElement>("img[data-attachment-id]").forEach((image) => { image.setAttribute("src", `?entryPoint=attachment&id=${encodeURIComponent(image.dataset.attachmentId || "")}`); });
     return copy.innerHTML;
   }
   function changed() { if (canvas.current) onChange(normalizeHtml(canvas.current)); }
@@ -129,7 +129,7 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
     if (!attachmentId && !/^https?:\/\//i.test(src.trim())) { setError("Adresa obrázku musí začínat http:// nebo https://."); return; }
     restoreSelection();
     const image = document.createElement("img"); image.src = src.trim(); image.alt = ""; image.style.maxWidth = "100%";
-    if (attachmentId) image.dataset.espoAttachmentId = attachmentId;
+    if (attachmentId) image.dataset.attachmentId = attachmentId;
     const active = window.getSelection();
     if (active?.rangeCount) active.getRangeAt(0).insertNode(image); else canvas.current?.append(image);
     const range = document.createRange(); range.setStartAfter(image); range.collapse(true); active?.removeAllRanges(); active?.addRange(range); selection.current = range.cloneRange(); changed();
@@ -167,28 +167,28 @@ export default function WysiwygEditor({ value, htmlMode, entity, field, disabled
   return <div className={`wysiwyg-editor${fullscreen ? " is-fullscreen" : ""}`}>
     <fieldset className="wysiwyg-toolbar" disabled={disabled} role="toolbar" aria-label="Formátování">
       <select aria-label="Styl odstavce" title="Styl odstavce" defaultValue="p" onMouseDown={rememberSelection} onChange={(event) => { command("formatBlock", `<${event.target.value}>`); event.currentTarget.value = event.target.value; }}><option value="p">Odstavec</option><option value="h1">Nadpis 1</option><option value="h2">Nadpis 2</option><option value="h3">Nadpis 3</option><option value="h4">Nadpis 4</option><option value="blockquote">Citace</option><option value="pre">Předformátovaný text</option></select>
-      <button type="button" title="Tučně" onMouseDown={(event) => event.preventDefault()} onClick={() => command("bold")}><EspoIcon className="fas fa-bold" size={14}/></button>
-      <button type="button" title="Kurzíva" onMouseDown={(event) => event.preventDefault()} onClick={() => command("italic")}><EspoIcon className="fas fa-italic" size={14}/></button>
-      <button type="button" title="Podtržení" onMouseDown={(event) => event.preventDefault()} onClick={() => command("underline")}><EspoIcon className="fas fa-underline" size={14}/></button>
-      <button type="button" title="Přeškrtnutí" onMouseDown={(event) => event.preventDefault()} onClick={() => command("strikeThrough")}><EspoIcon className="fas fa-strikethrough" size={14}/></button>
-      <button type="button" title="Odstranit formátování" onMouseDown={(event) => event.preventDefault()} onClick={() => command("removeFormat")}><EspoIcon className="fas fa-eraser" size={14}/></button>
+      <button type="button" title="Tučně" onMouseDown={(event) => event.preventDefault()} onClick={() => command("bold")}><FaIcon className="fas fa-bold" size={14}/></button>
+      <button type="button" title="Kurzíva" onMouseDown={(event) => event.preventDefault()} onClick={() => command("italic")}><FaIcon className="fas fa-italic" size={14}/></button>
+      <button type="button" title="Podtržení" onMouseDown={(event) => event.preventDefault()} onClick={() => command("underline")}><FaIcon className="fas fa-underline" size={14}/></button>
+      <button type="button" title="Přeškrtnutí" onMouseDown={(event) => event.preventDefault()} onClick={() => command("strikeThrough")}><FaIcon className="fas fa-strikethrough" size={14}/></button>
+      <button type="button" title="Odstranit formátování" onMouseDown={(event) => event.preventDefault()} onClick={() => command("removeFormat")}><FaIcon className="fas fa-eraser" size={14}/></button>
       <select aria-label="Velikost písma" title="Velikost písma" defaultValue="" onMouseDown={rememberSelection} onChange={(event) => { if (event.target.value) command("fontSize", event.target.value); event.currentTarget.value = ""; }}><option value="">Velikost</option><option value="1">8 pt</option><option value="2">10 pt</option><option value="3">12 pt</option><option value="4">14 pt</option><option value="5">18 pt</option><option value="6">24 pt</option><option value="7">36 pt</option></select>
-      <label className="wysiwyg-color-control" title="Barva písma" aria-label="Barva písma"><EspoIcon className="fas fa-font" size={13}/><input type="color" aria-label="Barva písma" onMouseDown={rememberSelection} onChange={(event) => command("foreColor", event.target.value)}/></label>
-      <label className="wysiwyg-color-control" title="Barva zvýraznění" aria-label="Barva zvýraznění"><EspoIcon className="fas fa-highlighter" size={13}/><input type="color" aria-label="Barva zvýraznění" onMouseDown={rememberSelection} onChange={(event) => command("hiliteColor", event.target.value)}/></label>
-      <button type="button" title="Odrážky" onMouseDown={(event) => event.preventDefault()} onClick={() => command("insertUnorderedList")}><EspoIcon className="fas fa-list-ul" size={14}/></button>
-      <button type="button" title="Číslovaný seznam" onMouseDown={(event) => event.preventDefault()} onClick={() => command("insertOrderedList")}><EspoIcon className="fas fa-list-ol" size={14}/></button>
+      <label className="wysiwyg-color-control" title="Barva písma" aria-label="Barva písma"><FaIcon className="fas fa-font" size={13}/><input type="color" aria-label="Barva písma" onMouseDown={rememberSelection} onChange={(event) => command("foreColor", event.target.value)}/></label>
+      <label className="wysiwyg-color-control" title="Barva zvýraznění" aria-label="Barva zvýraznění"><FaIcon className="fas fa-highlighter" size={13}/><input type="color" aria-label="Barva zvýraznění" onMouseDown={rememberSelection} onChange={(event) => command("hiliteColor", event.target.value)}/></label>
+      <button type="button" title="Odrážky" onMouseDown={(event) => event.preventDefault()} onClick={() => command("insertUnorderedList")}><FaIcon className="fas fa-list-ul" size={14}/></button>
+      <button type="button" title="Číslovaný seznam" onMouseDown={(event) => event.preventDefault()} onClick={() => command("insertOrderedList")}><FaIcon className="fas fa-list-ol" size={14}/></button>
       <select aria-label="Řádkování" title="Řádkování" defaultValue="" onMouseDown={rememberSelection} onChange={(event) => { if (event.target.value) setLineHeight(event.target.value); event.currentTarget.value = ""; }}><option value="">Řádky</option><option value="1">1×</option><option value="1.15">1,15×</option><option value="1.5">1,5×</option><option value="2">2×</option></select>
-      <button type="button" title="Zarovnat vlevo" onMouseDown={(event) => event.preventDefault()} onClick={() => command("justifyLeft")}><EspoIcon className="fas fa-align-left" size={14}/></button>
-      <button type="button" title="Zarovnat na střed" onMouseDown={(event) => event.preventDefault()} onClick={() => command("justifyCenter")}><EspoIcon className="fas fa-align-center" size={14}/></button>
-      <button type="button" title="Zarovnat vpravo" onMouseDown={(event) => event.preventDefault()} onClick={() => command("justifyRight")}><EspoIcon className="fas fa-align-right" size={14}/></button>
-      <button type="button" title="Vložit nebo upravit odkaz" onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog("link")}><EspoIcon className="fas fa-link" size={14}/></button>
-      <button type="button" title="Vložit obrázek" onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog("image")}><EspoIcon className="fas fa-image" size={14}/></button>
-      <button type="button" title="Vložit tabulku" onMouseDown={(event) => event.preventDefault()} onClick={() => { setEditingTable(false); setRows(3); setColumns(3); openDialog("table"); }}><EspoIcon className="fas fa-table" size={14}/></button>
-      <button type="button" title="Upravit tabulku" onMouseDown={(event) => event.preventDefault()} onClick={openTableEditor}><EspoIcon className="fas fa-pen-to-square" size={14}/></button>
-      <button type="button" title="Upravit buňku" onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog("cell")}><EspoIcon className="fas fa-pen-to-square" size={14}/></button>
-      <button type="button" title="Vložit vodorovnou čáru" onMouseDown={(event) => event.preventDefault()} onClick={() => command("insertHorizontalRule")}><EspoIcon className="fas fa-minus" size={14}/></button>
-      <button type="button" title={codeView ? "Vizuální editor" : "Zdrojový HTML kód"} aria-pressed={codeView} onMouseDown={(event) => { if (!codeView) rememberSelection(); event.preventDefault(); }} onClick={() => { if (codeView) selection.current = null; setCodeView((current) => !current); }}><EspoIcon className={codeView ? "fas fa-eye" : "fas fa-code"} size={14}/></button>
-      <button type="button" title={fullscreen ? "Ukončit celoobrazovkové zobrazení" : "Celoobrazovkové zobrazení"} aria-pressed={fullscreen} onMouseDown={(event) => event.preventDefault()} onClick={() => setFullscreen((current) => !current)}><EspoIcon className={fullscreen ? "fas fa-compress" : "fas fa-expand"} size={14}/></button>
+      <button type="button" title="Zarovnat vlevo" onMouseDown={(event) => event.preventDefault()} onClick={() => command("justifyLeft")}><FaIcon className="fas fa-align-left" size={14}/></button>
+      <button type="button" title="Zarovnat na střed" onMouseDown={(event) => event.preventDefault()} onClick={() => command("justifyCenter")}><FaIcon className="fas fa-align-center" size={14}/></button>
+      <button type="button" title="Zarovnat vpravo" onMouseDown={(event) => event.preventDefault()} onClick={() => command("justifyRight")}><FaIcon className="fas fa-align-right" size={14}/></button>
+      <button type="button" title="Vložit nebo upravit odkaz" onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog("link")}><FaIcon className="fas fa-link" size={14}/></button>
+      <button type="button" title="Vložit obrázek" onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog("image")}><FaIcon className="fas fa-image" size={14}/></button>
+      <button type="button" title="Vložit tabulku" onMouseDown={(event) => event.preventDefault()} onClick={() => { setEditingTable(false); setRows(3); setColumns(3); openDialog("table"); }}><FaIcon className="fas fa-table" size={14}/></button>
+      <button type="button" title="Upravit tabulku" onMouseDown={(event) => event.preventDefault()} onClick={openTableEditor}><FaIcon className="fas fa-pen-to-square" size={14}/></button>
+      <button type="button" title="Upravit buňku" onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog("cell")}><FaIcon className="fas fa-pen-to-square" size={14}/></button>
+      <button type="button" title="Vložit vodorovnou čáru" onMouseDown={(event) => event.preventDefault()} onClick={() => command("insertHorizontalRule")}><FaIcon className="fas fa-minus" size={14}/></button>
+      <button type="button" title={codeView ? "Vizuální editor" : "Zdrojový HTML kód"} aria-pressed={codeView} onMouseDown={(event) => { if (!codeView) rememberSelection(); event.preventDefault(); }} onClick={() => { if (codeView) selection.current = null; setCodeView((current) => !current); }}><FaIcon className={codeView ? "fas fa-eye" : "fas fa-code"} size={14}/></button>
+      <button type="button" title={fullscreen ? "Ukončit celoobrazovkové zobrazení" : "Celoobrazovkové zobrazení"} aria-pressed={fullscreen} onMouseDown={(event) => event.preventDefault()} onClick={() => setFullscreen((current) => !current)}><FaIcon className={fullscreen ? "fas fa-compress" : "fas fa-expand"} size={14}/></button>
     </fieldset>
     {codeView ? <textarea ref={codeEditor} className="wysiwyg-codeview" aria-label="Zdrojový HTML kód" rows={14} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} spellCheck={false}/> : <div ref={canvas} className="wysiwyg-canvas" contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-label="Obsah HTML" aria-multiline="true" onInput={changed} onMouseUp={rememberSelection} onKeyUp={rememberSelection} onBlur={rememberSelection}/>}
     {dialog && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setDialog(null)}><section className="record-modal wysiwyg-modal"><div className="modal-heading"><div><span className="eyebrow">EDITOR OBSAHU</span><h2>{dialog === "link" ? "Vložit odkaz" : dialog === "image" ? "Vložit obrázek" : dialog === "table" ? editingTable ? "Nastavení tabulky" : "Vložit tabulku" : "Nastavení buňky"}</h2></div><button type="button" className="icon-button" onClick={() => setDialog(null)} aria-label="Zavřít">×</button></div>

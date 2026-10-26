@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useRef, useState, type ReactNod
 import { AlertTriangle, X } from "./Icons";
 import { useDialogFocus } from "./useDialogFocus";
 
-export type ConfirmOptions = {
+type ConfirmOptions = {
   title: string;
   message: string;
   confirmLabel?: string;

@@ -10,8 +10,6 @@ const MAP: Record<string, Record<string, string>> = {
 
 const key = (entityKey: string, field: string) => `${entityKey}.${field}`;
 
-export function mappedFields(): string[] { return Object.keys(MAP); }
-
 export function toScreenEnum(entityKey: string, field: string, value: unknown): unknown {
   const map = MAP[key(entityKey, field)];
   if (!map || typeof value !== "string") return value;

@@ -1,4 +1,4 @@
-// ISO-2 regions and calling codes from EspoCRM 9.1.7's bundled intl-tel-input catalog.
+// ISO-2 regions and calling codes from ViaCRM 9.1.7's bundled intl-tel-input catalog.
 const phoneCountryData = [
   ["af", "93"],
   ["al", "355"],

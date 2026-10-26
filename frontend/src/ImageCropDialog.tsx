@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Minus, Plus, X } from "./Icons";
 
-/** Square, movable crop editor for EspoCRM image fields. */
+/** Square, movable crop editor for ViaCRM image fields. */
 export default function ImageCropDialog({ file, onCancel, onCrop }: { file: File; onCancel: () => void; onCrop: (cropped: File) => void }) {
   const [url, setUrl] = useState("");
   const [size, setSize] = useState({ width: 0, height: 0 });

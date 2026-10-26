@@ -30,7 +30,7 @@ Větev `dot-net`. Navazuje na `docs/BACKEND-MIGRATION-ANALYSIS.md` (co se mění
 | S7 | hotovo (převod leadu přes `/convert`, kanban podle fáze/stavu, součty nabídek živě, úkoly a stavy, kalendář z `/v1/calendar`) |
 | S8 | hotovo (uživatelé, týmy, role, entity a pole, layouty, automatizace, import CSV; ostatní dlaždice hlásí „není k dispozici“) |
 | S9 | hotovo (login s brandingem, zapomenuté a nové heslo, veřejný lead formulář a potvrzení, zabezpečení účtu: heslo, zařízení, historie; admin brandingu a lead formulářů) |
-| S10 | čeká |
+| S10 | hotovo (nový dashboard s počty a posledními záznamy, globální hledání Ctrl/Cmd+K, nastavení a zabezpečení účtu, smazané Espo administrace, e-mail, portál a balíčky, rebrand bez názvu a loga EspoCRM, vlastní logo z brandingu) |
 
 ## Kroky
 

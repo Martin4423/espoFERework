@@ -10,7 +10,7 @@ function describe(value: unknown) {
   return String(value);
 }
 
-/** Field-level resolution for EspoCRM's optimistic-concurrency `modified` response. */
+/** Field-level resolution for the server's optimistic-concurrency `modified` response. */
 export default function SaveConflictDialog({ fields, onApply, onCancel }: { fields: ConflictField[]; onApply: (resolutions: Record<string, Choice>) => void; onCancel: () => void }) {
   const [resolutions, setResolutions] = useState<Record<string, Choice>>(() => Object.fromEntries(fields.map((field) => [field.name, "current"])));
   return <div className="modal-backdrop save-conflict-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onCancel()}><section className="record-modal save-conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="save-conflict-title"><div className="modal-heading"><div><span className="eyebrow">SOUČASNÁ ÚPRAVA</span><h2 id="save-conflict-title"><AlertTriangle size={18}/> Záznam mezitím změnil někdo jiný</h2><p>Vyberte pro každé pole hodnotu, kterou chcete po uložení zachovat.</p></div><button type="button" className="icon-button" onClick={onCancel} aria-label="Zavřít"><X size={16}/></button></div>

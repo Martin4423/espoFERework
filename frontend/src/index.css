@@ -2987,7 +2987,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .app-shell { --native-icon-font: 'Font Awesome 6 Free'; }
 .app-shell i.fa-solid, .app-shell i.fa-regular { display: inline-block; vertical-align: -0.05em; }
 .app-shell i.fa-spinner.spin { animation: spin 1s linear infinite; }
-.espo-native-icon { font-synthesis: none; -webkit-font-smoothing: antialiased; }
+.fa-native-icon { font-synthesis: none; -webkit-font-smoothing: antialiased; }
 .native-array-field { display: grid; gap: 9px; }
 .native-array-items { display: grid; gap: 6px; }
 .native-array-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; padding: 4px 7px 4px 12px; border: 1px solid var(--line, #e5e9f0); border-radius: 9px; background: var(--surface, #fff); }
@@ -3208,7 +3208,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .activity-panel-empty > div { display: flex; justify-content: center; gap: 7px; flex-wrap: wrap; }
 @media (max-width: 760px) { .activity-panel-head { align-items: flex-start; flex-direction: column; } .activity-panel-tools { justify-content: flex-start; } .activity-panel-row { grid-template-columns: 28px minmax(120px, 1fr) auto; } .activity-panel-date { grid-column: 2; grid-row: 2; } .activity-panel-owner { display: none; } .activity-panel-actions { grid-column: 3; grid-row: 1 / span 2; } }
 @media (max-width: 620px) { .relationship-panel-head { align-items: flex-start; flex-direction: column; } .relationship-panel-actions { width: 100%; flex-wrap: wrap; } .relationship-list-search { flex: 1 1 100%; } .relationship-panel-actions select { flex: 1; max-width: none; } .relationship-row { flex-wrap: wrap; } .relationship-position { width: calc(100% - 38px); margin-left: 40px; } .relationship-position select { flex: 1; max-width: none; } .relationship-unlink { margin-left: auto; } }
-.espo-native-icon.icon-rotate-90 { transform: rotate(90deg); }
+.fa-native-icon.icon-rotate-90 { transform: rotate(90deg); }
 .html-field { grid-column: 1 / -1; }
 .html-field-editor { display: grid; gap: 8px; min-width: 0; }
 .html-editor-toolbar { display: flex; align-items: center; gap: 4px; padding: 5px; border: 1px solid #e4e8ef; border-bottom: 0; border-radius: 7px 7px 0 0; background: #f8f9fb; }
@@ -3714,7 +3714,7 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .account-login-event-list code { color: #65738b; font-size: 10px; }
 @media (max-width: 560px) { .account-login-event-list article { grid-template-columns: 24px minmax(0,1fr); } .account-login-event-list code { grid-column: 2; } }
 
-/* Portal tenant branding and EspoCRM theme settings. */
+/* Portal tenant branding and ViaCRM theme settings. */
 .app-shell { background: var(--canvas); color: var(--ink); }
 .portal-brand-logo { display: block; width: auto; max-width: 150px; height: 32px; object-fit: contain; }
 .portal-theme-light .sidebar { color: #566176; border-bottom: 1px solid var(--line); box-shadow: 0 3px 14px rgba(25,36,60,.06); }

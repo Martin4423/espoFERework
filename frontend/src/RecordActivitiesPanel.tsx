@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Eye, Mail, Pencil, Plus, RefreshCw, Trash2, X } from "./Icons";
 import { canAccessEntity, canChangeEntity, canCreateEntity, entityLabel, fieldLabel, request, type Metadata } from "./api";
-import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
+import { formatServerDateTime, useServerTimeZone } from "./timeZone";
 import { useConfirmDialog } from "./ConfirmDialogProvider";
 
 type Row = Record<string, any>;
@@ -20,7 +20,7 @@ export default function RecordActivitiesPanel({ entity, record, panelName, metad
   renderEditor: RenderEditor;
 }) {
   const confirmDialog = useConfirmDialog();
-  const timeZone = useEspoTimeZone();
+  const timeZone = useServerTimeZone();
   const pageSize = Math.max(1, Number(metadata.appSettings?.recordsPerPageSmall) || 5);
   const configuredScopes = metadata.appSettings?.[`${panelName}EntityList`];
   const scopes = (Array.isArray(configuredScopes) ? configuredScopes : panelName === "activities" ? ["Meeting", "Call", "Task"] : ["Meeting", "Call", "Task", "Email"])
@@ -130,7 +130,7 @@ export default function RecordActivitiesPanel({ entity, record, panelName, metad
       return <article className="activity-panel-row" key={`${scope}-${row.id}`}>
         <span className="activity-panel-kind"><CalendarDays size={15}/></span>
         <button className={`activity-panel-title ${canceled ? "canceled" : ""}`} onClick={() => onOpenRecord(scope, row)}><strong>{title}</strong><small>{entityLabel(metadata, scope)}{row.status ? ` · ${fieldLabel("status", metadata.entityDefs?.[scope]?.fields?.status, scope, metadata)}: ${((metadata.labels as any)?.[scope]?.options?.status || {})[row.status] || row.status}` : ""}</small></button>
-        <span className="activity-panel-date"><Clock3 size={13}/>{formatEspoDateTime(row.dateStart || row.dateSent || row.createdAt, timeZone)}</span>
+        <span className="activity-panel-date"><Clock3 size={13}/>{formatServerDateTime(row.dateStart || row.dateSent || row.createdAt, timeZone)}</span>
         <span className="activity-panel-owner">{row.assignedUserName || row.createdByName || "—"}</span>
         <div className="activity-panel-actions"><button className="icon-button" title="Zobrazit" aria-label="Zobrazit" onClick={() => onOpenRecord(scope, row)}><Eye size={14}/></button>{canEdit && <button className="icon-button" title="Upravit" aria-label="Upravit" onClick={() => setEditor({ scope, initial: row })}><Pencil size={14}/></button>}{canEdit && ["Meeting", "Call"].includes(scope) && !["Held", "Not Held"].includes(row.status) && <><button className="icon-button" title="Označit jako proběhlé" aria-label="Označit jako proběhlé" disabled={Boolean(acting)} onClick={() => void updateStatus(row, "Held")}><Check size={14}/></button><button className="icon-button" title="Označit jako neproběhlé" aria-label="Označit jako neproběhlé" disabled={Boolean(acting)} onClick={() => void updateStatus(row, "Not Held")}><X size={14}/></button></>}{canEdit && scope === "Task" && !["Completed", "Canceled"].includes(row.status) && <button className="button subtle" disabled={Boolean(acting)} onClick={() => void updateStatus(row, "Completed")}>Dokončit</button>}{canDelete && <button className="icon-button danger-ghost" title="Odstranit" aria-label="Odstranit" disabled={Boolean(acting)} onClick={() => void removeRecord(row)}><Trash2 size={14}/></button>}</div>
       </article>;

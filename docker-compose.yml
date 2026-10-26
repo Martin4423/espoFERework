@@ -1,4 +1,4 @@
-# ViaCRM front end + backend + Postgres + Mailpit, all in Docker (no EspoCRM).
+# ViaCRM front end + backend + Postgres + Mailpit, all in Docker.
 #   docker compose up -d --build
 # Front end: http://localhost:5173   Mailpit (every e-mail the system sends): http://localhost:8025
 # Login: admin@example.com / admin-dev-password-1

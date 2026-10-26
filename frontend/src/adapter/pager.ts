@@ -2,7 +2,7 @@
 // offset it has passed and walks forward in chunks to reach one it has not seen, so jumping to a page works and moving
 // to the next page costs one request.
 export type Page = { items: any[]; nextCursor: string | null; total?: number };
-export type PageFetcher = (request: { limit: number; cursor: string | null; total: boolean }) => Promise<Page>;
+type PageFetcher = (request: { limit: number; cursor: string | null; total: boolean }) => Promise<Page>;
 
 const WALK_CHUNK = 200;
 

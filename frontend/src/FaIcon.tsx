@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
-/** Render the icon class stored by EspoCRM metadata with EspoCRM's bundled FA font. */
-export default function EspoIcon({ className, size = 16, title, style: extraStyle }: { className?: string; size?: number; title?: string; style?: CSSProperties }) {
+/** Render the icon class stored by ViaCRM metadata with the server's bundled FA font. */
+export default function FaIcon({ className, size = 16, title, style: extraStyle }: { className?: string; size?: number; title?: string; style?: CSSProperties }) {
   const classes = (className || "").trim().split(/\s+/).filter((part) => /^[a-zA-Z0-9_-]+$/.test(part));
   if (!classes.some((part) => part.startsWith("fa-"))) return null;
   const brand = classes.some((part) => part === "fab" || part === "fa-brands");
@@ -17,5 +17,5 @@ export default function EspoIcon({ className, size = 16, title, style: extraStyl
     flex: `0 0 ${size}px`,
     ...extraStyle,
   };
-  return <i className={`espo-native-icon ${classes.join(" ")}`} style={style} aria-hidden={title ? undefined : true} aria-label={title} title={title} />;
+  return <i className={`fa-native-icon ${classes.join(" ")}`} style={style} aria-hidden={title ? undefined : true} aria-label={title} title={title} />;
 }

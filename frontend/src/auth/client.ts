@@ -13,7 +13,7 @@ type TokenResponse = { accessToken: string; refreshToken: string; expiresIn: num
 export type StorageLike = { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void };
 export type LockManagerLike = { request<T>(name: string, callback: () => Promise<T>): Promise<T> };
 
-export type AuthDeps = {
+type AuthDeps = {
   fetch: typeof fetch;
   storage: StorageLike;
   now: () => number;

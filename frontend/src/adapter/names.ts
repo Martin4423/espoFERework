@@ -1,5 +1,5 @@
 // The screens were written for the previous backend and address an entity by a PascalCase scope ("Account") and a
-// record by Espo-style attribute names. These helpers translate between those and the ViaCRM keys ("account").
+// record by legacy-style attribute names. These helpers translate between those and the ViaCRM keys ("account").
 
 export function scopeOf(key: string): string {
   return key.charAt(0).toUpperCase() + key.slice(1);

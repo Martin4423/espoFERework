@@ -2,7 +2,7 @@ import { t } from "./i18n/index.ts";
 import type { MessageKey } from "./i18n/index.ts";
 
 // RFC 9457 problem+json as the ViaCRM backend sends it (docs/contract m0/m1: always `code`, optional `errors[]`).
-export type FieldProblem = { field: string; code: string; message?: string };
+type FieldProblem = { field: string; code: string; message?: string };
 
 export class ApiError extends Error {
   readonly status: number;
@@ -23,7 +23,7 @@ export class ApiError extends Error {
   }
 }
 
-// A feature the ViaCRM backend does not offer yet. Thrown by the legacy Espo call paths until each one is migrated.
+// A feature the ViaCRM backend does not offer yet. Thrown by the legacy call paths until each one is migrated.
 export class UnsupportedError extends ApiError {
   constructor(what = "") {
     super(t("unsupported.title"), 501, { unsupported: what }, undefined, { code: "UNSUPPORTED" });
@@ -41,7 +41,7 @@ const KNOWN: ReadonlySet<string> = new Set([
 ]);
 
 // The user-facing text of a failed response: the code decides, the server's English title is never shown.
-export function problemMessage(status: number, code: string | undefined, retryAfter?: number): string {
+function problemMessage(status: number, code: string | undefined, retryAfter?: number): string {
   if (code === "TOO_MANY_ATTEMPTS") {
     return retryAfter && retryAfter > 0
       ? t("error.TOO_MANY_ATTEMPTS", { minutes: Math.max(1, Math.ceil(retryAfter / 60)) })

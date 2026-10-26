@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Clock3, Search } from "./Icons";
 import { canAccessEntity, entityLabel, fetchLayout, fieldLabel, request } from "./api";
 import type { LayoutItem, Metadata } from "./api";
-import { formatEspoDateTime, useEspoTimeZone } from "./timeZone";
+import { formatServerDateTime, useServerTimeZone } from "./timeZone";
 
 type ViewedRecord = Record<string, any> & { id: string; targetType?: string; targetId?: string; targetName?: string; createdAt?: string };
 type ViewedColumn = Exclude<LayoutItem, false>;
 
 export default function LastViewedView({ metadata, onBack, onOpenRecord }: { metadata: Metadata; onBack: () => void; onOpenRecord: (entity: string, record: ViewedRecord) => void }) {
-  const timeZone = useEspoTimeZone();
+  const timeZone = useServerTimeZone();
   const [rows, setRows] = useState<ViewedRecord[]>([]);
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState("");
@@ -43,7 +43,7 @@ export default function LastViewedView({ metadata, onBack, onOpenRecord }: { met
   function valueFor(item: ViewedRecord, name: string) {
     if (name === "targetType") return entityLabel(metadata, item.targetType || "");
     if (name === "target") return item.targetName || item.target?.name || item.target?.subject || item.target?.emailAddress || "Záznam bez názvu";
-    if (name === "createdAt") return item.createdAt ? formatEspoDateTime(item.createdAt, timeZone) : "";
+    if (name === "createdAt") return item.createdAt ? formatServerDateTime(item.createdAt, timeZone) : "";
     const value = item[name] ?? item.target?.[name] ?? item[`${name}Name`] ?? item.target?.[`${name}Name`];
     if (Array.isArray(value)) return value.map((entry) => typeof entry === "object" ? entry.name || entry.value || "" : entry).filter(Boolean).join(", ");
     if (value && typeof value === "object") return value.name || value.value || "";

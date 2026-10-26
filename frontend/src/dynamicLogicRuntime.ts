@@ -1,8 +1,8 @@
 type Row = Record<string, any>;
 type UserContext = { id?: string; teamsIds?: string[] };
 
-/** Evaluate EspoCRM's stored logicDefs conditions against current editor values. */
-export function conditionMatches(condition: any, values: Row, user: UserContext = {}): boolean {
+/** Evaluate the server's stored logicDefs conditions against current editor values. */
+function conditionMatches(condition: any, values: Row, user: UserContext = {}): boolean {
   if (!condition || typeof condition !== "object") return false;
   const type = condition.type || "equals";
   if (["and", "or", "not"].includes(type)) {

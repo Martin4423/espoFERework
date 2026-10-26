@@ -7,7 +7,7 @@ import CategoryNavigation from "./CategoryNavigation";
 type Row = Record<string, any>;
 type Result = { list?: Row[]; total?: number };
 
-/** Server paged replacement for EspoCRM select-records modal. */
+/** Server paged replacement for ViaCRM select-records modal. */
 export default function SelectRecordsDialog({ entity, metadata, multiple, selectedIds, selectedRows, primaryFilter, boolFilterList = [], filterList = [], fixedWhere = [], mandatorySelectAttributeList = [], massRelateEnabled = false, onMassSelect, onCreate, onClose, onSelect, onSkip, skipLabel = "Pokračovat bez záznamu" }: { entity: string; metadata: Metadata; multiple: boolean; selectedIds: string[]; selectedRows: Row[]; primaryFilter?: string; boolFilterList?: string[]; filterList?: string[]; fixedWhere?: Row[]; mandatorySelectAttributeList?: string[]; massRelateEnabled?: boolean; onMassSelect?: (selection: { massRelate: true; where: Row[]; searchParams: Record<string, unknown> }) => void; onCreate?: () => void; onClose: () => void; onSelect: (rows: Row[]) => void; onSkip?: () => void; skipLabel?: string }) {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");

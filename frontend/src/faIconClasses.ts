@@ -1,5 +1,5 @@
-/** Font Awesome class names available in EspoCRM 9.1.7 entity manager. */
-export const espoIconClasses = [
+/** Font Awesome class names available in ViaCRM 9.1.7 entity manager. */
+export const faIconClasses = [
   'fas fa-0',
   'fas fa-1',
   'fas fa-2',
