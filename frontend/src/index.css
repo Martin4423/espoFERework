@@ -3939,3 +3939,24 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .admin-layout-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; }
 .admin-layout-list li { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line, #e3e7ee); border-radius: 8px; background: #fff; }
 .admin-layout-list li span { margin-right: auto; font-size: 13px; }
+
+/* Start page */
+.home-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin: 14px 0 20px; }
+.home-tile { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; }
+.home-tile-open { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.home-tile-open span { color: #5b6783; font-size: 13px; }
+.home-tile-open b { font: 800 26px Manrope, sans-serif; color: #24304a; }
+.home-recent { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.home-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.home-list .link-button { all: unset; cursor: pointer; color: #2f5be7; }
+.home-list .link-button:hover { text-decoration: underline; }
+
+/* Global search */
+.global-search-backdrop { align-items: flex-start; padding-top: 10vh; }
+.global-search { width: min(620px, calc(100vw - 32px)); max-height: 70vh; display: flex; flex-direction: column; padding: 0; }
+.global-search-input { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #e3e8f2; }
+.global-search-input input { all: unset; flex: 1; font-size: 16px; }
+.global-search-results { overflow: auto; padding: 8px 10px 12px; }
+.global-search-results h4 { margin: 10px 6px 4px; color: #5b6783; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.global-search-hit { all: unset; display: block; width: calc(100% - 16px); padding: 8px; border-radius: 8px; cursor: pointer; }
+.global-search-hit.active { background: #eaf0ff; }
