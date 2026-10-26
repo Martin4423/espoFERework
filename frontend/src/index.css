@@ -3924,3 +3924,18 @@ button.link-multiple-name:hover { color: #3932a7; text-decoration: underline; }
 .record-files-list li small { color: var(--muted, #667085); margin-right: auto; }
 .record-files .link-button { border: 0; background: none; padding: 0; color: var(--primary, #5b4bd6); cursor: pointer; font: inherit; text-align: left; }
 .record-files .link-button:hover { text-decoration: underline; }
+.inline-notice { padding: 9px 12px; border: 1px solid #cfe8d8; border-radius: 9px; background: #f1faf4; color: #26593a; font-size: 12px; margin: 8px 0; }
+.admin-actions { display: flex; gap: 8px; align-items: center; }
+.admin-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin: 18px 0 26px; }
+.admin-tile { display: grid; gap: 6px; text-align: left; padding: 16px 18px; border: 1px solid var(--line, #e3e7ee); border-radius: 12px; background: #fff; cursor: pointer; font: inherit; }
+.admin-tile:hover { border-color: #b9b3ee; box-shadow: 0 4px 14px rgba(70, 60, 150, .08); }
+.admin-tile b { font-size: 14px; } .admin-tile small { color: var(--muted, #667085); }
+.admin-tile.is-locked { opacity: .6; cursor: default; }
+.admin-section-title { margin: 22px 0 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8984d1; }
+.admin-dialog .field-hint { color: var(--muted, #667085); font-size: 11px; }
+.admin-row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.admin-check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; }
+.admin-check-grid label { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.admin-layout-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; }
+.admin-layout-list li { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line, #e3e7ee); border-radius: 8px; background: #fff; }
+.admin-layout-list li span { margin-right: auto; font-size: 13px; }

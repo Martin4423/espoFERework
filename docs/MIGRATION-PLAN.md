@@ -28,7 +28,8 @@ Větev `dot-net`. Navazuje na `docs/BACKEND-MIGRATION-ANALYSIS.md` (co se mění
 | S5 | hotovo (filtry vč. datumových předvoleb, uložené filtry v preferencích, hromadné mazání a úprava, související záznamy) |
 | S6 | hotovo (příspěvky se zmínkami, historie změn, sledování, notifikace, živý SSE stream, soubory záznamu) |
 | S7 | hotovo (převod leadu přes `/convert`, kanban podle fáze/stavu, součty nabídek živě, úkoly a stavy, kalendář z `/v1/calendar`) |
-| S8 a dál | čeká |
+| S8 | hotovo (uživatelé, týmy, role, entity a pole, layouty, automatizace, import CSV; ostatní dlaždice hlásí „není k dispozici“) |
+| S9, S10 | čeká |
 
 ## Kroky
 

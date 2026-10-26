@@ -36,6 +36,12 @@ export function t(key: MessageKey, params: Record<string, string | number> = {})
   return template.replace(/\{(\w+)\}/g, (match, name: string) => (name in params ? String(params[name]) : match));
 }
 
+// A text with both languages next to its use (the administration screens); `{name}` placeholders as in t().
+export function T(cs: string, en: string, params: Record<string, string | number> = {}): string {
+  const template = current === "en" ? en : cs;
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => (name in params ? String(params[name]) : match));
+}
+
 // Re-renders the component when the language changes.
 export function useLocale(): Locale {
   return useSyncExternalStore(
