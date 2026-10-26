@@ -68,3 +68,30 @@ Odhady jsou **uplynulý pracovní čas** (ne člověkohodiny) při práci s para
 1. Souhlas s pořadím a s **B0 + B1** jako BE kroky navíc.
 2. Jazyk UI: zůstane čeština a angličtina z Espo katalogu, nebo jen čeština? (Texty z Espo `I18n` backend nedodává, katalog se musí vzít z FE.)
 3. Veřejné lead formuláře a recovery mail: stačí Mailpit pro vývoj?
+
+## Skutečný průběh (z časů commitů, větev `dot-net`)
+Odhad v tabulce byl 70–95 h uplynulého času. Skutečnost byla řádově kratší, protože agenti a adaptér pracovaly souběžně; časy níže jsou rozdíly mezi commity, takže zahrnují i čekání na backend, noc a uspání stroje, ne čistou práci.
+
+| Krok | Commit | Čas commitu | Poznámka |
+|---|---|---|---|
+| plán | `ca7d9a1` | 25. 10. 15:00 | po odstranění bridge (13:03) |
+| S0 | `d5c9a98` | 25. 10. 15:14 | Docker stack, proxy, vitest + Playwright |
+| S1 | `e95ee03` | 25. 10. 22:18 | mezitím B0, B1, B2 a dokončení M10 v `viacrm-be` |
+| S2 | `eed2407` | 25. 10. 22:48 | 30 min po S1 |
+| S3, S4 | `690ea12`, `2a3a0d0` | 25. 10. 23:02, 23:14 | 14 a 12 min |
+| S5 + S6 | `35f6cd4` | 25. 10. 23:44 | spojeno do jednoho commitu |
+| S7 | `da597c7` | 25. 10. 23:53 | |
+| S8 | `cd7cfae` | 26. 10. 08:10 | rozpracováno předchozí večer; e2e pomalé kvůli zátěži stroje (load ~600) |
+| S9 | `27edc2b` | 26. 10. 08:25 | 15 min po S8 |
+| S10 | `8604772` | 26. 10. 08:47 | 22 min po S9 |
+
+Od S1 po S10 uplynulo asi 10,5 h hodinových hodin, z toho zhruba 8 h noc a čekání. Čistá práce na S1–S10 tedy vychází na zhruba 2,5–3 h aktivního času. Odhad byl tedy asi 25× pesimističtější. Proč: adaptér nechal obrazovky téměř beze změny (S3–S7 po 12–30 minutách místo 5–10 hodin) a rozhodnutí „co backend neumí, ukázat jako nedostupné“ ušetřilo práci na vedlejších funkcích.
+
+Člověk bez agentů by potřeboval podle původního odhadu stále 8–12 pracovních dní; tento údaj jsem neměřil.
+
+## Co zůstává
+- Tmavý motiv: nastavení se ukládá (`PUT /v1/settings/branding`), UI ho zatím nezobrazuje.
+- `App.tsx` (zhruba 4 600 řádků) obsahuje ještě vnitřní kód pro portál, e-maily a kampaně, který už není odsud dosažitelný; lze ho dál mazat.
+- Varování `react-hooks/exhaustive-deps` v lintu.
+- E2E sada je citlivá na zátěž stroje: při load ~600 spadnou testy s krátkým timeoutem, samostatně procházejí.
+- Před prvním pushem do GitHubu viz poznámky v `viacrm-be` (přepsat historii, licence, `docs/analysis/`).
